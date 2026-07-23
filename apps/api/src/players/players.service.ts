@@ -5,7 +5,7 @@ import {
   isMinorForSeason,
   MIN_PLAYER_AGE,
 } from '@footlink/shared';
-import { Prisma } from '@prisma/client';
+import { ClubStatus, Prisma } from '@prisma/client';
 import { GeoService } from '../geo/geo.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertPlayerProfileDto } from './dto/upsert-player-profile.dto';
@@ -20,7 +20,10 @@ export class PlayersService {
   getMyProfile(userId: string) {
     return this.prisma.playerProfile.findUnique({
       where: { userId },
-      include: { positions: true },
+      include: {
+        positions: true,
+        currentClub: { select: { id: true, name: true, logoUrl: true } },
+      },
     });
   }
 
@@ -41,6 +44,20 @@ export class PlayersService {
       throw new BadRequestException('Un même poste ne peut pas être répété.');
     }
 
+    // Club actuel : lien DÉCLARATIF vers un club validé. Ne crée AUCUN ClubMember
+    // et n'accorde aucun droit sur ce club.
+    let linkedClub: { id: string; name: string } | null = null;
+    if (dto.currentClubId) {
+      const club = await this.prisma.club.findFirst({
+        where: { id: dto.currentClubId, status: ClubStatus.APPROVED },
+        select: { id: true, name: true },
+      });
+      if (!club) {
+        throw new BadRequestException('Club introuvable ou non validé.');
+      }
+      linkedClub = club;
+    }
+
     const isMinor = isMinorForSeason(dto.birthYear, seasonStartYear);
     const rounded =
       dto.lat !== undefined && dto.lng !== undefined
@@ -57,7 +74,7 @@ export class PlayersService {
       strongFoot: dto.strongFoot ?? null,
       bio: dto.bio ?? null,
       currentCategory: dto.currentCategory ?? null,
-      currentClubName: dto.currentClubName ?? null,
+      currentClubName: linkedClub ? linkedClub.name : (dto.currentClubName ?? null),
       hideCurrentClub: dto.hideCurrentClub ?? false,
       isSeekingClub: dto.isSeekingClub ?? true,
       isVisible: dto.isVisible ?? true,
@@ -78,13 +95,18 @@ export class PlayersService {
         ...common,
         user: { connect: { id: userId } },
         positions: { create: positionsCreate },
+        ...(linkedClub ? { currentClub: { connect: { id: linkedClub.id } } } : {}),
       },
       update: {
         ...common,
         // On remplace intégralement les positions.
         positions: { deleteMany: {}, create: positionsCreate },
+        currentClub: linkedClub ? { connect: { id: linkedClub.id } } : { disconnect: true },
       },
-      include: { positions: true },
+      include: {
+        positions: true,
+        currentClub: { select: { id: true, name: true, logoUrl: true } },
+      },
     });
   }
 }

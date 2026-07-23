@@ -160,6 +160,15 @@ export class AuthService {
     await this.tokens.revokeAllForUser(userId);
   }
 
+  // Exposés pour les autres modules (ex. création de compte club en Phase 3).
+  async sendEmailVerification(user: User): Promise<void> {
+    await this.sendVerification(user);
+  }
+
+  issueTokensForUser(user: Pick<User, 'id' | 'role' | 'email'>): Promise<AuthTokens> {
+    return this.tokens.issueTokens(user);
+  }
+
   private async sendVerification(user: User): Promise<void> {
     const token = await this.createToken(TokenType.EMAIL_VERIFY, user.id, EMAIL_VERIFY_TTL_HOURS);
     await this.mail.sendVerificationEmail(user.email, token, user.locale);

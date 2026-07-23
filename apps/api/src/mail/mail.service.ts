@@ -57,6 +57,52 @@ export class MailService {
     await this.send(to, subject, intro, link, token, isDe);
   }
 
+  // Décision du SUPER_ADMIN sur une demande de club (Phase 3).
+  async sendClubDecisionEmail(
+    to: string,
+    clubName: string,
+    approved: boolean,
+    locale: Locale,
+  ): Promise<void> {
+    const isDe = locale === Locale.DE;
+    const subject = approved
+      ? isDe
+        ? `Verein ${clubName} freigegeben`
+        : `Club ${clubName} validé`
+      : isDe
+        ? `Antrag für ${clubName} abgelehnt`
+        : `Demande pour ${clubName} refusée`;
+    const intro = approved
+      ? isDe
+        ? 'Dein Verein wurde freigegeben. Du kannst jetzt Teams und Trainerkonten anlegen.'
+        : 'Ton club a été validé. Tu peux maintenant créer tes équipes et les comptes entraîneurs.'
+      : isDe
+        ? 'Dein Antrag für ein Vereinskonto wurde abgelehnt.'
+        : 'Ta demande de compte club a été refusée.';
+    const html = `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto">
+        <h2>FootLink</h2>
+        <p><b>${clubName}</b></p>
+        <p>${intro}</p>
+      </div>`;
+    await this.deliver(to, subject, html);
+  }
+
+  private async deliver(to: string, subject: string, html: string): Promise<void> {
+    try {
+      await this.transporter.sendMail({ from: this.from, to, subject, html });
+      if (!this.enabled) {
+        this.logger.debug(`[email simulé] ${subject} -> ${to}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Échec envoi email à ${to}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
+  }
+
   private async send(
     to: string,
     subject: string,

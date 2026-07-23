@@ -240,7 +240,12 @@ model PlayerProfile {
   avatarUrl  String?
 
   currentCategory CategoryCode?
-  currentClubName String? // saisie libre, masquable
+  // Club actuel — lien DÉCLARATIF et NON vérifié : il ne crée AUCUN droit sur le
+  // club (jamais de ClubMember). currentClubId si le club existe sur FootLink,
+  // sinon currentClubName en saisie libre (club pas encore inscrit).
+  currentClubId   String?
+  currentClub     Club?         @relation("PlayerCurrentClub", fields: [currentClubId], references: [id], onDelete: SetNull)
+  currentClubName String? // libellé d'affichage / saisie libre, masquable
   hideCurrentClub Boolean       @default(false) // discrétion vis-à-vis du club actuel
 
   // Localisation approximative (centroïde commune — jamais la position brute)
@@ -262,6 +267,7 @@ model PlayerProfile {
 
   @@index([currentCategory])
   @@index([canton])
+  @@index([currentClubId])
   @@index([isSeekingClub, isVisible])
 }
 
@@ -314,6 +320,8 @@ model Club {
   region  Region?      @relation(fields: [regionCode], references: [code])
   members ClubMember[]
   teams   Team[]
+  // Joueurs ayant déclaré ce club comme club actuel (déclaratif, aucun droit).
+  currentPlayers PlayerProfile[] @relation("PlayerCurrentClub")
 
   @@index([canton])
   @@index([regionCode])

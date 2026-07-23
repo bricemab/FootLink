@@ -61,6 +61,13 @@ export class UpsertPlayerProfileDto {
   @IsEnum(CategoryCode)
   currentCategory?: CategoryCode;
 
+  // Club actuel choisi dans la liste de l'app (déclaratif, aucun droit accordé).
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  currentClubId?: string;
+
+  // Repli si le club n'est pas (encore) sur FootLink.
   @IsOptional()
   @IsString()
   @MaxLength(120)

@@ -2,8 +2,9 @@ import { Locale } from '@prisma/client';
 import { IsEmail, IsEnum, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 // Au moins une lettre et un chiffre.
-const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).+$/;
-const PASSWORD_MESSAGE = 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
+export const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).+$/;
+export const PASSWORD_MESSAGE =
+  'Le mot de passe doit contenir au moins une lettre et un chiffre.';
 
 export class RegisterDto {
   @IsEmail()

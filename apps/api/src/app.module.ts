@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
+import { ClubsModule } from './clubs/clubs.module';
 import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { MailModule } from './mail/mail.module';
@@ -28,6 +29,7 @@ import { UsersModule } from './users/users.module';
     MailModule,
     AuthModule,
     PlayersModule,
+    ClubsModule,
     AppConfigModule,
   ],
   providers: [
