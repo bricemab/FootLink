@@ -5,7 +5,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Locale, TokenType, User, UserStatus } from '@prisma/client';
+import { Locale, TokenType, User, UserRole, UserStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { randomBytes } from 'node:crypto';
 import { splitToken } from '../common/utils/token.util';
@@ -21,6 +21,19 @@ import {
 } from './dto/auth.dto';
 import { GoogleService } from './google.service';
 import { AuthTokens, TokenService } from './token.service';
+
+// Vue "qui suis-je" : lue depuis la DB (fraîche), jamais depuis le token.
+export interface MeResponse {
+  id: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  locale: Locale;
+  emailVerified: boolean;
+  hasPassword: boolean;
+  hasGoogle: boolean;
+  createdAt: string;
+}
 
 const EMAIL_VERIFY_TTL_HOURS = 24;
 const PASSWORD_RESET_TTL_HOURS = 1;
@@ -74,6 +87,25 @@ export class AuthService {
 
   async logout(refreshToken: string): Promise<void> {
     await this.tokens.revoke(refreshToken);
+  }
+
+  // Statut de vérification lu en DB (le token ne le porte pas : il serait périmé).
+  async me(userId: string): Promise<MeResponse> {
+    const user = await this.users.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('Utilisateur introuvable.');
+    }
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      locale: user.locale,
+      emailVerified: user.emailVerifiedAt !== null,
+      hasPassword: user.passwordHash !== null,
+      hasGoogle: user.googleId !== null,
+      createdAt: user.createdAt.toISOString(),
+    };
   }
 
   async googleSignIn(dto: GoogleSignInDto): Promise<AuthTokens> {

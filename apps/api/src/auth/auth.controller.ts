@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/commo
 import { Throttle } from '@nestjs/throttler';
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
-import { AuthService } from './auth.service';
+import { AuthService, MeResponse } from './auth.service';
 import {
   ForgotPasswordDto,
   GoogleSignInDto,
@@ -85,7 +85,7 @@ export class AuthController {
   }
 
   @Get('me')
-  me(@CurrentUser() user: AuthUser): AuthUser {
-    return user;
+  me(@CurrentUser('userId') userId: string): Promise<MeResponse> {
+    return this.auth.me(userId);
   }
 }

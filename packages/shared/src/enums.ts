@@ -48,3 +48,9 @@ export type StrongFoot = (typeof STRONG_FEET)[number];
 
 export const GENDERS = ['MALE', 'FEMALE'] as const;
 export type Gender = (typeof GENDERS)[number];
+
+export const USER_ROLES = ['PLAYER', 'CLUB_ADMIN', 'COACH', 'SUPER_ADMIN'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
+export const USER_STATUSES = ['ACTIVE', 'SUSPENDED', 'DELETED'] as const;
+export type UserStatus = (typeof USER_STATUSES)[number];

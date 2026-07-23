@@ -9,6 +9,7 @@ import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { MailModule } from './mail/mail.module';
 import { AppConfigModule } from './modules/app-config/app-config.module';
+import { PlayersModule } from './players/players.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
 
@@ -26,6 +27,7 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     MailModule,
     AuthModule,
+    PlayersModule,
     AppConfigModule,
   ],
   providers: [
