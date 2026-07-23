@@ -1,7 +1,12 @@
 # CLAUDE.md — FootLink (mémoire opérationnelle)
 
+> ## 👉 NOUVELLE SESSION / NOUVELLE MACHINE : lis **`HANDOFF.md`** EN PREMIER
+> Il contient l'**état d'avancement** (phases faites/restantes), les **décisions prises**,
+> le **setup machine** (le `.env` n'est pas commité), les **TODO** et les **questions en attente**.
+> Sans lui, tu n'as aucun contexte sur ce qui a déjà été construit.
+
 > Lu à chaque session. Règles **ultra-importantes** à ne JAMAIS oublier.
-> Spec complète = **`AGENTS.md`** · Modèle de données = **`schema.prisma`** · Données de réf = **`nomenclature_football_suisse.json`**.
+> Spec complète = **`AGENTS.md`** · Modèle de données = **`apps/api/prisma/schema.prisma`** · Données de réf = **`nomenclature_football_suisse.json`** · État = **`HANDOFF.md`**.
 > **Décisions arrêtées : ne jamais dévier sans l'accord explicite de Brice.** Incohérence/manque repéré → **le signaler**, ne pas trancher seul.
 
 ## Identité

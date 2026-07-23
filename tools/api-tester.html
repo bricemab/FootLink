@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FootLink — Testeur API</title>
+<style>
+  :root{
+    --bg:#0b0f17; --card:rgba(255,255,255,.05); --stroke:rgba(255,255,255,.10);
+    --txt:#e8ecf3; --muted:#8b93a7; --accent:#5b8cff; --accent2:#22d3a7;
+    --ok:#22c55e; --err:#f43f5e; --radius:16px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    color:var(--txt); min-height:100vh;
+    background:radial-gradient(1200px 600px at 10% -10%,#1b2540 0,transparent 55%),
+               radial-gradient(900px 500px at 110% 10%,#132a26 0,transparent 50%),var(--bg);
+  }
+  .wrap{max-width:860px;margin:0 auto;padding:32px 20px 80px}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .logo{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));font-size:22px}
+  h1{font-size:22px;margin:0;letter-spacing:-.3px}
+  .sub{color:var(--muted);font-size:13px;margin:2px 0 22px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:680px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--stroke);border-radius:var(--radius);
+    padding:16px;backdrop-filter:blur(8px)}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px}
+  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px}
+  input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);
+    background:rgba(0,0,0,.25);color:var(--txt);font-size:14px;outline:none;transition:border .15s}
+  input:focus{border-color:var(--accent)}
+  button{margin-top:12px;width:100%;padding:11px 14px;border:0;border-radius:11px;cursor:pointer;
+    font-weight:600;font-size:14px;color:#fff;background:linear-gradient(135deg,var(--accent),#3f6fe0);
+    transition:transform .08s ease,filter .15s}
+  button:hover{filter:brightness(1.08)} button:active{transform:translateY(1px)}
+  button.ghost{background:transparent;border:1px solid var(--stroke);color:var(--txt)}
+  .row{display:flex;gap:8px} .row button{margin-top:0}
+  .bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 18px;
+    background:var(--card);border:1px solid var(--stroke);border-radius:12px;padding:10px 12px}
+  .pill{font-size:11px;padding:4px 9px;border-radius:999px;border:1px solid var(--stroke);color:var(--muted)}
+  .pill.on{color:#052; background:var(--accent2);border-color:transparent;font-weight:600}
+  .out{margin-top:18px;background:#05070c;border:1px solid var(--stroke);border-radius:12px;
+    padding:14px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;
+    white-space:pre-wrap;word-break:break-word;max-height:340px;overflow:auto}
+  .tag{display:inline-block;font-weight:700;margin-right:8px}
+  .t-ok{color:var(--ok)} .t-err{color:var(--err)}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><div class="logo">⚽</div><div><h1>FootLink — Testeur API</h1></div></header>
+  <div class="sub">Backend local · aucune app requise. Les jetons sont gardés dans ce navigateur.</div>
+
+  <div class="bar">
+    <label style="margin:0">API</label>
+    <input id="base" value="http://localhost:3000/api/v1" style="flex:1;min-width:220px" />
+    <span class="pill" id="authPill">non connecté</span>
+    <button class="ghost" style="width:auto;margin:0" onclick="ping()">Health</button>
+    <button class="ghost" style="width:auto;margin:0" onclick="cfg()">Config</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>① Inscription</h2>
+      <label>Email (mets le tien pour recevoir l'email)</label>
+      <input id="rEmail" placeholder="toi@gmail.com" />
+      <label>Mot de passe (≥8, 1 lettre + 1 chiffre)</label>
+      <input id="rPass" value="Test1234" />
+      <button onclick="register()">Créer le compte</button>
+    </div>
+
+    <div class="card">
+      <h2>② Connexion</h2>
+      <label>Email</label><input id="lEmail" placeholder="toi@gmail.com" />
+      <label>Mot de passe</label><input id="lPass" value="Test1234" />
+      <button onclick="login()">Se connecter</button>
+    </div>
+
+    <div class="card">
+      <h2>③ Session</h2>
+      <div class="row">
+        <button class="ghost" onclick="me()">GET /me</button>
+        <button class="ghost" onclick="refresh()">Refresh</button>
+      </div>
+      <button class="ghost" onclick="logout()" style="margin-top:8px">Logout</button>
+    </div>
+
+    <div class="card">
+      <h2>④ Vérifier l'email</h2>
+      <label>Colle le code reçu par email (ou le token)</label>
+      <input id="vTok" placeholder="cmr....xxx" />
+      <button onclick="verify()">Vérifier</button>
+      <button class="ghost" onclick="forgot()" style="margin-top:8px">Mot de passe oublié (envoie un email)</button>
+    </div>
+
+    <div class="card" style="grid-column:1/-1">
+      <h2>⑤ Profil joueur</h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+        <div><label>Prénom</label><input id="pFirst" value="Brice"/></div>
+        <div><label>Nom</label><input id="pLast" value="Mabillard"/></div>
+        <div><label>Année de naissance</label><input id="pYear" value="1995"/></div>
+        <div><label>Genre</label><input id="pGender" value="MALE"/></div>
+        <div><label>Poste principal</label><input id="pPoste" value="GARDIEN"/></div>
+        <div><label>Canton</label><input id="pCanton" value="Valais"/></div>
+        <div><label>Latitude</label><input id="pLat" value="46.123456"/></div>
+        <div><label>Longitude</label><input id="pLng" value="7.987654"/></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button onclick="putProfile()">Enregistrer le profil</button>
+        <button class="ghost" onclick="getProfile()">Lire mon profil</button>
+      </div>
+      <div style="color:var(--muted);font-size:12px;margin-top:10px;line-height:1.5">
+        Postes : GARDIEN · DEFENSEUR_CENTRAL · LATERAL_DROIT/GAUCHE · MILIEU_DEFENSIF/CENTRAL/OFFENSIF · AILIER_DROIT/GAUCHE · ATTAQUANT<br>
+        16 ans minimum · le GPS est <b>arrondi à ~1 km côté serveur</b> (regarde lat/lng dans la réponse)
+      </div>
+    </div>
+  </div>
+
+  <div class="out" id="out"><span class="tag">prêt.</span>Clique une action.</div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const base=()=>$('base').value.replace(/\/+$/,'');
+let access=localStorage.getItem('fl_access')||'', refresh_t=localStorage.getItem('fl_refresh')||'';
+function setTokens(a,r){access=a||'';refresh_t=r||'';localStorage.setItem('fl_access',access);localStorage.setItem('fl_refresh',refresh_t);paint()}
+function paint(){const p=$('authPill');if(access){p.textContent='connecté';p.classList.add('on')}else{p.textContent='non connecté';p.classList.remove('on')}}
+function show(title,ok,data){$('out').innerHTML=`<span class="tag ${ok?'t-ok':'t-err'}">${ok?'✓':'✗'} ${title}</span>\n`+
+  (typeof data==='string'?data:JSON.stringify(data,null,2))}
+async function call(method,path,body,auth){
+  try{
+    const h={'Content-Type':'application/json'};
+    if(auth&&access)h['Authorization']='Bearer '+access;
+    const res=await fetch(base()+path,{method,headers:h,body:body?JSON.stringify(body):undefined});
+    let data; const txt=await res.text(); try{data=txt?JSON.parse(txt):{}}catch{data=txt}
+    show(`${method} ${path} — HTTP ${res.status}`,res.ok,data);
+    return {res,data};
+  }catch(e){show(`${method} ${path} — réseau`,false,String(e)+'\n\n(le serveur tourne ? CORS ?)');return{}}
+}
+async function register(){const {res,data}=await call('POST','/auth/register',{email:$('rEmail').value.trim(),password:$('rPass').value});if(res&&res.ok){setTokens(data.accessToken,data.refreshToken)}}
+async function login(){const {res,data}=await call('POST','/auth/login',{email:$('lEmail').value.trim(),password:$('lPass').value});if(res&&res.ok){setTokens(data.accessToken,data.refreshToken)}}
+async function me(){await call('GET','/auth/me',null,true)}
+async function refresh(){const {res,data}=await call('POST','/auth/refresh',{refreshToken:refresh_t});if(res&&res.ok){setTokens(data.accessToken,data.refreshToken)}}
+async function logout(){await call('POST','/auth/logout',{refreshToken:refresh_t},true);setTokens('','')}
+async function verify(){await call('POST','/auth/verify-email',{token:$('vTok').value.trim()})}
+async function forgot(){await call('POST','/auth/password/forgot',{email:$('lEmail').value.trim()||$('rEmail').value.trim()})}
+async function getProfile(){await call('GET','/players/me',null,true)}
+async function putProfile(){
+  const body={firstName:$('pFirst').value,lastName:$('pLast').value,birthYear:Number($('pYear').value),
+    gender:$('pGender').value.trim().toUpperCase(),
+    positions:[{poste:$('pPoste').value.trim().toUpperCase(),isPrimary:true}]};
+  if($('pCanton').value)body.canton=$('pCanton').value;
+  if($('pLat').value)body.lat=Number($('pLat').value);
+  if($('pLng').value)body.lng=Number($('pLng').value);
+  await call('PUT','/players/me',body,true);
+}
+async function ping(){await call('GET','/health')}
+async function cfg(){await call('GET','/app/config')}
+paint();
+</script>
+</body>
+</html>
