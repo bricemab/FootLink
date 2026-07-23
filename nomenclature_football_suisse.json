@@ -1,0 +1,112 @@
+{
+  "meta": {
+    "nom": "Nomenclature football suisse — ligues, catégories juniors, postes",
+    "version": "1.0.0",
+    "date_generation": "2026-07-23",
+    "region_de_depart": "Valais (AVF / Association Valaisanne de Football — AVF-WFV)",
+    "portee_cible": "Suisse entière (13 associations régionales sous l'ASF/SFV)",
+    "sources": [
+      "https://matchcenter.avf-wfv.ch/default.aspx?lng=2",
+      "https://fr.wikipedia.org/wiki/Structure_pyramidale_des_ligues_de_football_en_Suisse",
+      "https://www.football.ch/fr/asf/juniorinnen-und-frauenfussball/football-de-base-juniores/",
+      "https://anf.football.ch/PortalData/14/Resources//ANF_Prescriptions_d_ex_cution_juiors.pdf"
+    ],
+    "notes_importantes": [
+      "Les catégories juniors sont définies par CLASSE D'ÂGE (U-XX), pas par année de naissance fixe : la correspondance année de naissance -> catégorie change à CHAQUE saison. Stocker en base la catégorie + l'année de naissance du joueur, et calculer la catégorie éligible dynamiquement par saison.",
+      "Toutes les régions n'ont pas forcément une 5e ligue active selon les saisons ; le Valais (AVF) l'utilise.",
+      "Le 'football des enfants' (juniors E, F, G) est SANS classement ni résultat officiel : implications produit fortes (voir champ 'football_des_enfants' et gestion des mineurs).",
+      "Les codes ('code') sont des identifiants stables destinés à la base de données (enum). Les labels sont destinés à l'affichage (i18n)."
+    ]
+  },
+
+  "ligues_actifs": {
+    "description": "Championnats masculins seniors/actifs, du plus haut au plus bas. Tiers 1-5 = nationaux ; tiers 6-9 = régionaux (gérés par les associations cantonales comme l'AVF).",
+    "items": [
+      { "code": "super_league",            "label_fr": "Super League",              "label_de": "Super League",              "tier": 1, "scope": "national",       "amateur": false },
+      { "code": "challenge_league",        "label_fr": "Challenge League",          "label_de": "Challenge League",          "tier": 2, "scope": "national",       "amateur": false },
+      { "code": "promotion_league",        "label_fr": "Promotion League (1re ligue)", "label_de": "Promotion League",       "tier": 3, "scope": "national",       "amateur": false },
+      { "code": "1re_ligue",               "label_fr": "1re ligue",                 "label_de": "1. Liga",                   "tier": 4, "scope": "national",       "amateur": true },
+      { "code": "2e_ligue_interregionale", "label_fr": "2e ligue interrégionale",   "label_de": "2. Liga interregional",     "tier": 5, "scope": "interregional",  "amateur": true },
+      { "code": "2e_ligue",                "label_fr": "2e ligue",                  "label_de": "2. Liga",                   "tier": 6, "scope": "regional",       "amateur": true },
+      { "code": "3e_ligue",                "label_fr": "3e ligue",                  "label_de": "3. Liga",                   "tier": 7, "scope": "regional",       "amateur": true },
+      { "code": "4e_ligue",                "label_fr": "4e ligue",                  "label_de": "4. Liga",                   "tier": 8, "scope": "regional",       "amateur": true },
+      { "code": "5e_ligue",                "label_fr": "5e ligue",                  "label_de": "5. Liga",                   "tier": 9, "scope": "regional",       "amateur": true }
+    ]
+  },
+
+  "ligues_feminines": {
+    "description": "Championnats féminins actives. Niveaux nationaux au-dessus, niveaux régionaux gérés par les associations cantonales.",
+    "items": [
+      { "code": "womens_super_league",  "label_fr": "Women's Super League",     "label_de": "Women's Super League",  "scope": "national", "amateur": false },
+      { "code": "1re_ligue_feminine",   "label_fr": "1re ligue féminine",       "label_de": "1. Liga Frauen",        "scope": "national", "amateur": true },
+      { "code": "2e_ligue_feminine",    "label_fr": "2e ligue féminine",        "label_de": "2. Liga Frauen",        "scope": "regional", "amateur": true },
+      { "code": "3e_ligue_feminine",    "label_fr": "3e ligue féminine",        "label_de": "3. Liga Frauen",        "scope": "regional", "amateur": true },
+      { "code": "4e_ligue_feminine",    "label_fr": "4e ligue féminine",        "label_de": "4. Liga Frauen",        "scope": "regional", "amateur": true }
+    ]
+  },
+
+  "categories_juniors": {
+    "description": "Catégories de la relève, du plus âgé au plus jeune. 'format' = nombre de joueurs par équipe sur le terrain. 'football_des_enfants' = true signifie sans classement officiel et public jeune (contraintes légales/mineurs renforcées).",
+    "items": [
+      { "code": "juniors_a", "label_fr": "Juniors A", "label_de": "Junioren A", "classe_age": "U18/U19", "format": "11v11", "football_des_enfants": false, "mineurs": true,  "note": "Certains joueurs peuvent être majeurs (19 ans)." },
+      { "code": "juniors_b", "label_fr": "Juniors B", "label_de": "Junioren B", "classe_age": "U16/U17", "format": "11v11", "football_des_enfants": false, "mineurs": true },
+      { "code": "juniors_c", "label_fr": "Juniors C", "label_de": "Junioren C", "classe_age": "U14/U15", "format": "11v11", "football_des_enfants": false, "mineurs": true },
+      { "code": "juniors_d", "label_fr": "Juniors D", "label_de": "Junioren D", "classe_age": "U12/U13", "format": "9v9",   "formats_possibles": ["9v9", "7v7"], "football_des_enfants": false, "mineurs": true, "note": "Transition football de base ; formats D/9 et D/7 selon les groupes." },
+      { "code": "juniors_e", "label_fr": "Juniors E", "label_de": "Junioren E", "classe_age": "U10/U11", "format": "7v7",   "football_des_enfants": true,  "mineurs": true },
+      { "code": "juniors_f", "label_fr": "Juniors F", "label_de": "Junioren F", "classe_age": "U8/U9",   "format": "5v5",   "football_des_enfants": true,  "mineurs": true },
+      { "code": "juniors_g", "label_fr": "Juniors G (Bambini)", "label_de": "Junioren G (Bambini)", "classe_age": "U6/U7", "format": "4v4", "football_des_enfants": true, "mineurs": true }
+    ]
+  },
+
+  "categories_seniors": {
+    "description": "Catégories vétérans/seniors (âge au-dessus des actifs). Variantes à 7 possibles selon les régions.",
+    "items": [
+      { "code": "seniors_30", "label_fr": "Seniors 30+", "label_de": "Senioren 30+", "age_min": 30 },
+      { "code": "seniors_40", "label_fr": "Seniors 40+", "label_de": "Senioren 40+", "age_min": 40 },
+      { "code": "seniors_50", "label_fr": "Seniors 50+", "label_de": "Senioren 50+", "age_min": 50 }
+    ]
+  },
+
+  "postes": {
+    "description": "Postes de jeu. 'code' pour la base, hiérarchie via 'ligne'. Un joueur a un poste principal + postes secondaires (voir modèle de données).",
+    "lignes": ["gardien", "defense", "milieu", "attaque"],
+    "items": [
+      { "code": "gardien",             "label_fr": "Gardien",              "label_de": "Torhüter",            "ligne": "gardien" },
+      { "code": "defenseur_central",   "label_fr": "Défenseur central",    "label_de": "Innenverteidiger",    "ligne": "defense" },
+      { "code": "lateral_droit",       "label_fr": "Latéral droit",        "label_de": "Rechtsverteidiger",   "ligne": "defense" },
+      { "code": "lateral_gauche",      "label_fr": "Latéral gauche",       "label_de": "Linksverteidiger",    "ligne": "defense" },
+      { "code": "milieu_defensif",     "label_fr": "Milieu défensif",      "label_de": "Defensives Mittelfeld","ligne": "milieu" },
+      { "code": "milieu_central",      "label_fr": "Milieu central",       "label_de": "Zentrales Mittelfeld","ligne": "milieu" },
+      { "code": "milieu_offensif",     "label_fr": "Milieu offensif",      "label_de": "Offensives Mittelfeld","ligne": "milieu" },
+      { "code": "ailier_droit",        "label_fr": "Ailier droit",         "label_de": "Rechtsaussen",        "ligne": "attaque" },
+      { "code": "ailier_gauche",       "label_fr": "Ailier gauche",        "label_de": "Linksaussen",         "ligne": "attaque" },
+      { "code": "attaquant",           "label_fr": "Attaquant / Avant-centre", "label_de": "Stürmer",         "ligne": "attaque" }
+    ]
+  },
+
+  "pied_fort": [
+    { "code": "droit",       "label_fr": "Droit",       "label_de": "Rechts" },
+    { "code": "gauche",      "label_fr": "Gauche",      "label_de": "Links" },
+    { "code": "ambidextre",  "label_fr": "Ambidextre",  "label_de": "Beidfüssig" }
+  ],
+
+  "regions_associations": {
+    "description": "Les 13 associations régionales de l'ASF (pour l'extension Suisse entière). Départ = AVF (Valais).",
+    "items": [
+      { "code": "avf",  "label_fr": "Association Valaisanne de Football (Valais)", "actif": true },
+      { "code": "acvf", "label_fr": "Association Cantonale Vaudoise de Football (Vaud)", "actif": false },
+      { "code": "acgf", "label_fr": "Association Cantonale Genevoise de Football (Genève)", "actif": false },
+      { "code": "anf",  "label_fr": "Association Neuchâteloise de Football (Neuchâtel)", "actif": false },
+      { "code": "aff",  "label_fr": "Association Fribourgeoise de Football (Fribourg)", "actif": false },
+      { "code": "ajf",  "label_fr": "Association Jurassienne de Football (Jura)", "actif": false },
+      { "code": "fvbj", "label_fr": "Football-Verband Bern/Jura (Berne/Jura)", "actif": false },
+      { "code": "fvnws","label_fr": "Fussballverband Nordwestschweiz", "actif": false },
+      { "code": "ofv",  "label_fr": "Ostschweizer Fussballverband", "actif": false },
+      { "code": "fvrz", "label_fr": "Fussballverband Region Zürich", "actif": false },
+      { "code": "ifv",  "label_fr": "Innerschweizer Fussballverband", "actif": false },
+      { "code": "aftg", "label_fr": "Association Fribourgeoise / Tessin (ACT/TESSIN)", "actif": false },
+      { "code": "sfvar","label_fr": "Solothurner / Aargauer Fussballverband", "actif": false }
+    ],
+    "note": "La liste précise des 13 associations doit être confirmée sur football.ch avant l'extension nationale ; codes indicatifs."
+  }
+}

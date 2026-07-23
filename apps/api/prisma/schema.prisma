@@ -1,0 +1,527 @@
+// ============================================================
+//  Prisma schema — App de mise en relation joueurs / clubs (foot suisse)
+//  Datasource : MySQL 8   |   ORM : Prisma   |   Backend : NestJS (TypeScript)
+//
+//  Géo : lat/lng stockés en Decimal (centroïde commune, pas la position brute).
+//        Les requêtes "rayon en km" se font en SQL raw (haversine) car Prisma
+//        ne gère pas nativement le type spatial POINT de MySQL. Ajouter un
+//        index spatial manuellement via migration si besoin de performance.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+//  ENUMS  (codes alignés sur nomenclature_football_suisse.json)
+// ============================================================
+
+enum UserRole {
+  PLAYER
+  CLUB_ADMIN // compte "club" : vision globale sur toutes les équipes
+  COACH      // entraîneur : limité aux équipes qui lui sont assignées
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+// Cycle de vie d'une demande de compte club (validée par un SUPER_ADMIN)
+enum ClubStatus {
+  PENDING   // demande soumise, en attente de validation
+  APPROVED  // validé -> le club peut opérer (créer entraîneurs, équipes, annonces)
+  REJECTED  // demande refusée
+  SUSPENDED // suspendu par l'admin
+}
+
+// Rôle d'un membre au sein d'un club
+enum ClubMemberRole {
+  CLUB_ADMIN // gère le club, crée les entraîneurs, vision globale
+  COACH      // entraîneur assigné à une ou plusieurs équipes
+}
+
+enum Locale {
+  FR
+  DE
+  IT // prévu mais non activé au lancement
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum StrongFoot {
+  DROIT
+  GAUCHE
+  AMBIDEXTRE
+}
+
+enum Poste {
+  GARDIEN
+  DEFENSEUR_CENTRAL
+  LATERAL_DROIT
+  LATERAL_GAUCHE
+  MILIEU_DEFENSIF
+  MILIEU_CENTRAL
+  MILIEU_OFFENSIF
+  AILIER_DROIT
+  AILIER_GAUCHE
+  ATTAQUANT
+}
+
+// Catégories de jeu (actifs + juniors + seniors + féminines)
+enum CategoryCode {
+  // --- Actifs masculins ---
+  PREMIERE_LIGUE          // 1re ligue (national amateur)
+  DEUXIEME_LIGUE_INTER    // 2e ligue interrégionale
+  DEUXIEME_LIGUE          // 2e ligue régionale
+  TROISIEME_LIGUE
+  QUATRIEME_LIGUE
+  CINQUIEME_LIGUE
+  // --- Juniors ---
+  JUNIORS_A               // U18/U19
+  JUNIORS_B               // U16/U17
+  JUNIORS_C               // U14/U15
+  JUNIORS_D               // U12/U13
+  JUNIORS_E               // U10/U11  (football des enfants)
+  JUNIORS_F               // U8/U9    (football des enfants)
+  JUNIORS_G               // U6/U7    (Bambini)
+  // --- Seniors / vétérans ---
+  SENIORS_30
+  SENIORS_40
+  SENIORS_50
+  // --- Féminines ---
+  PREMIERE_LIGUE_F
+  DEUXIEME_LIGUE_F
+  TROISIEME_LIGUE_F
+  QUATRIEME_LIGUE_F
+}
+
+enum ListingStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  CLOSED
+}
+
+// Action d'un joueur sur une annonce
+enum PlayerInterestKind {
+  APPLIED // candidature active -> le club est notifié
+  SAVED   // bookmark privé -> personne n'est notifié
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+// Motifs préremplis, partagés par le signalement ET le blocage
+enum ReportReason {
+  FAKE_PROFILE           // Faux profil / usurpation
+  HARASSMENT             // Harcèlement
+  INAPPROPRIATE_BEHAVIOR // Comportement inapproprié
+  OFFENSIVE_CONTENT      // Contenu offensant / injurieux
+  SPAM                   // Spam / publicité
+  SCAM                   // Arnaque / tentative de fraude
+  OTHER                  // Autre (préciser en commentaire)
+}
+
+// Jetons à usage unique (hashés en base, TTL court)
+enum TokenType {
+  EMAIL_VERIFY   // validation de l'adresse email à l'inscription
+  PASSWORD_RESET // réinitialisation du mot de passe
+  COACH_INVITE   // le club crée le compte coach -> le coach définit son mot de passe
+}
+
+// Types de notification (in-app + push Expo)
+enum NotificationType {
+  CLUB_INTEREST // un club s'intéresse au joueur
+  APPLICATION   // un joueur a postulé à une annonce (côté club)
+  MATCH         // nouveau match
+  MESSAGE       // nouveau message
+  CLUB_APPROVED // demande de club acceptée
+  CLUB_REJECTED // demande de club refusée
+}
+
+// ============================================================
+//  AUTH / CORE
+// ============================================================
+
+model User {
+  id              String     @id @default(cuid())
+  email           String     @unique
+  passwordHash    String? // null pour les comptes Google (auth via googleId)
+  googleId        String?    @unique // "sub" Google si connexion via Google Sign-In
+  role            UserRole   @default(PLAYER)
+  status          UserStatus @default(ACTIVE)
+  locale          Locale     @default(FR)
+  pushToken       String? // Expo push token (notifications)
+  emailVerifiedAt DateTime? // renseigné après validation email (immédiat pour Google)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  playerProfile     PlayerProfile?
+  clubMemberships   ClubMember[]
+  sentMessages      Message[]          @relation("MessageSender")
+  reportsMade       Report[]           @relation("Reporter")
+  reportsAgainst    Report[]           @relation("Reported")
+  blocksMade        Block[]            @relation("Blocker")
+  blocksAgainst     Block[]            @relation("Blocked")
+  refreshTokens     RefreshToken[]
+  tokens            Token[] // vérif email / reset mdp / invitation coach
+  notifications     Notification[]
+  conversationReads ConversationRead[]
+
+  @@index([status])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([userId])
+}
+
+// Jetons email : validation d'inscription, reset mot de passe, invitation coach.
+// Seul le HASH du jeton est stocké ; le jeton en clair n'existe que dans l'email.
+model Token {
+  id        String    @id @default(cuid())
+  type      TokenType
+  tokenHash String    @unique // hash du jeton envoyé par email
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime? // usage unique : renseigné à la consommation
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([type])
+}
+
+// ============================================================
+//  JOUEUR
+// ============================================================
+
+model PlayerProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  firstName String
+  lastName  String
+  birthYear Int // on stocke l'année, on calcule la catégorie éligible par saison
+  gender    Gender @default(MALE)
+
+  // Mineurs (MVP = 16+, sans tuteur ; guardian* inutilisés au MVP, modèle prêt
+  // pour l'ouverture ultérieure aux < 16 ans avec flux tuteur)
+  isMinor       Boolean @default(false) // true pour les 16-17 ans (règles LPD futures)
+  guardianName  String?
+  guardianEmail String?
+
+  heightCm   Int?
+  strongFoot StrongFoot?
+  bio        String?     @db.Text
+  avatarUrl  String?
+
+  currentCategory CategoryCode?
+  currentClubName String? // saisie libre, masquable
+  hideCurrentClub Boolean       @default(false) // discrétion vis-à-vis du club actuel
+
+  // Localisation approximative (centroïde commune — jamais la position brute)
+  canton   String?
+  locality String?
+  lat      Decimal? @db.Decimal(9, 6)
+  lng      Decimal? @db.Decimal(9, 6)
+
+  isSeekingClub Boolean @default(true) // "je cherche un club"
+  isVisible     Boolean @default(true) // interrupteur de discrétion globale
+
+  positions     PlayerPosition[]
+  interests     PlayerInterest[]
+  clubInterests ClubInterest[]
+  matches       Match[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([currentCategory])
+  @@index([canton])
+  @@index([isSeekingClub, isVisible])
+}
+
+model PlayerPosition {
+  id        String        @id @default(cuid())
+  playerId  String
+  player    PlayerProfile @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  poste     Poste
+  isPrimary Boolean       @default(false)
+
+  @@unique([playerId, poste])
+  @@index([poste])
+}
+
+// ============================================================
+//  CLUB / ÉQUIPE
+// ============================================================
+
+// Association régionale ASF (13 au total). Table de référence seedée depuis
+// nomenclature_football_suisse.json -> ajouter une association = INSÉRER une ligne
+// (aucune modif de code). Rattachée au CLUB uniquement : un joueur n'a PAS de
+// région (il reste trouvable au-delà de son canton via la recherche géo par rayon).
+model Region {
+  code    String  @id // "avf", "anf"... (identifiant stable)
+  labelFr String
+  labelDe String
+  active  Boolean @default(false) // AVF = true au départ
+
+  clubs Club[]
+}
+
+model Club {
+  id           String     @id @default(cuid())
+  name         String
+  status       ClubStatus @default(PENDING) // demande à valider par un SUPER_ADMIN
+  contactEmail String? // email du demandeur / référent du club
+  requestNote  String?    @db.Text // message de la demande (contexte pour la validation)
+  reviewedAt   DateTime? // date de validation/refus
+  regionCode   String? // association régionale (ex "avf") — CLUB uniquement ; cf. Region
+  canton       String?
+  locality     String?
+  lat          Decimal?   @db.Decimal(9, 6)
+  lng          Decimal?   @db.Decimal(9, 6)
+  logoUrl      String?
+  description  String?    @db.Text
+  verified     Boolean    @default(false) // validation d'identité approfondie (phase ultérieure, distincte du statut)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  region  Region?      @relation(fields: [regionCode], references: [code])
+  members ClubMember[]
+  teams   Team[]
+
+  @@index([canton])
+  @@index([regionCode])
+  @@index([status])
+}
+
+model ClubMember {
+  id      String         @id @default(cuid())
+  clubId  String
+  club    Club           @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role    ClubMemberRole @default(COACH)
+  isOwner Boolean        @default(false) // le demandeur initial du club (un CLUB_ADMIN)
+
+  teamAssignments CoachTeamAssignment[]
+
+  @@unique([clubId, userId])
+}
+
+model Team {
+  id        String       @id @default(cuid())
+  clubId    String
+  club      Club         @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  category  CategoryCode
+  gender    Gender       @default(MALE)
+  name      String? // ex: "Juniors B — 1", "3e ligue"
+  createdAt DateTime     @default(now())
+
+  listings Listing[]
+  coaches  CoachTeamAssignment[]
+
+  @@index([clubId])
+  @@index([category])
+}
+
+// Assignation d'un entraîneur (ClubMember COACH) à une équipe.
+// Un club (CLUB_ADMIN) crée le compte entraîneur et l'assigne à une/plusieurs équipes.
+model CoachTeamAssignment {
+  id           String     @id @default(cuid())
+  clubMemberId String
+  clubMember   ClubMember @relation(fields: [clubMemberId], references: [id], onDelete: Cascade)
+  teamId       String
+  team         Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([clubMemberId, teamId])
+  @@index([teamId])
+}
+
+// ============================================================
+//  ANNONCE (recherche de joueur, rattachée à une équipe)
+// ============================================================
+
+model Listing {
+  id              String        @id @default(cuid())
+  teamId          String
+  team            Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  posteRecherche  Poste
+  secondaryPostes Json? // liste optionnelle de Poste supplémentaires
+  description     String?       @db.Text
+  status          ListingStatus @default(ACTIVE)
+  season          String // ex: "2026/2027"
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  expiresAt       DateTime?
+
+  interests     PlayerInterest[]
+  clubInterests ClubInterest[]
+  matches       Match[]
+
+  @@index([status])
+  @@index([posteRecherche])
+}
+
+// ============================================================
+//  INTERACTIONS
+//  Modèle: intérêt VISIBLE sans réciprocité (façon jobup).
+//  Le like réciproque sur une (annonce, joueur) crée un Match -> conversation.
+// ============================================================
+
+// Joueur -> Annonce : postuler (notifie le club) ou enregistrer (privé)
+model PlayerInterest {
+  id        String             @id @default(cuid())
+  playerId  String
+  player    PlayerProfile      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  listingId String
+  listing   Listing            @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  kind      PlayerInterestKind
+  createdAt DateTime           @default(now())
+
+  @@unique([playerId, listingId])
+  @@index([listingId])
+}
+
+// Club -> Joueur : le club "like" un joueur pour une annonce (le joueur est notifié)
+model ClubInterest {
+  id        String        @id @default(cuid())
+  listingId String
+  listing   Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    PlayerProfile @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@unique([listingId, playerId])
+  @@index([playerId])
+}
+
+// Match : créé par la logique métier quand il y a intérêt DES DEUX côtés
+// sur la même (annonce, joueur). Ouvre une conversation.
+model Match {
+  id        String        @id @default(cuid())
+  listingId String
+  listing   Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    PlayerProfile @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  conversation Conversation?
+
+  @@unique([listingId, playerId])
+  @@index([playerId])
+}
+
+// ============================================================
+//  MESSAGERIE (temps réel via WebSocket gateway NestJS)
+// ============================================================
+
+model Conversation {
+  id        String             @id @default(cuid())
+  matchId   String             @unique
+  match     Match              @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  createdAt DateTime           @default(now())
+  messages  Message[]
+  reads     ConversationRead[]
+}
+
+// Suivi de lecture PAR utilisateur (multilecture) : une conversation d'équipe peut
+// avoir plusieurs entraîneurs assignés. lastReadAt par (conversation, user) permet
+// de calculer les non-lus de chacun. Remplace un unique Message.readAt.
+model ConversationRead {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt     DateTime     @default(now())
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderUserId   String
+  sender         User         @relation("MessageSender", fields: [senderUserId], references: [id])
+  body           String       @db.Text
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+}
+
+// ============================================================
+//  NOTIFICATIONS (in-app + push Expo)
+// ============================================================
+
+// Historique in-app + badge non-lus, EN PLUS du push Expo (User.pushToken).
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  data      Json? // payload deep-link (listingId / matchId / conversationId...)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+}
+
+// ============================================================
+//  MODÉRATION (gérée via le back-office admin web)
+// ============================================================
+
+model Report {
+  id             String       @id @default(cuid())
+  reporterUserId String
+  reporter       User         @relation("Reporter", fields: [reporterUserId], references: [id])
+  reportedUserId String
+  reported       User         @relation("Reported", fields: [reportedUserId], references: [id])
+  reason         ReportReason // motif prérempli (obligatoire)
+  comment        String?      @db.Text // commentaire libre optionnel de l'auteur
+  status         ReportStatus @default(OPEN) // traité en base au MVP (back-office = post-MVP)
+  createdAt      DateTime     @default(now())
+
+  @@index([status])
+}
+
+model Block {
+  id            String        @id @default(cuid())
+  blockerUserId String
+  blocker       User          @relation("Blocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
+  blockedUserId String
+  blocked       User          @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
+  reason        ReportReason? // motif prérempli optionnel
+  comment       String?       @db.Text // commentaire libre optionnel
+  createdAt     DateTime      @default(now())
+
+  @@unique([blockerUserId, blockedUserId])
+}
