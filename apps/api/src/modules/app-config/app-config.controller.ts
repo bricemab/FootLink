@@ -1,7 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Public } from '../../common/decorators/public.decorator';
 
 // Public : consulté au lancement de l'app mobile (gate de version minimale).
+@Public()
 @Controller({ path: 'app/config', version: '1' })
 export class AppConfigController {
   constructor(private readonly config: ConfigService) {}
