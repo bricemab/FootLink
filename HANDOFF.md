@@ -2,7 +2,8 @@
 
 > **Fichier de passation.** À lire en premier par toute nouvelle instance de Claude Code
 > qui reprend le projet sans le contexte de la conversation précédente.
-> Dernière mise à jour : **24 juillet 2026** (Phase 4 + mobile M0 + parcours d'inscription).
+> Dernière mise à jour : **24 juillet 2026** (Phase 4 + mobile M0 + parcours d'inscription
+> + **terrain du club géolocalisé**).
 
 ## 0bis. Démarrage rapide (nouvelle machine ou nouvelle session)
 
@@ -29,6 +30,7 @@ pnpm mobile:reverse
 
 **Ce qu'il faut savoir avant de toucher au code :**
 - `apps/api/.env` n'est **pas** commité → le recréer (§4), sinon l'API refuse de démarrer.
+- Il contient désormais un **`MAPBOX_TOKEN`** (recherche du terrain d'un club). Sans lui, l'API répond 503 sur `/geo/places` et l'app bascule sur la saisie manuelle : l'inscription reste possible, mais aucun club n'aura de coordonnées.
 - L'app mobile tourne sur un **development build** (pas Expo Go), à cause de Google Sign-In. `expo run:android` uniquement si la liste des modules natifs change ; sinon `pnpm mobile:dev --clear` suffit.
 - Vérifier son travail avec `tools/e2e/phase4.ts` (§5), pas seulement en compilant.
 - Poser une question à Brice avant toute déviation d'`AGENTS.md`.
@@ -64,7 +66,8 @@ Backend d'abord (choix validé), mobile ensuite. Tout ce qui est fait est **comm
 | 10 | Modération (`Report`, `Block` + filtrage transverse) | ⬜ |
 | 11 | Durcissement (ESLint, tests e2e, Swagger, rate-limit) | ⬜ |
 | M0 | **Mobile Expo** : init SDK 57 + Tamagui + i18n + écrans auth animés | ✅ |
-| M1+ | Mobile : onboarding profil joueur, feed, swipe, messagerie | ⬜ |
+| M0b | **Terrain du club** : autocomplétion Mapbox, canton/commune/association déduits serveur, vue satellite, site web du club | ✅ |
+| M1+ | Mobile : écrans club, onboarding profil joueur, feed, swipe, messagerie | ⬜ |
 
 ### Décision tranchée par Brice (24 juillet 2026)
 Phase 4 backend **puis** mobile M0 dans la foulée, pour qu'il puisse tester
@@ -85,7 +88,9 @@ directement dans l'app plutôt que via l'API.
 | `GET /auth/me` | auth | **lu en DB** : `emailVerified`, `status`, `hasPassword`, `hasGoogle` |
 | `GET/PUT /players/me` | auth | profil + postes ; garde 16+ ; géo arrondie ~1 km |
 | `POST /auth/signup/request-code` · `verify-code` | public | inscription par email : **code à 6 chiffres**, puis mot de passe. L'email est validé du même geste (verrou 5 essais + rate-limit) |
-| `POST /clubs/requests` | **auth** | crée le `Club PENDING` **pour l'utilisateur du token**. Ni email ni mot de passe dans le corps : l'identité est prouvée en amont (code email ou Google) |
+| `GET /geo/places?q=&session=` | auth | autocomplétion du terrain (nom de stade **ou** adresse). Renvoie `{ id, label, context }` — **pas** de coordonnées : cf. décision 21 |
+| `GET /geo/places/:id?session=` | auth | résout la suggestion choisie → `lat/lng` + `canton`, `locality`, `regionCode` **déduits serveur** + `aerialUrl` (vue satellite prête à afficher) |
+| `POST /clubs/requests` | **auth** | crée le `Club PENDING` **pour l'utilisateur du token**. Ni email ni mot de passe dans le corps : l'identité est prouvée en amont (code email ou Google). Accepte `lat/lng/stadiumName/addressLine/websiteUrl` ; **`canton` est refusé** (400) car déduit du point |
 | `GET/PATCH /clubs/me` | auth | **clubId dérivé du token, jamais du client** |
 | `GET /clubs?search=` | auth | clubs sélectionnables (APPROVED) |
 | `GET /regions` | public | 13 associations (table seedée) |
@@ -124,6 +129,19 @@ directement dans l'app plutôt que via l'API.
 16. **Google court-circuite systématiquement le code.** Il prouve exactement la même chose — la maîtrise de la boîte mail — et `/auth/google` marque l'email validé. Ne pas rajouter d'étape de code derrière une connexion Google : cet état ne peut pas exister.
 17. **Aucun emoji dans le produit** (écrans, i18n, emails). Icônes SVG dans `apps/mobile/src/ui/icons.tsx`. Cf. `CLAUDE.md`.
 18. **Langue** : choisie sur l'écran d'accueil, conservée sur l'appareil **et** en base (`PATCH /users/me/locale`, accessible sans email validé). C'est `User.locale` qui décide de la langue des emails et notifications, envoyés app fermée.
+19. **Le club est localisé par son TERRAIN, pas par une localité saisie à la main** (24 juillet 2026, demandé par Brice). On demande l'adresse ou le nom du stade, et tout le reste en découle. Ça bouchait un vrai trou : `RequestClubDto` n'acceptait **aucune** coordonnée, donc un club naissait sans point — et la Phase 6 (feed par rayon km) aurait été infaisable. `locality` en saisie libre ne subsiste que comme **repli** quand la recherche est indisponible.
+20. **Canton, commune et association sont déduits CÔTÉ SERVEUR depuis le point.** Le client n'envoie que `lat/lng`. `canton` a été **retiré du DTO** : la validation stricte (`forbidNonWhitelisted`) le rejette en 400. Une `locality` envoyée avec des coordonnées est **écrasée** par la commune réelle. Sinon un club se déclarerait dans l'association de son choix.
+21. **Deux fournisseurs, chacun sur son terrain de jeu.**
+    - **Mapbox Search Box pour CHERCHER.** C'est le seul testé qui connaisse les terrains amateurs par leur nom : « Stade de Pranoé » sort en premier résultat. Le registre officiel swisstopo ne le contient **pas du tout** (il ne connaît que la *rue* de Pranoé) — rédhibitoire pour une app de foot de village.
+    - **swisstopo pour SITUER.** Canton et commune viennent de `ch.swisstopo.swissboundaries3d-gemeinde-flaeche.fill` : limites administratives officielles, gratuites, sans quota, et qui couvrent **tout** le territoire (y compris un terrain en plein champ, sans bâtiment). ⚠️ Le suffixe **`.fill`** est obligatoire : sans lui le calque ne renvoie rien.
+    - **Mapbox `satellite-v9` pour l'IMAGE** (choix de Brice), sans marqueur. swisstopo SWISSIMAGE est plus net sur la Suisse, mais l'arbitrage a été rendu en faveur de Mapbox.
+    - Google Maps a été écarté : clé + compte de facturation obligatoires, et ses conditions **interdisent la mise en cache** des photos, donc facturation à chaque affichage.
+    - L'app ne parle **jamais** à un fournisseur directement. Tout passe par `apps/api/src/geo/places.service.ts` : le jeton reste hors du binaire (donc remplaçable sans republier), et changer de fournisseur ne touche qu'un fichier.
+22. **Mapbox facture à la SESSION**, pas à l'appel : toutes les frappes d'une recherche + **un seul** `retrieve` comptent pour une session. D'où deux endpoints séparés — résoudre les coordonnées des 6 suggestions à chaque frappe multiplierait la facture par six, pour des lieux dont personne ne veut. Le `session` vient de l'app et doit être **le même** pour la recherche et le choix.
+23. **Le mot générique n'est pas le nom du lieu.** Mapbox est littéral : « stade de pranoé grimisuat » trouve le stade, « **terrain** de pranoé grimisuat » ne trouve que des rues. L'API rejoue donc la recherche sans les mots génériques (`stade`, `terrain`, `centre sportif`, `fc`…) **uniquement si la première passe n'a ramené aucun lieu** — quand elle en ramène (« terrain grimisuat » → « Terrain de football »), le mot générique *était* le bon nom. Le repli est gratuit : même session.
+24. **Coordonnées du club en PLEINE PRÉCISION — dérogation assumée à `CLAUDE.md`** (accordée explicitement par Brice). La règle « géoloc arrondie à ~1 km » est une règle **LPD** : elle protège le *joueur*. Un terrain de football est un équipement public, pas une donnée personnelle ; l'arrondir n'aurait protégé personne et aurait introduit jusqu'à un kilomètre d'erreur dans le matching par distance. `PlayerProfile` **reste arrondi** (`GeoService.roundToGrid`). Ne pas « harmoniser » les deux.
+25. **`CANTON_TO_REGION` est volontairement INCOMPLET** (`packages/shared/src/geo.ts`). Seules les cinq associations mono-cantonales romandes y figurent. Les autres sont ambiguës : le Jura est revendiqué par `ajf` **et** `fvbj` (« Bern/Jura »), `fvnws`/`sfvar`/`ifv`/`ofv`/`fvrz` couvrent plusieurs cantons, et `aftg` est libellé « Association Fribourgeoise / Tessin » — incohérent. `nomenclature_football_suisse.json` le dit lui-même : liste « indicative, à confirmer sur football.ch ». Un canton absent de la table laisse le choix à l'utilisateur plutôt que de lui imposer une association fausse. **Ne pas compléter cette table au jugé** : la vérifier d'abord.
+26. **Site internet du club** : facultatif, saisi à l'étape « contexte ». Normalisé en `https://` à l'écriture (personne ne tape le schéma, et sans lui la valeur est inutilisable par `Linking.openURL`).
 
 ---
 
@@ -148,6 +166,7 @@ Il faut le recréer : `apps/api/.env` (copier `apps/api/.env.example`), puis ren
 | `EMAIL_FROM_NAME` | `FootLink` |
 | `GOOGLE_CLIENT_IDS` | identifiants **publics**, liste séparée par des virgules : `988726398910-pu1ivi7aoamal3sstohtqr8qdnp8j38d.apps.googleusercontent.com` (iOS) et `988726398910-5g4vq425rtibek5jg3rjpuap6mquglo9.apps.googleusercontent.com` (Web) |
 | `GOOGLE_CLIENT_SECRET` | **non nécessaire** au flux natif ; dispo dans la Google Cloud Console (projet `footlink-503320`) |
+| `MAPBOX_TOKEN` | jeton **public** (`pk.…`) de https://account.mapbox.com — compte de Brice. Sert à la recherche du terrain **et** à l'URL de la vue satellite. Public par nature (conçu pour être embarqué côté client), mais gardé côté serveur pour pouvoir le remplacer sans republier l'app |
 
 Sans SMTP configuré, les emails ne sont **pas** envoyés : ils sont **logués** (transport JSON) — pratique pour tester.
 
@@ -191,6 +210,14 @@ Ouvre **`tools/api-tester.html`** dans un navigateur (double-clic) : page autono
 
 **Vérification automatisée** : `tools/e2e/phase4.ts` — **85 contrôles** contre une vraie instance et une vraie base (blocage email, langue, inscription club avec identité prouvée, garde club non approuvé, équipes, invitation entraîneur, verrou du code à 6 chiffres, isolation coach, cloisonnement inter-clubs, suppression en cascade, page de rebond, rate-limit). Il crée ses comptes sur `@e2e.footlink.test` et **nettoie derrière lui**. Mode d'emploi dans **`tools/e2e/README.md`**.
 
+**Terrain du club** : `tools/e2e/pitch.ts` — **35 contrôles** (autocomplétion par nom de stade et par adresse, repli sur le mot générique, unicité des identifiants, canton/commune/association déduits serveur, pleine précision, client menteur ignoré, terrain hors de Suisse ou hors territoire communal refusé, site normalisé, vue satellite qui se charge vraiment).
+
+```bash
+pnpm --filter @footlink/api exec tsx C:\projects-web\FootLink\tools\e2e\pitch.ts
+```
+
+Contrairement à `phase4.ts`, il n'exige **pas** une instance sans SMTP : il pose ses comptes en base avec `emailVerifiedAt` déjà rempli et signe lui-même ses jetons. Il exige en revanche un accès réseau à `api.mapbox.com` et `api3.geo.admin.ch`. Il attend seul la fenêtre de rate-limit quand elle est pleine (~1 min).
+
 ⚠️ Deux pièges :
 - Il faut une instance lancée **sans SMTP** (les jetons ne sont lisibles que dans les logs), et **depuis Git Bash** : sous PowerShell, `$env:SMTP_PASSWORD=''` *supprime* la variable au lieu de la vider — le SMTP réel reste actif et de vrais emails partent vers les adresses de test. Contrôler la présence de `SMTP non configuré` dans les logs avant de lancer.
 - Le script dure ~3 min : il **attend une fenêtre de rate-limit** d'une minute, sans quoi le verrou du code à 6 chiffres ne peut pas être testé. Deux exécutions rapprochées se marchent dessus (429) : laisser passer une minute entre deux.
@@ -223,6 +250,8 @@ puis **se reconnecter** (le rôle est gravé dans le token à l'émission).
 | `src/ui/stepper.tsx` · `use-stepper.ts` | progression des inscriptions en étapes |
 | `src/ui/region-picker.tsx` | sélecteur d'association : liste à la demande, recherche par nom **ou par code** (`avf`), présélection si une seule est ouverte |
 | `src/ui/locale-switch.tsx` | bascule FR/DE de l'écran d'accueil, pousse en base une fois connecté |
+| `src/ui/place-picker.tsx` | **terrain du club** : un seul champ pour le nom du stade *ou* l'adresse, débattu à 350 ms, requête précédente annulée à chaque frappe ; carte de confirmation avec vue satellite, commune et canton. Présélectionne l'association du canton |
+| `src/api/geo.ts` | recherche + résolution du lieu, et fabrication du jeton de session |
 
 **Choix assumés au M0, à revoir :**
 - **Thème sombre forcé** (`defaultTheme="dark"`) : l'identité est nocturne, le thème clair n'a pas encore été dessiné.
@@ -382,6 +411,10 @@ que le serveur accepte.
 - ~~Client OAuth Android non créé.~~ **Fait le 24 juillet 2026** pour le keystore de debug (cf. §5ter). Reste à refaire avec l'empreinte du keystore **EAS** avant distribution.
 - **Bandes juniors** (U18/U19 → Juniors A, etc.) dans `packages/shared/src/season.ts` : table **documentée mais à confirmer** avec les prescriptions AVF. Sans impact au MVP (16+).
 - **`Region.labelDe`** = copie du libellé FR (le JSON ne fournit pas de libellé allemand). À corriger.
+- **[Décision Brice] Quota Mapbox.** La recherche et la vue satellite sont facturées à l'usage, avec une franchise mensuelle. Personne n'a encore regardé le tableau de bord Mapbox pour savoir où se situe la franchise ni ce que coûterait un dépassement. À vérifier avant le lancement, pas après.
+- **`CANTON_TO_REGION` à compléter** (`packages/shared/src/geo.ts`) avant l'extension hors Valais — mais **seulement après avoir confirmé le découpage réel sur football.ch**, cf. décision 25. En l'état, un club hors des cinq cantons romands mono-associations devra choisir son association à la main.
+- **La vue satellite n'est renvoyée qu'à la sélection du terrain** (`GET /geo/places/:id`). Les futurs écrans club en auront besoin à partir du `Club` stocké : prévoir d'exposer `aerialUrl` sur `GET /clubs/me` (le service a déjà `PlacesService.aerialUrl(lat, lng)`).
+- **Mentions Mapbox** : les URL satellite sont générées avec `logo=false&attribution=false`. Mapbox ne l'autorise **qu'à condition** d'afficher l'attribution ailleurs dans l'interface — c'est le rôle de la ligne `© Mapbox © Maxar` sous l'image. Si un écran affiche une vue satellite sans cette mention, on sort des conditions d'utilisation.
 - **ESLint** volontairement reporté à la Phase 11 (pour ne pas livrer une config bancale).
 - **Prisma** : `package.json#prisma` est déprécié (Prisma 7) → migrer vers `prisma.config.ts` au durcissement.
 - **`GET /players/me`** renvoie `null` (HTTP 200) si aucun profil : c'est voulu (l'app sait qu'il faut onboarder).
@@ -399,6 +432,11 @@ que le serveur accepte.
 - **Processus fantômes** : tuer le port ne tue pas le parent `nest`/`expo`. Un `nest --watch` orphelin verrouille le moteur Prisma (`EPERM` sur `prisma generate`) et un vieux Metro sert un bundle périmé (erreurs `Unable to resolve` sur un paquet pourtant installé). Vérifier avec `Get-Process node` et la ligne de commande.
 - Arrêter le serveur : PowerShell `Get-NetTCPConnection -LocalPort 3000` puis `Stop-Process`. Un serveur lancé en tâche de fond se termine avec **exit 127 après un kill forcé** : c'est **normal**, pas une erreur.
 - `prisma migrate dev` **sans `--name`** ouvre un prompt interactif → toujours passer `--name`.
+- **`@prisma/client` se résout à DEUX endroits** depuis le passage en `nodeLinker: hoisted`. `prisma generate` écrit dans la copie visée par `apps/api/node_modules/@prisma/client` (une jonction vers le store `.pnpm`) ; la copie à la racine de `node_modules` reste un **stub non généré**. Conséquence : un script hors d'`apps/api` qui fait `import { PrismaClient } from '@prisma/client'` échoue avec « did not initialize yet » alors que l'API tourne parfaitement. D'où `tools/e2e/pitch.ts` qui passe par la **CLI** (`prisma db execute`) au lieu du client, comme `phase4.ts`.
+- **`Region.active` dérive.** Les 13 associations ont été trouvées `active: true` en base alors que le seed n'en active qu'une : quelqu'un les avait passées à `true` à la main. Symptôme côté app : le sélecteur d'association s'affiche en menu déroulant au lieu d'une ligne d'information, et rien n'est présélectionné. `pnpm db:seed` remet l'état du JSON (le seed fait un `upsert` qui réécrit `active`). Vérifier après coup : `GET /api/v1/regions` ne doit renvoyer **qu'`avf`** en `active`.
+- **Ne pas faire dépendre un champ de formulaire d'une animation d'entrée.** Une `MotiView` avec `from={{ opacity: 0 }}` a laissé la carte du terrain **invisible** en conditions réelles : l'espace était réservé, mais rien ne se dessinait — même pas la bordure — l'animation ne s'étant pas jouée. La condition exacte de déclenchement n'a pas été identifiée ; le bloc a simplement été rendu sans animation d'entrée.
+- **Modifier `packages/shared` désynchronise l'app le temps du rebuild.** Renommer un export (ici `aerialImageUrl` → `mapboxAerialUrl`) fait recharger Metro avec un `dist/` encore ancien d'un côté et du code neuf de l'autre : l'app lève un `TypeError: undefined is not a function` et l'écran concerné rend **du vide**, sans message à l'utilisateur. Attendre le `Found 0 errors` du watcher `tsc`, puis relancer l'app. Ce n'est jamais un bug du code applicatif.
+- **Le bundle Metro ne prouve rien sur le code des écrans.** `expo-router` découpe les routes en chunks chargés à la demande : chercher une chaîne dans `entry.bundle` ne trouve **ni** le nouveau code **ni** l'ancien. Pour vérifier, s'appuyer sur `typecheck` + l'e2e + l'app, pas sur le contenu du bundle.
 - Ne **jamais** commiter `apps/api/.env`. Vérifier avant chaque commit :
   `git diff --cached --name-only | grep -E '(^|/)\.env$'` doit être **vide**.
 
