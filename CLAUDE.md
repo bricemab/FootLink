@@ -19,6 +19,7 @@ FootLink — mise en relation **joueurs amateurs ⇄ clubs** (football suisse), 
 ## 🔐 SÉCURITÉ (hyper-important, non négociable)
 - **Isolation stricte des comptes** : impossible de se connecter au compte d'autrui / d'usurper une session.
 - **Aucune donnée sans authentification** : hors endpoints publics (auth, `GET /api/v1/app/config`), tout exige un **JWT valide**.
+- **Aucune action sans email validé** : tant que `emailVerifiedAt` est nul, **toutes** les routes authentifiées répondent **403 `EMAIL_NOT_VERIFIED`**. Seules exceptions : `GET /auth/me`, `POST /auth/resend-verification`, `POST /auth/logout` (décorateur `@AllowUnverified()`). L'état est **relu en DB à chaque requête** (jamais depuis le token, qui serait périmé) — même garde pour un compte non `ACTIVE` (403 `ACCOUNT_NOT_ACTIVE`).
 - **Autorisation sur CHAQUE ressource (anti-IDOR)** : ne jamais faire confiance à un ID client. Toujours vérifier propriété/rôle : joueur = **son** profil ; coach = **ses** équipes assignées ; club_admin = **son** club ; super_admin = global. Un user ne lit/modifie **jamais** les données d'un autre.
 - Mots de passe **argon2**. Refresh tokens + jetons email (vérif/reset/invite) **hashés**, **usage unique**, **TTL court**. Jamais en clair, jamais logués.
 - **Google Sign-In** : jeton Google vérifié **côté serveur** (signature + audience). Jamais confiance au client.

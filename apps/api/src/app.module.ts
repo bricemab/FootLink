@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
+import { EmailVerifiedGuard } from './auth/guards/email-verified.guard';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { ClubsModule } from './clubs/clubs.module';
@@ -12,6 +13,7 @@ import { MailModule } from './mail/mail.module';
 import { AppConfigModule } from './modules/app-config/app-config.module';
 import { PlayersModule } from './players/players.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { TeamsModule } from './teams/teams.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -30,12 +32,14 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     PlayersModule,
     ClubsModule,
+    TeamsModule,
     AppConfigModule,
   ],
   providers: [
-    // Ordre : rate-limit -> authentification -> autorisation par rôle.
+    // Ordre : rate-limit -> authentification -> email validé + compte actif -> rôle.
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: EmailVerifiedGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })

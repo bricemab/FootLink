@@ -13,6 +13,7 @@ import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import {
+  AcceptCoachInviteDto,
   ForgotPasswordDto,
   GoogleSignInDto,
   LoginDto,
@@ -37,6 +38,8 @@ export interface MeResponse {
 
 const EMAIL_VERIFY_TTL_HOURS = 24;
 const PASSWORD_RESET_TTL_HOURS = 1;
+// Plus long : l'entraîneur invité n'attend pas forcément cet email.
+const COACH_INVITE_TTL_HOURS = 24 * 7;
 
 @Injectable()
 export class AuthService {
@@ -160,9 +163,34 @@ export class AuthService {
     await this.tokens.revokeAllForUser(userId);
   }
 
+  // Le club crée le compte entraîneur sans mot de passe ; l'invité le définit ici.
+  async acceptCoachInvite(dto: AcceptCoachInviteDto): Promise<AuthTokens> {
+    const userId = await this.consumeToken(TokenType.COACH_INVITE, dto.token);
+    const user = await this.users.findById(userId);
+    if (!user) {
+      throw new BadRequestException('Invalid or expired token.');
+    }
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException('Account is not active.');
+    }
+    const updated = await this.users.update(userId, {
+      passwordHash: await argon2.hash(dto.password),
+      // Recevoir puis consommer l'invitation prouve l'accès à la boîte mail.
+      emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+    });
+    // Une invitation consommée invalide les sessions antérieures du compte.
+    await this.tokens.revokeAllForUser(userId);
+    return this.tokens.issueTokens(updated);
+  }
+
   // Exposés pour les autres modules (ex. création de compte club en Phase 3).
   async sendEmailVerification(user: User): Promise<void> {
     await this.sendVerification(user);
+  }
+
+  // Utilisé par le module clubs pour inviter un entraîneur (jeton hashé, usage unique).
+  createCoachInviteToken(userId: string): Promise<string> {
+    return this.createToken(TokenType.COACH_INVITE, userId, COACH_INVITE_TTL_HOURS);
   }
 
   issueTokensForUser(user: Pick<User, 'id' | 'role' | 'email'>): Promise<AuthTokens> {

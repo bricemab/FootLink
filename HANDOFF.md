@@ -26,7 +26,7 @@ Backend d'abord (choix validé), mobile ensuite. Tout ce qui est fait est **comm
 | 1 | Auth : email+mdp+validation email, Google Sign-In, JWT | ✅ `253f06e` |
 | 2 | Profil joueur + géo (arrondi ~1 km) + helpers saison | ✅ `a4b9c49` |
 | 3 | Demande & validation club + lien club actuel du joueur | ✅ `cfa2f68` |
-| 4 | Équipes & comptes entraîneurs (`CoachTeamAssignment`) | ⬜ à faire |
+| 4 | Équipes & comptes entraîneurs (`CoachTeamAssignment`) + blocage « email non validé » | ✅ |
 | 5 | Annonces (listings) + scheduler d'expiration | ⬜ |
 | 6 | Feed & matching (poste + catégorie + rayon km) | ⬜ |
 | 7 | Interactions & match (`PlayerInterest`/`ClubInterest` → `Match`) | ⬜ |
@@ -36,12 +36,9 @@ Backend d'abord (choix validé), mobile ensuite. Tout ce qui est fait est **comm
 | 11 | Durcissement (ESLint, tests e2e, Swagger, rate-limit) | ⬜ |
 | — | **Mobile Expo (UI/UX WOW)** | ⬜ |
 
-### ⚠️ Décision en attente de Brice
-Après la Phase 3, deux options ont été proposées, **il n'a pas encore tranché** :
-- **Option 1** : enchaîner la **Phase 4** (équipes + entraîneurs).
-- **Option 2** : bifurquer sur le **mobile M0** (Expo + Tamagui + design system + écrans auth/onboarding animés) pour voir enfin l'app, puis revenir au backend. *(L'UI/UX est la priorité n°1 du projet — Claude penchait pour cette option.)*
-
-**Demander à Brice avant de démarrer l'une ou l'autre.**
+### Décision tranchée par Brice (24 juillet 2026)
+Phase 4 backend **puis** mobile M0 dans la foulée, pour qu'il puisse tester
+directement dans l'app plutôt que via l'API.
 
 ---
 
@@ -62,6 +59,14 @@ Après la Phase 3, deux options ont été proposées, **il n'a pas encore tranch
 | `GET /clubs?search=` | auth | clubs sélectionnables (APPROVED) |
 | `GET /regions` | public | 13 associations (table seedée) |
 | `GET /admin/clubs` · `POST /admin/clubs/:id/approve\|reject` | **SUPER_ADMIN** | pas d'UI web (back-office = post-MVP) |
+| `POST /auth/coach-invite/accept` | public | l'entraîneur invité pose son mot de passe ; vaut validation d'email |
+| `GET/POST /teams` · `GET/PATCH/DELETE /teams/:id` | auth | CLUB_ADMIN = toutes les équipes du club · COACH = **ses équipes assignées** |
+| `GET/POST /clubs/me/coaches` | auth | **CLUB_ADMIN du club uniquement** (droit lu sur `ClubMember.role`, pas `User.role`) |
+| `POST /clubs/me/coaches/:id/invite` · `PUT .../teams` · `DELETE .../:id` | auth | renvoi d'invitation · réassignation · retrait (sessions révoquées) |
+
+> **Rappel transverse** : toute route authentifiée exige en plus un **email validé**
+> (403 `EMAIL_NOT_VERIFIED`), sauf `GET /auth/me`, `POST /auth/resend-verification`
+> et `POST /auth/logout`.
 
 ---
 
@@ -75,7 +80,7 @@ Après la Phase 3, deux options ont été proposées, **il n'a pas encore tranch
 6. **Mineurs** : 16+ au MVP, `isMinor` vrai pour les 16-17 ans, **aucun tuteur** (`guardian*` inutilisés).
 7. **Auth** : inscription/connexion par **email+mot de passe avec validation email** *ou* **Google Sign-In**.
 8. **`/auth/me` lit la DB**, le token ne porte **pas** `emailVerified` (il serait périmé jusqu'au refresh). Pour *bloquer* des actions plus tard → guard dédié `@Verified()`, pas le token.
-9. **La vérification email ne bloque pas le login** aujourd'hui (choix assumé, à revoir si Brice veut durcir).
+9. ~~La vérification email ne bloque pas le login.~~ **Révisé le 24 juillet 2026 sur demande de Brice : on ne peut RIEN faire dans l'app tant que l'email n'est pas validé.** Le login reste possible (il faut bien un token pour demander un renvoi), mais un `EmailVerifiedGuard` global renvoie **403 `EMAIL_NOT_VERIFIED`** sur toute route authentifiée, sauf les trois marquées `@AllowUnverified()`. Le guard **relit la DB à chaque requête** : le token ne porte pas l'info (cf. décision 8), donc la validation prend effet **immédiatement**, sans attendre le refresh. Il bloque aussi les comptes non `ACTIVE` (403 `ACCOUNT_NOT_ACTIVE`) — une suspension devient effective tout de suite au lieu d'attendre l'expiration de l'access token.
 10. **`PlayerProfile.currentClubId` → `Club`** (demandé par Brice) : lien **déclaratif et NON vérifié**. Il ne crée **aucun `ClubMember`** et **aucun droit** sur le club. `currentClubName` est conservé en **repli** quand le club n'est pas encore sur FootLink.
 11. **API d'administration** (SUPER_ADMIN) créée pour valider les clubs, mais **aucune UI web** (le back-office reste post-MVP conformément à `AGENTS.md`).
 12. Stack : **pnpm 10 + Turborepo**, **NestJS 11**, **Prisma 6.19** (Prisma 7 dispo, upgrade repoussé), base MySQL `footlink`.
@@ -122,6 +127,8 @@ pnpm api:dev      # http://localhost:3000/api/v1
 
 Ouvre **`tools/api-tester.html`** dans un navigateur (double-clic) : page autonome (inscription, login, `/me`, refresh, vérification email, profil joueur). Le CORS autorise le `file://` (origin `null`).
 
+**Vérification automatisée de la Phase 4** : `tools/e2e/phase4.ts` (39 contrôles — blocage email, garde club non approuvé, équipes, invitation entraîneur, isolation coach, cloisonnement inter-clubs). Mode d'emploi dans **`tools/e2e/README.md`**. ⚠️ Il faut une instance lancée **sans SMTP** (pour lire les jetons dans les logs), et **depuis Git Bash** : sous PowerShell, `$env:SMTP_PASSWORD=''` *supprime* la variable au lieu de la vider, le SMTP réel reste actif et de vrais emails partent vers les adresses de test.
+
 Pour devenir **SUPER_ADMIN** (valider les clubs) : s'inscrire, puis
 ```bash
 printf "UPDATE \`User\` SET role='SUPER_ADMIN' WHERE email='TON_EMAIL';" | pnpm --filter @footlink/api exec prisma db execute --stdin --schema prisma/schema.prisma
@@ -140,6 +147,9 @@ puis **se reconnecter** (le rôle est gravé dans le token à l'émission).
 - **ESLint** volontairement reporté à la Phase 11 (pour ne pas livrer une config bancale).
 - **Prisma** : `package.json#prisma` est déprécié (Prisma 7) → migrer vers `prisma.config.ts` au durcissement.
 - **`GET /players/me`** renvoie `null` (HTTP 200) si aucun profil : c'est voulu (l'app sait qu'il faut onboarder).
+- **[Décision Brice] Un entraîneur n'a pas de nom.** Ni `User` ni `ClubMember` ne portent de prénom/nom : la liste des entraîneurs d'un club n'affiche donc que des **adresses email**. Un club avec 8 coachs va mal le vivre. Il manque un champ (`ClubMember.displayName`, ou `firstName`/`lastName` sur `User`) — **changement de schéma, donc non tranché seul**. Codé aujourd'hui : email uniquement.
+- **[Décision Brice] Suppression d'équipe bloquée si elle porte des annonces** (400). Supprimer sans garde-fou détruirait en cascade annonces → candidatures → matchs → conversations. Choix défensif de ma part ; à confirmer ou assouplir (ex. archivage d'équipe plutôt que suppression).
+- **`GET /teams` renvoie `[]` pour un club encore `PENDING`** (pas de 403) : l'app peut afficher l'écran « club en attente de validation » sans traiter une erreur.
 
 ---
 

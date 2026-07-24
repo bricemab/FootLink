@@ -57,6 +57,39 @@ export class MailService {
     await this.send(to, subject, intro, link, token, isDe);
   }
 
+  // Invitation entraîneur (Phase 4) : le club a créé le compte, l'invité pose son
+  // mot de passe via ce lien. Le jeton en clair n'existe que dans cet email.
+  async sendCoachInviteEmail(
+    to: string,
+    clubName: string,
+    token: string,
+    locale: Locale,
+  ): Promise<void> {
+    const link = `${DEEP_LINK_SCHEME}auth/coach-invite?token=${encodeURIComponent(token)}`;
+    const isDe = locale === Locale.DE;
+    const subject = isDe ? `Trainerkonto bei ${clubName}` : `Compte entraîneur chez ${clubName}`;
+    const intro = isDe
+      ? `${clubName} hat dir ein Trainerkonto auf FootLink erstellt. Lege dein Passwort fest:`
+      : `${clubName} t'a créé un compte entraîneur sur FootLink. Définis ton mot de passe :`;
+    await this.send(to, subject, intro, link, token, isDe);
+  }
+
+  // L'invité avait déjà un compte FootLink : rien à définir, simple information.
+  async sendCoachAddedEmail(to: string, clubName: string, locale: Locale): Promise<void> {
+    const isDe = locale === Locale.DE;
+    const subject = isDe ? `Du bist jetzt Trainer bei ${clubName}` : `Tu es entraîneur chez ${clubName}`;
+    const intro = isDe
+      ? `${clubName} hat dich als Trainer hinzugefügt. Melde dich wie gewohnt in der App an.`
+      : `${clubName} t'a ajouté comme entraîneur. Connecte-toi normalement dans l'app.`;
+    const html = `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto">
+        <h2>FootLink</h2>
+        <p><b>${clubName}</b></p>
+        <p>${intro}</p>
+      </div>`;
+    await this.deliver(to, subject, html);
+  }
+
   // Décision du SUPER_ADMIN sur une demande de club (Phase 3).
   async sendClubDecisionEmail(
     to: string,

@@ -64,3 +64,15 @@ export class GoogleSignInDto {
   @IsString()
   idToken!: string;
 }
+
+// Invitation entraîneur : le club a créé le compte, l'invité pose son mot de passe.
+export class AcceptCoachInviteDto {
+  @IsString()
+  token!: string;
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  @Matches(PASSWORD_REGEX, { message: PASSWORD_MESSAGE })
+  password!: string;
+}
