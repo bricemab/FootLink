@@ -54,6 +54,18 @@ interface GoogleModule {
   };
 }
 
+/**
+ * Annulation : à partir de la v13, `signIn()` **ne lève plus** d'exception
+ * quand l'utilisateur ferme la fenêtre Google — il retourne un objet
+ * `{ type: 'cancelled' }`. Sans ce test, on lisait un `idToken` absent et on le
+ * signalait comme un ÉCHEC : l'utilisateur annulait volontairement et se
+ * retrouvait devant un message rouge. On traite les deux formes (l'ancienne
+ * levait une exception, gérée plus bas par le code `SIGN_IN_CANCELLED`).
+ */
+function isCancelledResult(result: unknown): boolean {
+  return (result as { type?: string } | null)?.type === 'cancelled';
+}
+
 // Chargement paresseux : un `import` statique ferait échouer le bundle au
 // démarrage dans Expo Go, avant même d'atteindre l'écran de connexion.
 function loadModule(): GoogleModule {
@@ -99,6 +111,11 @@ export async function getGoogleIdToken(): Promise<string> {
       throw new GoogleSignInError('NOT_CONFIGURED', error);
     }
     throw new GoogleSignInError('FAILED', error);
+  }
+
+  // Fermeture de la fenêtre Google (v13+) : une annulation, pas un échec.
+  if (isCancelledResult(result)) {
+    throw new GoogleSignInError('CANCELLED');
   }
 
   const idToken = readIdToken(result);
