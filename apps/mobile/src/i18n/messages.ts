@@ -122,6 +122,7 @@ export const fr = {
     locality: 'Localité',
     website: 'Site internet (facultatif)',
     websitePlaceholder: 'fcsion.ch',
+    goHome: 'Aller à l’accueil',
     note: 'Un mot pour la validation',
     notePlaceholder: 'Ton rôle dans le club, un contact…',
     submit: 'Envoyer la demande',
@@ -147,7 +148,12 @@ export const fr = {
   errors: {
     network: 'Serveur injoignable. Vérifie que l’API tourne et que tu es sur le même réseau.',
     invalidCredentials: 'Email ou mot de passe incorrect.',
-    emailTaken: 'Un compte existe déjà avec cet email.',
+    // Les variantes d’une même boîte Gmail (point, suffixe +…) mènent au même
+    // compte : le message doit l’expliquer, sinon l’utilisateur ne comprend
+    // pas pourquoi « son » adresse est refusée.
+    emailTaken:
+      'Un compte existe déjà avec cet email. Les variantes d’une même adresse (nom+club@…) comptent pour la même.',
+    clubAlreadyLinked: 'Ce compte est déjà rattaché à un club.',
     emailNotVerified: 'Confirme d’abord ton adresse email.',
     accountNotActive: 'Ce compte n’est pas actif.',
     invalidToken: 'Ce code est invalide ou expiré.',
@@ -281,6 +287,7 @@ export const de: typeof fr = {
     locality: 'Ort',
     website: 'Website (optional)',
     websitePlaceholder: 'fcsion.ch',
+    goHome: 'Zur Startseite',
     note: 'Ein Wort zur Prüfung',
     notePlaceholder: 'Deine Rolle im Verein, ein Kontakt…',
     submit: 'Antrag senden',
@@ -307,7 +314,9 @@ export const de: typeof fr = {
   errors: {
     network: 'Server nicht erreichbar. Läuft die API, und bist du im selben Netzwerk?',
     invalidCredentials: 'E-Mail oder Passwort ist falsch.',
-    emailTaken: 'Mit dieser E-Mail existiert bereits ein Konto.',
+    emailTaken:
+      'Mit dieser E-Mail existiert bereits ein Konto. Varianten derselben Adresse (name+verein@…) zählen als dieselbe.',
+    clubAlreadyLinked: 'Dieses Konto ist bereits einem Verein zugeordnet.',
     emailNotVerified: 'Bestätige zuerst deine E-Mail-Adresse.',
     accountNotActive: 'Dieses Konto ist nicht aktiv.',
     invalidToken: 'Dieser Code ist ungültig oder abgelaufen.',

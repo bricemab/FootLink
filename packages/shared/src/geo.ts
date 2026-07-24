@@ -1,4 +1,5 @@
 // Géographie suisse partagée entre l'API et le mobile.
+// (l'identité des adresses email vit dans `email.ts`)
 //
 // Deux choses vivent ici :
 //   1. la correspondance canton -> association régionale ;

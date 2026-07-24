@@ -50,6 +50,8 @@ export function resolveApiBaseUrl(): string {
 export type ApiErrorCode =
   | 'EMAIL_NOT_VERIFIED'
   | 'ACCOUNT_NOT_ACTIVE'
+  | 'EMAIL_ALREADY_USED'
+  | 'CLUB_ALREADY_LINKED'
   | 'COACH_INVITE_INVALID'
   | 'COACH_INVITE_LOCKED'
   | 'SIGNUP_CODE_INVALID'
@@ -61,6 +63,8 @@ export type ApiErrorCode =
 const KNOWN_CODES: readonly string[] = [
   'EMAIL_NOT_VERIFIED',
   'ACCOUNT_NOT_ACTIVE',
+  'EMAIL_ALREADY_USED',
+  'CLUB_ALREADY_LINKED',
   'COACH_INVITE_INVALID',
   'COACH_INVITE_LOCKED',
   'SIGNUP_CODE_INVALID',

@@ -14,6 +14,7 @@ import {
   User,
   UserRole,
 } from '@prisma/client';
+import { normalizeEmail } from '@footlink/shared';
 import { AuthService } from '../auth/auth.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -85,7 +86,11 @@ export class CoachesService {
 
   /** Valide l'entraîneur sans rien écrire. À appeler AVANT d'ouvrir la transaction. */
   async prepareCoach(clubId: string, identity: CoachIdentityDto): Promise<PreparedCoach> {
-    const email = identity.email.toLowerCase();
+    // Ce service écrit en base sans passer par UsersService (la création vit
+    // dans une transaction partagée avec l'équipe) : la normalisation doit
+    // donc être faite ici aussi, sinon un club pourrait créer un doublon de
+    // compte entraîneur avec `prenom+club@gmail.com`.
+    const email = normalizeEmail(identity.email);
     const existingUser = await this.prisma.user.findUnique({ where: { email } });
 
     if (existingUser) {

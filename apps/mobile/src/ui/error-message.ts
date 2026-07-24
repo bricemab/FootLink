@@ -19,9 +19,18 @@ export function toUserMessage(error: unknown, t: Messages): string {
   if (error.code === 'ACCOUNT_NOT_ACTIVE') {
     return t.errors.accountNotActive;
   }
+  if (error.code === 'EMAIL_ALREADY_USED') {
+    return t.errors.emailTaken;
+  }
+  if (error.code === 'CLUB_ALREADY_LINKED') {
+    return t.errors.clubAlreadyLinked;
+  }
   switch (error.status) {
     case 401:
       return t.errors.invalidCredentials;
+    // Repli : un 409 sans code métier vient forcément d'un conflit d'adresse,
+    // c'est le seul autre cas qui existe aujourd'hui. Les nouveaux conflits
+    // doivent porter un code, pas s'appuyer sur ce repli.
     case 409:
       return t.errors.emailTaken;
     case 429:

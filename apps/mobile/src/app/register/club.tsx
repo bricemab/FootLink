@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Text, YStack } from 'tamagui';
 import { requestSignupCode, verifySignupCode } from '@/api/auth';
-import { listRegions, requestClub, type Region } from '@/api/clubs';
+import { getMyClub, listRegions, requestClub, type Region } from '@/api/clubs';
 import type { ResolvedPlace } from '@/api/geo';
 import { ApiError } from '@/api/client';
 import { useAuth } from '@/auth/auth-context';
@@ -53,6 +53,7 @@ export default function RegisterClub(): ReactNode {
   const [locality, setLocality] = useState('');
   const [regionCode, setRegionCode] = useState<string>();
   const [accessToken, setAccessToken] = useState<string>();
+  const [alreadyHasClub, setAlreadyHasClub] = useState(false);
   const [website, setWebsite] = useState('');
   const [note, setNote] = useState('');
   const [fieldError, setFieldError] = useState<string>();
@@ -89,16 +90,29 @@ export default function RegisterClub(): ReactNode {
     };
   }, []);
 
-  // L'autocomplétion du terrain est authentifiée : on récupère le jeton dès que
-  // l'identité est établie, pas au moment du premier caractère tapé.
+  /**
+   * Une fois l'identité établie, deux choses avant d'afficher le formulaire.
+   *
+   * 1. Récupérer le jeton : l'autocomplétion du terrain est authentifiée, et
+   *    l'obtenir maintenant évite une latence au premier caractère tapé.
+   * 2. Vérifier que ce compte n'a pas DÉJÀ un club. Se connecter avec un compte
+   *    existant — par Google surtout, qui ne distingue pas « s'inscrire » de
+   *    « se connecter » — amenait droit au formulaire, et l'échec ne tombait
+   *    qu'à l'envoi, après avoir tout ressaisi.
+   */
   useEffect(() => {
     if (step !== 'CLUB' || accessToken) {
       return;
     }
     let cancelled = false;
-    void loadTokens().then((tokens) => {
-      if (!cancelled && tokens) {
-        setAccessToken(tokens.accessToken);
+    void loadTokens().then(async (tokens) => {
+      if (cancelled || !tokens) {
+        return;
+      }
+      setAccessToken(tokens.accessToken);
+      const existing = await getMyClub(tokens.accessToken).catch(() => null);
+      if (!cancelled && existing) {
+        setAlreadyHasClub(true);
       }
     });
     return () => {
@@ -368,7 +382,18 @@ export default function RegisterClub(): ReactNode {
         </StepTransition>
       ) : null}
 
-      {step === 'CLUB' ? (
+      {step === 'CLUB' && alreadyHasClub ? (
+        // Impasse annoncée tout de suite, plutôt qu'un formulaire à remplir
+        // pour rien : ce compte a déjà un club, l'API refuserait à l'envoi.
+        <StepTransition stepKey="already">
+          <YStack gap="$4">
+            <FormBanner message={t.errors.clubAlreadyLinked} />
+            <PrimaryButton label={t.club.goHome} onPress={() => router.replace('/')} />
+          </YStack>
+        </StepTransition>
+      ) : null}
+
+      {step === 'CLUB' && !alreadyHasClub ? (
         <StepTransition stepKey="club">
           <YStack gap="$4">
             <TextField

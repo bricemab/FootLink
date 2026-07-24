@@ -43,6 +43,9 @@ export interface ClubContext {
   member: ClubMember;
 }
 
+/** Code stable pour le mobile : un compte ne peut être rattaché qu'à un club. */
+export const CLUB_ALREADY_LINKED_CODE = 'CLUB_ALREADY_LINKED';
+
 @Injectable()
 export class ClubsService {
   constructor(
@@ -64,7 +67,13 @@ export class ClubsService {
   ): Promise<{ club: { id: string; name: string; status: ClubStatus } }> {
     const alreadyMember = await this.prisma.clubMember.findFirst({ where: { userId } });
     if (alreadyMember) {
-      throw new ConflictException('This account is already linked to a club.');
+      // Code métier distinct : sans lui, le mobile traduisait ce 409 par
+      // « adresse déjà utilisée », ce qui n'a rien à voir et envoyait
+      // l'utilisateur corriger un email parfaitement valide.
+      throw new ConflictException({
+        code: CLUB_ALREADY_LINKED_CODE,
+        message: 'This account is already linked to a club.',
+      });
     }
     await this.assertRegionExists(dto.regionCode);
 

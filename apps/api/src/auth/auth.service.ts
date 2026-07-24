@@ -25,6 +25,13 @@ import {
 import { GoogleService } from './google.service';
 import { AuthTokens, TokenService } from './token.service';
 
+/**
+ * Code stable pour le mobile. L'adresse est comparée sous sa forme normalisée
+ * (cf. `normalizeEmail`), donc `brice+foot@gmail.com` est refusée si
+ * `brice@gmail.com` existe déjà : c'est la même boîte mail.
+ */
+export const EMAIL_ALREADY_USED_CODE = 'EMAIL_ALREADY_USED';
+
 // Vue "qui suis-je" : lue depuis la DB (fraîche), jamais depuis le token.
 export interface MeResponse {
   id: string;
@@ -79,7 +86,13 @@ export class AuthService {
     const email = dto.email.toLowerCase();
     const existing = await this.users.findByEmail(email);
     if (existing) {
-      throw new ConflictException('An account with this email already exists.');
+      // La comparaison se fait sur la forme normalisée de l'adresse (cf.
+      // UsersService) : `brice+foot@gmail.com` tombe donc bien sur le compte
+      // ouvert avec `brice@gmail.com`, au lieu d'en créer un second.
+      throw new ConflictException({
+        code: EMAIL_ALREADY_USED_CODE,
+        message: 'An account with this email already exists.',
+      });
     }
     const passwordHash = await argon2.hash(dto.password);
     const user = await this.users.create({
