@@ -237,12 +237,22 @@ pnpm --filter @footlink/mobile exec expo run:android
 > Google Sign-In échoue quoi qu'on fasse (vérifiable avec
 > `adb shell pm list packages | findstr com.google.android.gms`).
 
-**2. Récupérer l'empreinte SHA-1.** Pour un build local de développement, c'est
-le **keystore de debug**, partagé par tous les projets Android de la machine :
+**2. Récupérer l'empreinte SHA-1.** ⚠️ **Ce n'est PAS `~/.android/debug.keystore`.**
+Le template React Native embarque son propre keystore de debug dans le projet, et
+`android/app/build.gradle` pointe dessus (`storeFile file('debug.keystore')`).
+C'est donc celui-là qu'il faut lire :
 ```bash
-keytool -list -v -alias androiddebugkey -keystore "$USERPROFILE/.android/debug.keystore" -storepass android -keypass android
+keytool -list -v -alias androiddebugkey -keystore apps/mobile/android/app/debug.keystore -storepass android -keypass android
 ```
-Pour un build EAS (plus tard, pour la vraie distribution), c'est un autre
+Son empreinte est **la même pour tous les projets React Native** (le keystore
+est livré avec le template, il n'a rien de secret) :
+`5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`.
+
+> Se tromper de keystore donne un `DEVELOPER_ERROR` parfaitement silencieux :
+> Google affiche la liste des comptes, puis refuse de signer le jeton. Rien dans
+> les logs ne dit que c'est l'empreinte qui ne correspond pas.
+
+Pour un build EAS (plus tard, pour la vraie distribution), c'est encore un autre
 keystore : `pnpm --filter @footlink/mobile exec eas credentials`. **Les deux
 empreintes doivent être enregistrées** dans la console Google, sinon la
 connexion marche en debug et casse en production (ou l'inverse).
@@ -253,8 +263,9 @@ SHA-1 de l'étape 2. Ajouter ensuite son identifiant à `GOOGLE_CLIENT_IDS` dans
 `apps/api/.env` (liste séparée par des virgules) — c'est la liste des audiences
 que le serveur accepte.
 
-> **✅ Fait le 24 juillet 2026** pour le keystore de **debug** de la machine de
-> Brice (SHA-1 `67:FD:21:01:8F:02:6D:DA:20:EB:DE:B2:61:60:3B:B8:83:16:B2:35`).
+> **24 juillet 2026** — un premier client Android a été créé avec la mauvaise
+> empreinte (celle de `~/.android/debug.keystore`), d'où un `DEVELOPER_ERROR`
+> persistant. La bonne est celle du keystore **du projet** (cf. étape 2).
 > Client Android : `988726398910-6dlaiaphv86eefld0ac17kmac60gp76u.apps.googleusercontent.com`.
 > Il reste à refaire l'opération avec l'empreinte du keystore **EAS** le jour de
 > la distribution, sinon Google Sign-In marchera en debug et cassera en prod.
@@ -262,6 +273,15 @@ que le serveur accepte.
 > Le fichier `client_secret_….json` téléchargé par la console **ne sert à rien**
 > ici : un client Android est un client *public*, il n'a pas de secret, et le
 > flux natif n'en utilise aucun. Ne pas l'embarquer dans l'app ni le commiter.
+> Le backend ne stocke que des **identifiants** de clients (`GOOGLE_CLIENT_IDS`),
+> jamais un secret.
+
+> **Ce que l'app embarque vraiment** : uniquement `webClientId` et `iosClientId`
+> (dans `src/auth/google-sign-in.ts`). Conséquence pratique — supprimer puis
+> recréer le client **Android** ne demande **aucune** intervention sur l'app ni
+> sur le backend. Supprimer le client **Web**, en revanche, casse tout : son
+> identifiant est écrit dans le JS *et* c'est l'audience du jeton sur Android,
+> donc il faudrait une mise à jour OTA **et** modifier `GOOGLE_CLIENT_IDS`.
 
 > iOS et Web sont déjà créés. Le `iosUrlScheme` du plugin dans `app.json` est
 > l'identifiant iOS **inversé** : le changer sans changer le client OAuth casse
