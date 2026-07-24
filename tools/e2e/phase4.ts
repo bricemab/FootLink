@@ -187,6 +187,22 @@ async function main(): Promise<void> {
   check('GET /auth/me reste accessible', me.status === 200, me.body);
   check('/auth/me annonce emailVerified=false', me.body.emailVerified === false, me.body);
 
+  // Changer de langue doit rester possible sans email validé : c'est justement
+  // quand on ne comprend pas l'écran de validation qu'on en a besoin.
+  const switchLocale = await api<{ locale: string }>('PATCH', '/users/me/locale', {
+    token: adminToken,
+    body: { locale: 'DE' },
+  });
+  check('la langue se change sans email validé', switchLocale.status === 200, switchLocale.body);
+  const meAfterLocale = await api<{ locale: string }>('GET', '/auth/me', { token: adminToken });
+  check('la langue est bien persistée', meAfterLocale.body.locale === 'DE', meAfterLocale.body);
+  const badLocale = await api<ErrorResponse>('PATCH', '/users/me/locale', {
+    token: adminToken,
+    body: { locale: 'ES' },
+  });
+  check('une langue non supportée est refusée', badLocale.status === 400, badLocale.body);
+  await api('PATCH', '/users/me/locale', { token: adminToken, body: { locale: 'FR' } });
+
   // --- 3. Validation de l'email -------------------------------------------
   console.log("\n3. Validation de l'email");
   const verifyToken = await readEmailToken(adminEmail);

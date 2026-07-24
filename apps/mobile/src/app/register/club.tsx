@@ -9,6 +9,7 @@ import { AuthFormShell } from '@/ui/auth-form-shell';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { PrimaryButton } from '@/ui/primary-button';
+import { RegionPicker } from '@/ui/region-picker';
 import { Stepper, StepTransition } from '@/ui/stepper';
 import { TextField } from '@/ui/text-field';
 import { useStepper } from '@/ui/use-stepper';
@@ -32,7 +33,9 @@ export default function RegisterClub(): ReactNode {
   const [current, setCurrent] = useState(0);
   const { stepLabel, nextLabel } = useStepper(labels, current);
 
-  const [regions, setRegions] = useState<Region[]>([]);
+  // On ne garde que les associations ouvertes : `active` est piloté en base,
+  // ouvrir un canton se fait donc sans toucher à l'app (cf. AGENTS §2).
+  const [openRegions, setOpenRegions] = useState<Region[]>([]);
   const [clubName, setClubName] = useState('');
   const [locality, setLocality] = useState('');
   const [regionCode, setRegionCode] = useState<string>();
@@ -50,9 +53,9 @@ export default function RegisterClub(): ReactNode {
         if (cancelled) {
           return;
         }
-        setRegions(list);
-        // Une seule association est active au MVP (AVF) : autant la présélectionner.
         const active = list.filter((region) => region.active);
+        setOpenRegions(active);
+        // Une seule association ouverte : rien à choisir, on la sélectionne.
         if (active.length === 1) {
           setRegionCode(active[0].code);
         }
@@ -135,39 +138,7 @@ export default function RegisterClub(): ReactNode {
               error={errors.clubName}
             />
 
-            {regions.length > 0 ? (
-              <YStack gap="$2">
-                <Text fontSize={13} fontWeight="600" color="$brandChalkDim" letterSpacing={0.4}>
-                  {t.club.region.toUpperCase()}
-                </Text>
-                <XStack flexWrap="wrap" gap="$2">
-                  {regions
-                    .filter((region) => region.active)
-                    .map((region) => (
-                      <Pressable
-                        key={region.code}
-                        onPress={() => setRegionCode(region.code)}
-                        accessibilityRole="button"
-                      >
-                        <XStack
-                          paddingVertical="$2.5"
-                          paddingHorizontal="$3.5"
-                          borderRadius={14}
-                          borderWidth={1.5}
-                          borderColor={
-                            regionCode === region.code ? '#39FF88' : 'rgba(244,251,247,0.18)'
-                          }
-                          backgroundColor="rgba(14,36,28,0.7)"
-                        >
-                          <Text fontSize={14} color="$brandChalk">
-                            {label(region)}
-                          </Text>
-                        </XStack>
-                      </Pressable>
-                    ))}
-                </XStack>
-              </YStack>
-            ) : null}
+            <RegionPicker regions={openRegions} value={regionCode} onChange={setRegionCode} />
 
             <TextField
               label={t.club.locality}
