@@ -45,6 +45,14 @@ export function requestSignupCode(email: string, locale: AppLocale): Promise<voi
   });
 }
 
+/** Contrôle le code d'inscription sans le consommer, dès la saisie des 6 chiffres. */
+export function checkSignupCode(email: string, code: string): Promise<void> {
+  return apiRequest<void>('/auth/signup/check-code', {
+    method: 'POST',
+    body: { email: email.trim().toLowerCase(), code: code.trim() },
+  });
+}
+
 export function verifySignupCode(
   email: string,
   code: string,

@@ -21,6 +21,7 @@ import { resolve } from 'node:path';
 // d'`apps/*` et de `packages/*`. Même racine que le piège `@prisma/client`
 // décrit dans HANDOFF §7. Lancer `pnpm --filter @footlink/shared build` avant.
 import { normalizeEmail } from '../../packages/shared/dist/index.js';
+import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 
 const BASE = process.env.E2E_BASE ?? 'http://localhost:3000/api/v1';
@@ -151,6 +152,49 @@ async function checkApi(secret: string): Promise<void> {
     codeForExisting.body?.error?.code === 'EMAIL_ALREADY_USED',
     codeForExisting.body?.error?.code,
   );
+
+  // --- Vérification non-consommatrice du code d'inscription -----------------
+  // On pose un compte à moitié inscrit (sans mot de passe) + un jeton EMAIL_VERIFY
+  // dont on connaît le code, puis on contrôle qu'un code faux est rejeté et le
+  // bon accepté SANS consommer le jeton. Aucun email envoyé.
+  const codeUserId = `e2ecode${RUN}`;
+  const codeEmail = `code-${RUN}@${DOMAIN}`;
+  const knownCode = '424242';
+  const codeHash = await argon2.hash(knownCode);
+  sql(
+    `INSERT INTO \`User\` (id,email,role,status,locale,createdAt,updatedAt)
+     VALUES ('${codeUserId}','${codeEmail}','PLAYER','ACTIVE','FR',NOW(),NOW());`,
+  );
+  sql(
+    `INSERT INTO \`Token\` (id,type,userId,tokenHash,attempts,expiresAt,createdAt)
+     VALUES ('tok${RUN}','EMAIL_VERIFY','${codeUserId}','${codeHash}',0,
+             DATE_ADD(NOW(), INTERVAL 1 HOUR),NOW());`,
+  );
+
+  const wrongCheck = await call<ApiError>('/auth/signup/check-code', {
+    method: 'POST',
+    body: { email: codeEmail, code: '000000' },
+  });
+  check('code faux au check -> 400', wrongCheck.status === 400, wrongCheck.status);
+  check(
+    'code métier SIGNUP_CODE_INVALID',
+    wrongCheck.body?.error?.code === 'SIGNUP_CODE_INVALID',
+    wrongCheck.body?.error?.code,
+  );
+
+  const goodCheck = await call('/auth/signup/check-code', {
+    method: 'POST',
+    body: { email: codeEmail, code: knownCode },
+  });
+  check('bon code au check -> 204', goodCheck.status === 204, goodCheck.status);
+
+  // Le jeton ne doit PAS avoir été consommé par le check : la consommation
+  // (verify-code, avec mot de passe) doit encore marcher juste après.
+  const consume = await call('/auth/signup/verify-code', {
+    method: 'POST',
+    body: { email: codeEmail, code: knownCode, password: 'FootLink2026' },
+  });
+  check('le check ne consomme pas le jeton (verify-code -> 201)', consume.status === 201, consume.status);
 
   // --- Un compte ne peut être rattaché qu'à un seul club --------------------
   const token = jwt.sign({ sub: id, role: 'PLAYER', email }, secret, { expiresIn: '15m' });

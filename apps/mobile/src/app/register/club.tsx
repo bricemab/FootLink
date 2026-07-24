@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
-import { requestSignupCode, verifySignupCode } from '@/api/auth';
+import { checkSignupCode, requestSignupCode, verifySignupCode } from '@/api/auth';
 import { getMyClub, listRegions, requestClub, type Region } from '@/api/clubs';
 import type { ResolvedPlace } from '@/api/geo';
 import { ApiError } from '@/api/client';
@@ -60,6 +60,8 @@ export default function RegisterClub(): ReactNode {
   const [fieldError, setFieldError] = useState<string>();
   const [banner, setBanner] = useState<string>();
   const [busy, setBusy] = useState(false);
+  // Dernier code déjà vérifié automatiquement : garde contre la re-soumission.
+  const autoChecked = useRef<string>('');
 
   // Déjà connecté en arrivant ici : inutile de redemander une identité.
   useEffect(() => {
@@ -183,12 +185,32 @@ export default function RegisterClub(): ReactNode {
     }
   };
 
-  const goToPassword = (): void => {
-    const invalid = /^\d{6}$/.test(code.trim()) ? undefined : t.errors.codeFormat;
-    setFieldError(invalid);
+  // Le code est vérifié CÔTÉ SERVEUR ici, dès sa saisie — pas seulement son
+  // format. Avant, un code faux n'était détecté qu'après l'écran du mot de
+  // passe, qui renvoyait alors tout en arrière : le geste le plus frustrant du
+  // parcours. On le consomme plus tard (avec le mot de passe) ; ici on ne fait
+  // que confirmer qu'il est bon.
+  const goToPassword = async (value: string = code): Promise<void> => {
+    if (!/^\d{6}$/.test(value.trim())) {
+      setFieldError(t.errors.codeFormat);
+      return;
+    }
+    setFieldError(undefined);
     setBanner(undefined);
-    if (!invalid) {
+    setBusy(true);
+    try {
+      await checkSignupCode(email, value);
       setStep('PASSWORD');
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'SIGNUP_CODE_LOCKED') {
+        fail(t.errors.inviteLocked);
+      } else if (error instanceof ApiError && error.code === 'SIGNUP_CODE_INVALID') {
+        fail(t.errors.inviteInvalid);
+      } else {
+        fail(toUserMessage(error, t));
+      }
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -343,14 +365,25 @@ export default function RegisterClub(): ReactNode {
             <TextField
               label={t.coach.codeLabel}
               value={code}
-              onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
+              onChangeText={(value) => {
+                const next = value.replace(/\D/g, '').slice(0, 6);
+                setCode(next);
+                // Dès les 6 chiffres, on vérifie tout seul : pas de « Continuer »
+                // à chercher après avoir tapé le dernier chiffre. Le ref évite
+                // de re-tirer sur un code déjà refusé (il reste à 6 chiffres à
+                // l'écran) ou pendant qu'une vérification est en cours.
+                if (next.length === 6 && next !== autoChecked.current && !busy) {
+                  autoChecked.current = next;
+                  void goToPassword(next);
+                }
+              }}
               placeholder="000000"
               keyboardType="number-pad"
               autoComplete="one-time-code"
               error={fieldError}
-              onSubmitEditing={goToPassword}
+              onSubmitEditing={() => void goToPassword()}
             />
-            <PrimaryButton label={t.coach.next} onPress={goToPassword} />
+            <PrimaryButton label={t.coach.next} loading={busy} onPress={() => void goToPassword()} />
             <PrimaryButton
               label={t.coach.resend}
               variant="ghost"

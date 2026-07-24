@@ -49,6 +49,8 @@ export default function RegisterCoach(): ReactNode {
   const [tone, setTone] = useState<'error' | 'success'>('error');
   const [busy, setBusy] = useState(false);
   const autoStarted = useRef(false);
+  // Dernier code déjà vérifié automatiquement : garde contre la re-soumission.
+  const autoChecked = useRef<string>('');
 
   const fail = useCallback(
     (message: string) => {
@@ -97,8 +99,8 @@ export default function RegisterCoach(): ReactNode {
   }, [params.email, submitEmail]);
 
   // --- Étape 2 : le code, vérifié sans être consommé ----------------------
-  const submitCode = async (): Promise<void> => {
-    const invalid = /^\d{6}$/.test(code.trim()) ? undefined : t.errors.codeFormat;
+  const submitCode = async (value: string = code): Promise<void> => {
+    const invalid = /^\d{6}$/.test(value.trim()) ? undefined : t.errors.codeFormat;
     setFieldError(invalid);
     setBanner(undefined);
     if (invalid) {
@@ -106,7 +108,7 @@ export default function RegisterCoach(): ReactNode {
     }
     setBusy(true);
     try {
-      await verifyCoachCode(email, code);
+      await verifyCoachCode(email, value);
       setStep('SET_PASSWORD');
     } catch (error) {
       fail(describeInviteError(error, t));
@@ -267,7 +269,16 @@ export default function RegisterCoach(): ReactNode {
           <TextField
             label={t.coach.codeLabel}
             value={code}
-            onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
+            onChangeText={(value) => {
+              const next = value.replace(/\D/g, '').slice(0, 6);
+              setCode(next);
+              // Vérification automatique dès les 6 chiffres. Le ref évite de
+              // retirer sur un code déjà refusé ou en cours de vérification.
+              if (next.length === 6 && next !== autoChecked.current && !busy) {
+                autoChecked.current = next;
+                void submitCode(next);
+              }
+            }}
             placeholder="000000"
             keyboardType="number-pad"
             autoComplete="one-time-code"

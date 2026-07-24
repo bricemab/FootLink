@@ -114,6 +114,18 @@ export class AuthController {
     await this.auth.requestSignupCode(dto);
   }
 
+  // Contrôle le code d'inscription dès sa saisie, sans le consommer : l'app le
+  // valide à l'entrée des 6 chiffres au lieu de découvrir l'erreur après
+  // l'écran du mot de passe. Compte les échecs (anti-force-brute), comme la
+  // consommation. Même limite stricte que le reste des codes.
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post('signup/check-code')
+  async checkSignupCode(@Body() dto: VerifyCoachCodeDto): Promise<void> {
+    await this.auth.checkSignupCode(dto);
+  }
+
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('signup/verify-code')

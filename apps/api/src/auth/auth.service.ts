@@ -20,6 +20,7 @@ import {
   RegisterDto,
   RequestSignupCodeDto,
   ResetPasswordDto,
+  VerifyCoachCodeDto,
   VerifySignupCodeDto,
 } from './dto/auth.dto';
 import { GoogleService } from './google.service';
@@ -437,11 +438,48 @@ export class AuthService {
   }
 
   /**
+   * Contrôle le code SANS le consommer, pour le valider dès sa saisie plutôt
+   * qu'à la fin du parcours. Un code faux détecté seulement après l'écran du
+   * mot de passe renvoyait l'utilisateur en arrière, tout à refaire — le flux
+   * entraîneur évitait déjà ce piège avec `verifyCoachCode`, le flux
+   * d'inscription le fait maintenant aussi.
+   *
+   * Compte les échecs comme la consommation : sinon on offrirait ici un banc
+   * d'essai illimité pour deviner le code (le verrou à 5 essais ne servirait
+   * plus à rien).
+   */
+  async checkSignupCode(dto: VerifyCoachCodeDto): Promise<void> {
+    await this.assertSignupCode(dto.email, dto.code);
+  }
+
+  /**
    * Deuxième étape : le code prouve l'accès à la boîte mail, le mot de passe
    * rend le compte réutilisable. L'email est validé du même geste.
    */
   async verifySignupCode(dto: VerifySignupCodeDto): Promise<AuthTokens> {
-    const email = dto.email.trim().toLowerCase();
+    const { user, tokenId } = await this.assertSignupCode(dto.email, dto.code);
+
+    await this.prisma.token.update({ where: { id: tokenId }, data: { usedAt: new Date() } });
+    const updated = await this.users.update(user.id, {
+      passwordHash: await argon2.hash(dto.password),
+      emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+    });
+    await this.tokens.revokeAllForUser(user.id);
+    return this.tokens.issueTokens(updated);
+  }
+
+  /**
+   * Vérifie le code d'inscription et incrémente le compteur d'échecs, sans rien
+   * consommer. Une seule copie de cette logique, partagée entre le contrôle et
+   * la consommation : elles ne doivent jamais diverger (mêmes erreurs, même
+   * verrou). Message identique pour un email inconnu et un code faux : on ne
+   * dit jamais si l'adresse existe.
+   */
+  private async assertSignupCode(
+    rawEmail: string,
+    rawCode: string,
+  ): Promise<{ user: User; tokenId: string }> {
+    const email = rawEmail.trim().toLowerCase();
     const user = await this.users.findByEmail(email);
     const token = user
       ? await this.prisma.token.findFirst({
@@ -456,10 +494,7 @@ export class AuthService {
       : null;
 
     if (!user || !token) {
-      throw new BadRequestException({
-        code: SIGNUP_CODE_INVALID,
-        message: 'Invalid email or code.',
-      });
+      throw new BadRequestException({ code: SIGNUP_CODE_INVALID, message: 'Invalid email or code.' });
     }
     if (token.attempts >= COACH_CODE_MAX_ATTEMPTS) {
       throw new BadRequestException({
@@ -467,24 +502,15 @@ export class AuthService {
         message: 'Too many failed attempts. Request a new code.',
       });
     }
-    if (!(await argon2.verify(token.tokenHash, dto.code.trim()))) {
+    if (!(await argon2.verify(token.tokenHash, rawCode.trim()))) {
       await this.prisma.token.update({
         where: { id: token.id },
         data: { attempts: { increment: 1 } },
       });
-      throw new BadRequestException({
-        code: SIGNUP_CODE_INVALID,
-        message: 'Invalid email or code.',
-      });
+      throw new BadRequestException({ code: SIGNUP_CODE_INVALID, message: 'Invalid email or code.' });
     }
 
-    await this.prisma.token.update({ where: { id: token.id }, data: { usedAt: new Date() } });
-    const updated = await this.users.update(user.id, {
-      passwordHash: await argon2.hash(dto.password),
-      emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
-    });
-    await this.tokens.revokeAllForUser(user.id);
-    return this.tokens.issueTokens(updated);
+    return { user, tokenId: token.id };
   }
 
   issueTokensForUser(user: Pick<User, 'id' | 'role' | 'email'>): Promise<AuthTokens> {
