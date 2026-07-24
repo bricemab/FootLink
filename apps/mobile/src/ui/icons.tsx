@@ -1,76 +1,57 @@
 import type { ReactNode } from 'react';
-import Svg, { Circle, Path, Polygon } from 'react-native-svg';
+import { CaretDownIcon } from 'phosphor-react-native/src/icons/CaretDown';
+import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
+import { CheckIcon as PhCheck } from 'phosphor-react-native/src/icons/Check';
+import { ShieldChevronIcon } from 'phosphor-react-native/src/icons/ShieldChevron';
+import { SoccerBallIcon } from 'phosphor-react-native/src/icons/SoccerBall';
+import { StrategyIcon } from 'phosphor-react-native/src/icons/Strategy';
 
 /**
- * Jeu d'icônes de l'app.
+ * Icônes de l'app.
  *
  * Aucun emoji dans FootLink : leur rendu change d'un appareil et d'une version
- * d'OS à l'autre, ils ignorent la palette de marque et sonnent amateur. Des
- * tracés vectoriels restent nets à toute densité et suivent la couleur qu'on
- * leur donne.
+ * d'OS à l'autre, ils ignorent la palette de marque et sonnent amateur.
+ *
+ * Jeu Phosphor, dessiné par des gens dont c'est le métier. Il s'appuie sur
+ * `react-native-svg`, déjà présent : contrairement aux jeux à base de polices
+ * (`@react-native-vector-icons`), il n'ajoute aucun module natif, donc aucune
+ * reconstruction de l'app.
+ *
+ * Les imports passent par le sous-chemin `src/icons/<Nom>`, exposé
+ * officiellement par le paquet. Importer depuis la racine tirerait les
+ * **1512** icônes dans le bundle — Metro ne fait pas de tree-shaking — et
+ * alourdirait le démarrage pour six pictogrammes.
+ *
+ * On passe par ces enveloppes plutôt que d'importer Phosphor partout : taille
+ * et graisse restent décidées à un seul endroit, et changer de jeu d'icônes
+ * plus tard ne toucherait que ce fichier.
  */
 const ACCENT = '#39FF88';
 const DIM = 'rgba(169,196,184,0.9)';
 
-export function BallIcon({ size = 26 }: { size?: number }): ReactNode {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Circle cx="12" cy="12" r="9" stroke={ACCENT} strokeWidth="1.6" />
-      <Polygon points="12,7.4 15.4,9.9 14.1,13.9 9.9,13.9 8.6,9.9" fill={ACCENT} />
-      <Path
-        d="M12 3v4.4M21 10.6l-5.6-0.7M18.4 20.2l-4.3-6.3M5.6 20.2l4.3-6.3M3 10.6l5.6-0.7"
-        stroke={ACCENT}
-        strokeWidth="1.4"
-        strokeLinecap="round"
-      />
-    </Svg>
-  );
+/** Joueur. */
+export function BallIcon({ size = 28 }: { size?: number }): ReactNode {
+  return <SoccerBallIcon size={size} color={ACCENT} weight="duotone" />;
 }
 
-/** Entraîneur : un sifflet. */
-export function WhistleIcon({ size = 26 }: { size?: number }): ReactNode {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M13.5 8.5h5.2a2.3 2.3 0 0 1 0 4.6h-5.2"
-        stroke={ACCENT}
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-      <Circle cx="8.6" cy="10.8" r="5.1" stroke={ACCENT} strokeWidth="1.6" />
-      <Circle cx="8.6" cy="10.8" r="1.7" fill={ACCENT} />
-      <Path d="M12 5.4l2.6-2.2" stroke={ACCENT} strokeWidth="1.6" strokeLinecap="round" />
-    </Svg>
-  );
+/** Entraîneur : un tableau tactique, plus parlant qu'un sifflet. */
+export function CoachIcon({ size = 28 }: { size?: number }): ReactNode {
+  return <StrategyIcon size={size} color={ACCENT} weight="duotone" />;
 }
 
 /** Club : un écusson. */
-export function CrestIcon({ size = 26 }: { size?: number }): ReactNode {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M12 2.6l7.2 2.6v6.1c0 4.3-3 8.1-7.2 9.9-4.2-1.8-7.2-5.6-7.2-9.9V5.2z"
-        stroke={ACCENT}
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <Path d="M12 8.2v7.4M8.6 11.9h6.8" stroke={ACCENT} strokeWidth="1.5" strokeLinecap="round" />
-    </Svg>
-  );
+export function CrestIcon({ size = 28 }: { size?: number }): ReactNode {
+  return <ShieldChevronIcon size={size} color={ACCENT} weight="duotone" />;
 }
 
-export function CheckIcon({ size = 18, color = ACCENT }: { size?: number; color?: string }): ReactNode {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M4.5 12.5l5 5 10-11"
-        stroke={color}
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
+export function CheckIcon({
+  size = 18,
+  color = ACCENT,
+}: {
+  size?: number;
+  color?: string;
+}): ReactNode {
+  return <PhCheck size={size} color={color} weight="bold" />;
 }
 
 export function ChevronIcon({
@@ -82,15 +63,6 @@ export function ChevronIcon({
   direction?: 'down' | 'right';
   color?: string;
 }): ReactNode {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        d={direction === 'down' ? 'M6 9.5l6 6 6-6' : 'M9.5 6l6 6-6 6'}
-        stroke={color}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
+  const Glyph = direction === 'down' ? CaretDownIcon : CaretRightIcon;
+  return <Glyph size={size} color={color} weight="bold" />;
 }
