@@ -3,22 +3,47 @@ import Constants from 'expo-constants';
 /**
  * Client HTTP de l'API FootLink.
  *
- * En développement, l'URL est déduite de l'hôte du serveur Expo : sur un
- * téléphone réel, « localhost » désignerait le téléphone lui-même. On reprend
- * donc l'IP de la machine qui sert le bundle, et on remplace le port par celui
- * de l'API. Aucune configuration à faire pour lancer l'app sur un appareil.
+ * Trois sources, dans cet ordre :
+ *
+ * 1. `EXPO_PUBLIC_API_URL` — surcharge explicite, injectée au build.
+ * 2. `extra.apiUrl` d'`app.json` — l'URL de production, versionnée.
+ * 3. En développement seulement, l'hôte du serveur Expo. Sur un appareil réel,
+ *    « localhost » désigne le téléphone lui-même : on reprend donc l'IP de la
+ *    machine qui sert le bundle, et on remplace le port par celui de l'API.
+ *    Rien à configurer pour lancer l'app sur un téléphone ou un émulateur.
+ *
+ * Et si rien ne convient, on échoue bruyamment. Un build de production n'a pas
+ * de serveur Expo : retomber silencieusement sur `localhost` donnerait une app
+ * publiée sur les stores qui n'atteint aucune API, avec pour seul symptôme un
+ * « serveur injoignable » incompréhensible.
  */
-const API_PORT = 3000;
+const DEV_API_PORT = 3000;
 const API_PREFIX = '/api/v1';
+
+function trimTrailingSlashes(url: string): string {
+  return url.replace(/\/+$/, '');
+}
 
 export function resolveApiBaseUrl(): string {
   const override = process.env.EXPO_PUBLIC_API_URL;
   if (override) {
-    return override.replace(/\/+$/, '');
+    return trimTrailingSlashes(override);
   }
-  const hostUri = Constants.expoConfig?.hostUri ?? Constants.expoGoConfig?.debuggerHost;
-  const host = hostUri?.split(':')[0];
-  return `http://${host ?? 'localhost'}:${API_PORT}${API_PREFIX}`;
+
+  const configured = Constants.expoConfig?.extra?.apiUrl;
+  if (typeof configured === 'string' && configured.length > 0) {
+    return trimTrailingSlashes(configured);
+  }
+
+  if (__DEV__) {
+    const hostUri = Constants.expoConfig?.hostUri ?? Constants.expoGoConfig?.debuggerHost;
+    const host = hostUri?.split(':')[0];
+    return `http://${host ?? 'localhost'}:${DEV_API_PORT}${API_PREFIX}`;
+  }
+
+  throw new Error(
+    "URL de l'API introuvable : définis EXPO_PUBLIC_API_URL au build, ou extra.apiUrl dans app.json.",
+  );
 }
 
 /** Codes métier renvoyés par l'API, utilisés pour router l'utilisateur. */

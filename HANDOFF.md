@@ -271,6 +271,36 @@ que le serveur accepte.
 > `DEVELOPER_ERROR`/`10`) = le couple package + SHA-1 n'est pas déclaré côté
 > Google, jamais un problème de code. `NEEDS_DEV_BUILD` = on tourne dans Expo Go.
 
+## 5quater. Passage en production — checklist
+
+### Backend (`.env` du VPS)
+
+| Variable | À faire |
+|---|---|
+| `DATABASE_URL` | base de prod |
+| `JWT_ACCESS_SECRET` · `JWT_REFRESH_SECRET` | **nouveaux secrets**, jamais ceux de dev (les réutiliser laisserait des jetons de dev valables en prod) |
+| `NODE_ENV` | `production` |
+| `PUBLIC_BASE_URL` | `https://footlink.ch` — sert de base aux liens d'email |
+| `IOS_STORE_URL` | vraie fiche App Store une fois l'app publiée (le défaut renvoie sur une recherche) |
+| `GOOGLE_CLIENT_IDS` | **ajouter** le client Android du keystore EAS (cf. §5ter) |
+| `CORS_ORIGINS` | restreindre (aujourd'hui `*`) |
+| `SMTP_*` | Gmail tient au MVP ; un domaine expéditeur propre évitera les spams |
+| `API_MIN_VERSION` · `API_LATEST_VERSION` | pilotent la gate de version de l'app |
+
+### Application
+
+| Quoi | À faire |
+|---|---|
+| **URL de l'API** | `extra.apiUrl` dans `app.json` (ou `EXPO_PUBLIC_API_URL` au build). **Obligatoire** : un build de production n'a pas de serveur Expo, il ne peut pas deviner l'adresse. Le code **échoue explicitement** si rien n'est fourni, plutôt que de retomber sur `localhost` |
+| **Client OAuth Android** | un **nouveau** client pour l'empreinte SHA-1 du keystore EAS. N'apparaît **pas** dans le code de l'app : seuls `webClientId` et `iosClientId` y sont référencés |
+| `version` / `android.versionCode` / `ios.buildNumber` | à incrémenter à chaque soumission |
+| `iosUrlScheme` | inchangé (même client iOS) |
+| Lien profond `footlink://` | inchangé, mais les **liens d'email** suivront `PUBLIC_BASE_URL` |
+
+> **Le piège** : tout marche en développement parce que l'app déduit l'URL de
+> l'API du serveur Expo. Ce mécanisme n'existe qu'en dev — d'où la configuration
+> explicite ci-dessus.
+
 ## 6. TODO / questions ouvertes
 
 - **[Décision Brice]** Phase 4 backend **ou** détour mobile M0 (cf. §1).
