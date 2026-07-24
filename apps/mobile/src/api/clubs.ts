@@ -46,7 +46,14 @@ export interface MyClubResponse {
   canOperate: boolean;
 }
 
-/** `null` si le compte n'est rattaché à aucun club. */
-export function getMyClub(accessToken: string): Promise<MyClubResponse | null> {
-  return apiRequest<MyClubResponse | null>('/clubs/me', { accessToken });
+/**
+ * `null` si le compte n'est rattaché à aucun club — le cas de tout joueur.
+ *
+ * NestJS sérialise un `null` retourné par un contrôleur en **corps vide**, que
+ * le client HTTP rend donc en `undefined`. On normalise ici : laisser fuiter
+ * deux « absences » différentes vers les écrans est une source de bugs, et le
+ * type annoncé serait un mensonge.
+ */
+export async function getMyClub(accessToken: string): Promise<MyClubResponse | null> {
+  return (await apiRequest<MyClubResponse | undefined>('/clubs/me', { accessToken })) ?? null;
 }

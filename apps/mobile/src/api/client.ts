@@ -128,6 +128,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     return undefined as T;
   }
 
+  // Attention : NestJS répond 200 avec un corps VIDE quand un contrôleur
+  // retourne `null`. Un « pas de ressource » arrive donc ici en `undefined`,
+  // pas en `null` — aux fonctions d'appel de normaliser (cf. api/clubs.ts).
   const text = await response.text();
   const payload: unknown = text.length === 0 ? undefined : JSON.parse(text);
 

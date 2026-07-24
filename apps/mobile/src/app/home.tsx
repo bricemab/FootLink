@@ -39,7 +39,9 @@ export default function Home(): ReactNode {
     };
   }, []);
 
-  const pendingClub = club !== null && !club.canOperate;
+  // Un joueur n'a pas de club : `club` reste nul et l'écran garde son contenu
+  // habituel. Le message d'attente ne concerne qu'un club pas encore validé.
+  const pendingClub = club?.canOperate === false;
 
   return (
     <PitchBackdrop>
