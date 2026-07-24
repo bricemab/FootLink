@@ -34,7 +34,8 @@ Backend d'abord (choix validé), mobile ensuite. Tout ce qui est fait est **comm
 | 9 | Notifications (Expo push + table `Notification`) | ⬜ |
 | 10 | Modération (`Report`, `Block` + filtrage transverse) | ⬜ |
 | 11 | Durcissement (ESLint, tests e2e, Swagger, rate-limit) | ⬜ |
-| — | **Mobile Expo (UI/UX WOW)** | ⬜ |
+| M0 | **Mobile Expo** : init SDK 57 + Tamagui + i18n + écrans auth animés | ✅ |
+| M1+ | Mobile : onboarding profil joueur, feed, swipe, messagerie | ⬜ |
 
 ### Décision tranchée par Brice (24 juillet 2026)
 Phase 4 backend **puis** mobile M0 dans la foulée, pour qu'il puisse tester
@@ -117,7 +118,20 @@ Sans SMTP configuré, les emails ne sont **pas** envoyés : ils sont **logués**
 pnpm db:migrate   # applique les migrations (crée la base si absente)
 pnpm db:seed      # seed des 13 régions (AVF active)
 pnpm api:dev      # http://localhost:3000/api/v1
+pnpm mobile:dev   # Expo — scanner le QR code avec Expo Go
 ```
+
+> **Pièges pnpm (corrigés le 24 juillet 2026, mais bon à savoir)** : le champ
+> `packageManager` doit rester sur la version réellement installée (le
+> version-switcher de pnpm 10 ne sait pas installer pnpm 11), et
+> `pnpm-workspace.yaml#onlyBuiltDependencies` autorise les scripts
+> d'installation des moteurs Prisma, d'argon2 et d'esbuild — sans lui, un clone
+> neuf installe des paquets inutilisables.
+
+**Sur téléphone** : l'app déduit l'URL de l'API de l'hôte du serveur Expo
+(`Constants.expoConfig.hostUri`), donc rien à configurer — mais le téléphone
+doit être **sur le même Wi-Fi** et le **pare-feu Windows doit laisser passer le
+port 3000**. Pour forcer une autre URL : variable `EXPO_PUBLIC_API_URL`.
 
 > `packages/shared` doit être **buildé avant** `apps/api` (l'API l'importe). `pnpm build` respecte l'ordre via Turborepo. En cas d'erreur d'import `@footlink/shared` : `pnpm --filter @footlink/shared build`.
 
@@ -136,6 +150,29 @@ printf "UPDATE \`User\` SET role='SUPER_ADMIN' WHERE email='TON_EMAIL';" | pnpm 
 puis **se reconnecter** (le rôle est gravé dans le token à l'émission).
 
 ---
+
+## 5bis. Mobile (`apps/mobile`)
+
+**Expo SDK 57**, React Native 0.86, React 19.2, Reanimated 4.5, Expo Router
+(racine `src/app`), Tamagui 2.5, Moti. TypeScript strict.
+
+| Fichier | Rôle |
+|---|---|
+| `tamagui.config.ts` | design system : config v4 + palette de marque en **tokens** (`$brandPitch`, `$brandNight`…) |
+| `src/app/_layout.tsx` | providers (Gesture, SafeArea, Tamagui, i18n, Auth) |
+| `src/app/index.tsx` | **garde de routage** : chargement → `/welcome` → `/auth/verify-email` → `/home` |
+| `src/app/auth/verify-email.tsx` | même route que le lien profond `footlink://auth/verify-email?token=…` (consommé automatiquement) |
+| `src/auth/auth-context.tsx` | session, refresh automatique sur 401, `/auth/me` comme source de vérité |
+| `src/auth/token-storage.ts` | jetons dans **SecureStore** (Keychain / Keystore), jamais AsyncStorage |
+| `src/api/client.ts` | URL de l'API déduite de l'hôte Expo ; `ApiError` typée avec le code métier |
+| `src/i18n/` | catalogue FR/DE, repli FR ; l'app traduit les erreurs **anglaises** de l'API |
+
+**Choix assumés au M0, à revoir :**
+- **Thème sombre forcé** (`defaultTheme="dark"`) : l'identité est nocturne, le thème clair n'a pas encore été dessiné.
+- **Compilateur Tamagui non activé** (pas de `@tamagui/babel-plugin`) : Tamagui tourne en mode runtime. C'est une optimisation de perf à ajouter quand l'UI sera stabilisée, pas un manque fonctionnel.
+- **Google Sign-In pas encore branché** : il exige un *dev build* (impossible dans Expo Go) et le client OAuth Android n'existe pas encore (cf. SHA-1 plus bas). L'inscription email + mot de passe couvre tout le parcours.
+- **Reset de mot de passe** : le lien profond `footlink://auth/reset-password` n'a pas encore d'écran.
+- Lottie et FlashList ne sont **pas** installés tant qu'aucun écran ne les utilise (pas de dépendance morte).
 
 ## 6. TODO / questions ouvertes
 
