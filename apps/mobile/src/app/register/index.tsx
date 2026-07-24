@@ -5,6 +5,7 @@ import { Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { useI18n } from '@/i18n';
 import { AuthFormShell } from '@/ui/auth-form-shell';
+import { BallIcon, ChevronIcon, CrestIcon, WhistleIcon } from '@/ui/icons';
 
 /**
  * Choix du rôle à l'inscription.
@@ -18,9 +19,9 @@ export default function ChooseRole(): ReactNode {
   const { t } = useI18n();
 
   const roles = [
-    { href: '/register/player', label: t.roles.player, hint: t.roles.playerHint, icon: '⚽' },
-    { href: '/register/coach', label: t.roles.coach, hint: t.roles.coachHint, icon: '📋' },
-    { href: '/register/club', label: t.roles.club, hint: t.roles.clubHint, icon: '🏟️' },
+    { href: '/register/player', label: t.roles.player, hint: t.roles.playerHint, Icon: BallIcon },
+    { href: '/register/coach', label: t.roles.coach, hint: t.roles.coachHint, Icon: WhistleIcon },
+    { href: '/register/club', label: t.roles.club, hint: t.roles.clubHint, Icon: CrestIcon },
   ] as const;
 
   return (
@@ -51,7 +52,7 @@ export default function ChooseRole(): ReactNode {
                     borderWidth={1.5}
                     borderColor={pressed ? '#39FF88' : 'rgba(244,251,247,0.14)'}
                   >
-                    <Text fontSize={26}>{role.icon}</Text>
+                    <role.Icon />
                     <YStack flex={1} gap="$1">
                       <Text fontSize={17} fontWeight="700" color="$brandChalk">
                         {role.label}
@@ -60,9 +61,7 @@ export default function ChooseRole(): ReactNode {
                         {role.hint}
                       </Text>
                     </YStack>
-                    <Text fontSize={20} color="$brandChalkDim">
-                      ›
-                    </Text>
+                    <ChevronIcon direction="right" />
                   </XStack>
                 </MotiView>
               )}

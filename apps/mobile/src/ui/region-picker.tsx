@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, XStack, YStack } from 'tamagui';
 import type { Region } from '@/api/clubs';
 import { useI18n } from '@/i18n';
+import { CheckIcon, ChevronIcon } from '@/ui/icons';
 
 /**
  * Choix de l'association régionale.
@@ -41,7 +42,14 @@ export function RegionPicker({
     if (needle.length === 0) {
       return regions;
     }
-    return regions.filter((region) => label(region).toLowerCase().includes(needle));
+    // On cherche aussi sur le code (avf, anf…) : c'est ce que les gens du
+    // milieu ont en tête, et c'est bien plus court à taper que « Association
+    // Cantonale Neuchâteloise de Football ».
+    return regions.filter(
+      (region) =>
+        label(region).toLowerCase().includes(needle) ||
+        region.code.toLowerCase().includes(needle),
+    );
     // `label` dépend de la locale, qui est stable pendant la saisie.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [regions, search, locale]);
@@ -95,9 +103,7 @@ export function RegionPicker({
                 >
                   {selected ? label(selected) : t.club.regionChoose}
                 </Text>
-                <Text fontSize={16} color="$brandChalkDim">
-                  ▾
-                </Text>
+                <ChevronIcon direction="down" />
               </XStack>
             </MotiView>
           )}
@@ -183,11 +189,7 @@ export function RegionPicker({
                       <Text fontSize={15} color="$brandChalk" flexShrink={1}>
                         {label(region)}
                       </Text>
-                      {active ? (
-                        <Text fontSize={16} color="$brandPitchBright">
-                          ✓
-                        </Text>
-                      ) : null}
+                      {active ? <CheckIcon /> : null}
                     </XStack>
                   </Pressable>
                 );

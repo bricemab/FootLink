@@ -57,6 +57,7 @@ Deux modes : **(a) email + mot de passe AVEC validation email**, ou **(b) Google
 
 ## Conventions
 - **TypeScript strict partout. JAMAIS `any`.**
+- **AUCUN emoji dans l'application** (écrans, libellés i18n, emails). Leur rendu change selon l'appareil et la version d'OS, ils ignorent la palette de marque et sonnent amateur. Utiliser les **icônes SVG** de `apps/mobile/src/ui/icons.tsx` (react-native-svg), et les compléter au besoin. Vaut aussi pour les glyphes décoratifs type `✓` ou `▾`.
 - Codes de réf alignés sur le JSON de nomenclature **+** enums Prisma (source unique de vérité).
 - **`use context7`** pour la doc à jour des libs (NestJS, Prisma, Expo, Tamagui, Reanimated…).
 - DB locale dev : `DATABASE_URL="mysql://root:SQLadmin@localhost:3306/footlink"` → dans `apps/api/.env` (**gitignored**).
