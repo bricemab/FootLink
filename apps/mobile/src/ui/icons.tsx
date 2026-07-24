@@ -2,9 +2,9 @@ import type { ReactNode } from 'react';
 import { CaretDownIcon } from 'phosphor-react-native/src/icons/CaretDown';
 import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
 import { CheckIcon as PhCheck } from 'phosphor-react-native/src/icons/Check';
-import { ShieldChevronIcon } from 'phosphor-react-native/src/icons/ShieldChevron';
 import { SoccerBallIcon } from 'phosphor-react-native/src/icons/SoccerBall';
 import { StrategyIcon } from 'phosphor-react-native/src/icons/Strategy';
+import Svg, { Path } from 'react-native-svg';
 
 /**
  * Icônes de l'app.
@@ -39,9 +39,27 @@ export function CoachIcon({ size = 28 }: { size?: number }): ReactNode {
   return <StrategyIcon size={size} color={ACCENT} weight="duotone" />;
 }
 
-/** Club : un écusson. */
-export function CrestIcon({ size = 28 }: { size?: number }): ReactNode {
-  return <ShieldChevronIcon size={size} color={ACCENT} weight="duotone" />;
+/**
+ * Club : un stade.
+ *
+ * Phosphor n'a pas de stade. Plutôt que d'ajouter une seconde librairie de
+ * ~5900 icônes pour un seul pictogramme, le tracé est repris de Tabler Icons
+ * (MIT, https://tabler.io/icons/icon/building-stadium) et intégré ici. Trait de
+ * 2 px et extrémités arrondies, pour rester dans la même famille visuelle que
+ * les icônes Phosphor voisines.
+ */
+export function StadiumIcon({ size = 28, color = ACCENT }: { size?: number; color?: string }): ReactNode {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M4 12a8 2 0 1 0 16 0a8 2 0 1 0 -16 0M4 12v7c0 .94 2.51 1.785 6 2v-3h4v3c3.435 -.225 6 -1.07 6 -2v-7M15 6h4v-3h-4v7M7 6h4v-3h-4v7"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
 }
 
 export function CheckIcon({

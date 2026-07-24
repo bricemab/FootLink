@@ -5,7 +5,7 @@ import { Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { useI18n } from '@/i18n';
 import { AuthFormShell } from '@/ui/auth-form-shell';
-import { BallIcon, ChevronIcon, CoachIcon, CrestIcon } from '@/ui/icons';
+import { BallIcon, ChevronIcon, CoachIcon, StadiumIcon } from '@/ui/icons';
 
 /**
  * Choix du rôle à l'inscription.
@@ -21,7 +21,7 @@ export default function ChooseRole(): ReactNode {
   const roles = [
     { href: '/register/player', label: t.roles.player, hint: t.roles.playerHint, Icon: BallIcon },
     { href: '/register/coach', label: t.roles.coach, hint: t.roles.coachHint, Icon: CoachIcon },
-    { href: '/register/club', label: t.roles.club, hint: t.roles.clubHint, Icon: CrestIcon },
+    { href: '/register/club', label: t.roles.club, hint: t.roles.clubHint, Icon: StadiumIcon },
   ] as const;
 
   return (
