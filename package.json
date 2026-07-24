@@ -13,6 +13,7 @@
     "typecheck": "turbo run typecheck",
     "api:dev": "pnpm --filter @footlink/api start:dev",
     "mobile:dev": "pnpm --filter @footlink/mobile start",
+    "mobile:reverse": "adb reverse tcp:3000 tcp:3000",
     "mobile:android": "pnpm --filter @footlink/mobile android",
     "mobile:ios": "pnpm --filter @footlink/mobile ios",
     "db:generate": "pnpm --filter @footlink/api db:generate",

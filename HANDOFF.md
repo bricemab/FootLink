@@ -131,10 +131,20 @@ pnpm mobile:dev   # Expo — scanner le QR code avec Expo Go
 > d'installation des moteurs Prisma, d'argon2 et d'esbuild — sans lui, un clone
 > neuf installe des paquets inutilisables.
 
-**Sur téléphone** : l'app déduit l'URL de l'API de l'hôte du serveur Expo
-(`Constants.expoConfig.hostUri`), donc rien à configurer — mais le téléphone
-doit être **sur le même Wi-Fi** et le **pare-feu Windows doit laisser passer le
-port 3000**. Pour forcer une autre URL : variable `EXPO_PUBLIC_API_URL`.
+**Sur téléphone (Wi-Fi)** : l'app déduit l'URL de l'API de l'hôte du serveur
+Expo (`Constants.expoConfig.hostUri`), donc rien à configurer — mais le
+téléphone doit être **sur le même Wi-Fi** et le **pare-feu Windows doit laisser
+passer le port 3000**. Pour forcer une autre URL : `EXPO_PUBLIC_API_URL`.
+
+**Sur émulateur (ou téléphone branché en USB)** : Expo passe par `adb reverse`,
+donc l'hôte vu par l'app est `localhost` — qui désigne **l'émulateur lui-même**,
+pas la machine. Expo ne redirige que le port de Metro : il faut ajouter celui de
+l'API, **à refaire après chaque redémarrage de l'émulateur** :
+```bash
+pnpm mobile:reverse
+```
+Sans ça, l'app affiche « Serveur injoignable » alors que l'API tourne
+parfaitement.
 
 > `packages/shared` doit être **buildé avant** `apps/api` (l'API l'importe). `pnpm build` respecte l'ordre via Turborepo. En cas d'erreur d'import `@footlink/shared` : `pnpm --filter @footlink/shared build`.
 
