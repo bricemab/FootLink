@@ -218,6 +218,21 @@ pnpm --filter @footlink/mobile exec expo run:android
 >    "%LOCALAPPDATA%\Android\Sdk\cmdline-tools\latest\bin\sdkmanager.bat" "ndk;27.1.12297006"
 >    ```
 >
+> 3. **`ninja: error: manifest 'build.ninja' still dirty after 100 tries`** — le
+>    vrai message est noyé sous des centaines de `CMake Warning ... has 204
+>    characters`. Le store virtuel isolé de pnpm produit des chemins trop longs
+>    pour CMake sur Windows (limite 250 caractères). D'où **`nodeLinker: hoisted`**
+>    dans `pnpm-workspace.yaml` : c'est la solution recommandée par Expo pour les
+>    monorepos pnpm. Après ce changement, il faut **réinstaller à plat** :
+>    ```bash
+>    pnpm install
+>    ```
+>    puis nettoyer les caches C++ du build précédent, qui gardent les anciens
+>    chemins :
+>    ```bash
+>    cd apps/mobile/android && .\gradlew.bat clean
+>    ```
+>
 > L'émulateur doit tourner sur une image **avec Google Play services**, sinon
 > Google Sign-In échoue quoi qu'on fasse (vérifiable avec
 > `adb shell pm list packages | findstr com.google.android.gms`).

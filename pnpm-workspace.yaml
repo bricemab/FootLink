@@ -2,6 +2,23 @@ packages:
   - "apps/*"
   - "packages/*"
 
+# Installation à plat plutôt que le store virtuel isolé de pnpm.
+#
+# C'est la contrepartie assumée d'un build Android sur Windows. Le store isolé
+# range chaque paquet sous un chemin du type
+#   node_modules/.pnpm/react-native-worklets@0.10._<hash-32>/node_modules/react-native-worklets/
+# soit 204 caractères AVANT le nom du fichier compilé. CMake refuse de placer
+# un objet au-delà de 250 caractères (CMAKE_OBJECT_PATH_MAX), et ninja finit
+# par abandonner : « manifest 'build.ninja' still dirty after 100 tries ».
+# À plat, le même paquet vit sous node_modules/react-native-worklets/ : environ
+# 85 caractères de moins, largement sous la limite.
+#
+# C'est la solution recommandée par Expo pour les monorepos pnpm
+# (https://docs.expo.dev/guides/monorepos). Ce qu'on y perd : pnpm ne protège
+# plus contre les dépendances fantômes (importer un paquet qu'on n'a pas
+# déclaré fonctionne). À surveiller en revue.
+nodeLinker: hoisted
+
 # Dependances autorisees a executer leurs scripts d'installation (pnpm >= 10).
 # Indispensables : moteurs Prisma, binding natif argon2, binaire esbuild (tsx).
 onlyBuiltDependencies:

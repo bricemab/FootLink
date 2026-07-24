@@ -33,6 +33,8 @@ export const fr = {
     separator: 'ou',
     needsDevBuild:
       "Google Sign-In ne fonctionne pas dans Expo Go : il faut une version de développement de l'app. Utilise l'email et le mot de passe en attendant.",
+    notConfigured:
+      "Google ne reconnaît pas cette version de l'app : il manque le client OAuth Android (empreinte SHA-1). Voir HANDOFF §5ter.",
     failed: 'La connexion Google a échoué.',
   },
   coachInvite: {
@@ -139,6 +141,8 @@ export const de: typeof fr = {
     separator: 'oder',
     needsDevBuild:
       'Google Sign-In funktioniert nicht in Expo Go: dafür braucht es einen Development Build. Nutze so lange E-Mail und Passwort.',
+    notConfigured:
+      'Google erkennt diese App-Version nicht: der Android-OAuth-Client fehlt (SHA-1-Fingerabdruck). Siehe HANDOFF §5ter.',
     failed: 'Die Google-Anmeldung ist fehlgeschlagen.',
   },
   coachInvite: {

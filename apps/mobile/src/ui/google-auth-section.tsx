@@ -34,9 +34,13 @@ export function GoogleAuthSection(): ReactNode {
         if (error.reason === 'CANCELLED') {
           return;
         }
-        setBanner(
-          error.reason === 'NEEDS_DEV_BUILD' ? t.google.needsDevBuild : t.google.failed,
-        );
+        if (error.reason === 'NEEDS_DEV_BUILD') {
+          setBanner(t.google.needsDevBuild);
+        } else if (error.reason === 'NOT_CONFIGURED') {
+          setBanner(t.google.notConfigured);
+        } else {
+          setBanner(t.google.failed);
+        }
         return;
       }
       setBanner(toUserMessage(error, t));

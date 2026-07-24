@@ -20,7 +20,12 @@ const IOS_CLIENT_ID =
   process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ??
   '988726398910-pu1ivi7aoamal3sstohtqr8qdnp8j38d.apps.googleusercontent.com';
 
-export type GoogleSignInFailure = 'NEEDS_DEV_BUILD' | 'CANCELLED' | 'NO_ID_TOKEN' | 'FAILED';
+export type GoogleSignInFailure =
+  | 'NEEDS_DEV_BUILD'
+  | 'NOT_CONFIGURED'
+  | 'CANCELLED'
+  | 'NO_ID_TOKEN'
+  | 'FAILED';
 
 export class GoogleSignInError extends Error {
   readonly reason: GoogleSignInFailure;
@@ -80,12 +85,20 @@ export async function getGoogleIdToken(): Promise<string> {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     result = await GoogleSignin.signIn();
   } catch (error) {
-    const code = (error as { code?: string }).code;
+    const code = String((error as { code?: string | number }).code ?? '');
     // Annuler n'est pas une erreur : l'écran ne doit rien afficher de rouge.
-    throw new GoogleSignInError(
-      code === 'SIGN_IN_CANCELLED' || code === '-5' ? 'CANCELLED' : 'FAILED',
-      error,
-    );
+    if (code === 'SIGN_IN_CANCELLED' || code === '-5' || code === '12501') {
+      throw new GoogleSignInError('CANCELLED', error);
+    }
+    // DEVELOPER_ERROR (code 10 sur Android) ne veut PAS dire que la connexion a
+    // échoué : il veut dire que Google ne reconnaît pas cette application. En
+    // pratique, toujours la même cause — pas de client OAuth Android pour ce
+    // couple (package, empreinte SHA-1). Message générique = une heure perdue à
+    // chercher au mauvais endroit.
+    if (code === 'DEVELOPER_ERROR' || code === '10') {
+      throw new GoogleSignInError('NOT_CONFIGURED', error);
+    }
+    throw new GoogleSignInError('FAILED', error);
   }
 
   const idToken = readIdToken(result);
