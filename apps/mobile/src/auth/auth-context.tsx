@@ -45,8 +45,11 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   }, []);
 
   const adopt = useCallback(async (issued: AuthTokens) => {
+    // La copie en mémoire d'abord : même si l'écriture sécurisée échoue, la
+    // session en cours reste utilisable (elle ne survivra juste pas au
+    // redémarrage de l'app).
     tokens.current = { accessToken: issued.accessToken, refreshToken: issued.refreshToken };
-    await saveTokens(issued);
+    await saveTokens(issued).catch(() => undefined);
   }, []);
 
   /**

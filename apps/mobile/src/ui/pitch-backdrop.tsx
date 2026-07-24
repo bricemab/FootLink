@@ -16,14 +16,12 @@ export function PitchBackdrop({ children }: { children: ReactNode }): ReactNode 
   return (
     <YStack flex={1} backgroundColor="$brandNight">
       <MotiView
-        pointerEvents="none"
         style={[styles.halo, styles.haloTop]}
         from={{ opacity: 0.28, scale: 1 }}
         animate={{ opacity: 0.5, scale: 1.25 }}
         transition={{ type: 'timing', duration: 5200, loop: true, repeatReverse: true }}
       />
       <MotiView
-        pointerEvents="none"
         style={[styles.halo, styles.haloBottom]}
         from={{ opacity: 0.22, scale: 1.15 }}
         animate={{ opacity: 0.4, scale: 1 }}
@@ -47,6 +45,8 @@ const styles = StyleSheet.create({
     width: 380,
     height: 380,
     borderRadius: 190,
+    // Décoratif : ne doit jamais intercepter un appui destiné au contenu.
+    pointerEvents: 'none',
   },
   haloTop: {
     top: -150,

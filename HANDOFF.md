@@ -172,7 +172,9 @@ puis **se reconnecter** (le rôle est gravé dans le token à l'émission).
 - **Compilateur Tamagui non activé** (pas de `@tamagui/babel-plugin`) : Tamagui tourne en mode runtime. C'est une optimisation de perf à ajouter quand l'UI sera stabilisée, pas un manque fonctionnel.
 - **Google Sign-In pas encore branché** : il exige un *dev build* (impossible dans Expo Go) et le client OAuth Android n'existe pas encore (cf. SHA-1 plus bas). L'inscription email + mot de passe couvre tout le parcours.
 - **Reset de mot de passe** : le lien profond `footlink://auth/reset-password` n'a pas encore d'écran.
-- Lottie et FlashList ne sont **pas** installés tant qu'aucun écran ne les utilise (pas de dépendance morte).
+- Lottie n'est **pas** installé tant qu'aucun écran ne l'utilise (pas de dépendance morte).
+- **`web.output` = `single` (SPA) et non `static`** : le rendu statique pré-rend chaque route dans Node, ce qui casse (`Cannot destructure property '__extends' of 'tslib.default'`). Le web n'est pas une cible produit — il sert seulement à inspecter l'UI dans un navigateur (`pnpm mobile:dev` puis http://localhost:8081).
+- **Sur le web, les jetons restent en mémoire** : `expo-secure-store` n'existe pas sur cette plateforme, et écrire des jetons dans `localStorage` serait un recul de sécurité gratuit. Conséquence : la session web ne survit pas à un rechargement. Sur mobile, rien ne change (Keychain / Keystore).
 
 ## 6. TODO / questions ouvertes
 
