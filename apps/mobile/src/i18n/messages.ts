@@ -148,11 +148,7 @@ export const fr = {
   errors: {
     network: 'Serveur injoignable. Vérifie que l’API tourne et que tu es sur le même réseau.',
     invalidCredentials: 'Email ou mot de passe incorrect.',
-    // Les variantes d’une même boîte Gmail (point, suffixe +…) mènent au même
-    // compte : le message doit l’expliquer, sinon l’utilisateur ne comprend
-    // pas pourquoi « son » adresse est refusée.
-    emailTaken:
-      'Un compte existe déjà avec cet email. Les variantes d’une même adresse (nom+club@…) comptent pour la même.',
+    emailTaken: 'Un compte existe déjà avec cet email.',
     clubAlreadyLinked: 'Ce compte est déjà rattaché à un club.',
     emailNotVerified: 'Confirme d’abord ton adresse email.',
     accountNotActive: 'Ce compte n’est pas actif.',
@@ -314,8 +310,7 @@ export const de: typeof fr = {
   errors: {
     network: 'Server nicht erreichbar. Läuft die API, und bist du im selben Netzwerk?',
     invalidCredentials: 'E-Mail oder Passwort ist falsch.',
-    emailTaken:
-      'Mit dieser E-Mail existiert bereits ein Konto. Varianten derselben Adresse (name+verein@…) zählen als dieselbe.',
+    emailTaken: 'Mit dieser E-Mail existiert bereits ein Konto.',
     clubAlreadyLinked: 'Dieses Konto ist bereits einem Verein zugeordnet.',
     emailNotVerified: 'Bestätige zuerst deine E-Mail-Adresse.',
     accountNotActive: 'Dieses Konto ist nicht aktiv.',

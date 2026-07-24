@@ -4,6 +4,7 @@ import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
 import { CheckIcon as PhCheck } from 'phosphor-react-native/src/icons/Check';
 import { SoccerBallIcon } from 'phosphor-react-native/src/icons/SoccerBall';
 import { StrategyIcon } from 'phosphor-react-native/src/icons/Strategy';
+import { WarningIcon as PhWarning } from 'phosphor-react-native/src/icons/Warning';
 import Svg, { Path } from 'react-native-svg';
 
 /**
@@ -70,6 +71,17 @@ export function CheckIcon({
   color?: string;
 }): ReactNode {
   return <PhCheck size={size} color={color} weight="bold" />;
+}
+
+/** Alerte : signale une erreur de formulaire. Rouge par défaut. */
+export function WarningIcon({
+  size = 18,
+  color = '#FF5A5F',
+}: {
+  size?: number;
+  color?: string;
+}): ReactNode {
+  return <PhWarning size={size} color={color} weight="fill" />;
 }
 
 export function ChevronIcon({

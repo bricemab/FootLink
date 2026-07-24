@@ -1,8 +1,20 @@
 import { MotiView } from 'moti';
 import type { ReactNode } from 'react';
-import { Text, XStack } from 'tamagui';
+import { Text, XStack, YStack } from 'tamagui';
+import { CheckIcon, WarningIcon } from '@/ui/icons';
 
-/** Bandeau de retour (erreur ou succès) sous un formulaire. */
+/**
+ * Bandeau de retour (erreur ou succès) sous un formulaire.
+ *
+ * L'icône dans sa pastille teintée porte le sens au premier regard, avant même
+ * la lecture : rouge = quelque chose ne va pas, vert = c'est bon. Le texte
+ * reste court et neutre à côté.
+ */
+const TONES = {
+  error: { accent: '#FF5A5F', bg: 'rgba(255,90,95,0.10)', border: 'rgba(255,90,95,0.32)' },
+  success: { accent: '#39FF88', bg: 'rgba(57,255,136,0.10)', border: 'rgba(57,255,136,0.32)' },
+} as const;
+
 export function FormBanner({
   message,
   tone = 'error',
@@ -10,6 +22,8 @@ export function FormBanner({
   message: string;
   tone?: 'error' | 'success';
 }): ReactNode {
+  const c = TONES[tone];
+
   return (
     <MotiView
       from={{ opacity: 0, translateY: -8 }}
@@ -17,14 +31,32 @@ export function FormBanner({
       transition={{ type: 'timing', duration: 200 }}
     >
       <XStack
-        borderRadius={14}
+        alignItems="center"
+        gap="$3"
+        borderRadius={16}
         paddingVertical="$3"
         paddingHorizontal="$3.5"
-        backgroundColor={tone === 'error' ? 'rgba(255,90,95,0.14)' : 'rgba(57,255,136,0.14)'}
+        backgroundColor={c.bg}
         borderWidth={1}
-        borderColor={tone === 'error' ? 'rgba(255,90,95,0.4)' : 'rgba(57,255,136,0.4)'}
+        borderColor={c.border}
       >
-        <Text fontSize={14} lineHeight={20} color={tone === 'error' ? '$brandDanger' : '$brandPitchBright'}>
+        {/* Pastille : l'icône y gagne un fond qui la détache du bandeau. */}
+        <YStack
+          width={30}
+          height={30}
+          borderRadius={15}
+          alignItems="center"
+          justifyContent="center"
+          backgroundColor={tone === 'error' ? 'rgba(255,90,95,0.18)' : 'rgba(57,255,136,0.18)'}
+        >
+          {tone === 'error' ? (
+            <WarningIcon size={17} color={c.accent} />
+          ) : (
+            <CheckIcon size={16} color={c.accent} />
+          )}
+        </YStack>
+
+        <Text fontSize={14} lineHeight={19} color="$brandChalk" flexShrink={1} fontWeight="500">
           {message}
         </Text>
       </XStack>
