@@ -196,8 +196,31 @@ inutile de passer par EAS, `expo run:android` compile et installe :
 ```bash
 pnpm --filter @footlink/mobile exec expo run:android
 ```
-(demande Android Studio + un JDK ; l'émulateur doit être démarré). Ensuite,
+(demande Android Studio + un JDK 17 ; l'émulateur doit être démarré). Ensuite,
 `pnpm mobile:dev` se connecte à cette app comme il le ferait à Expo Go.
+
+> **Prérequis Gradle sur une machine neuve** — les deux erreurs rencontrées le
+> 24 juillet 2026 :
+>
+> 1. `SDK location not found` : ni `ANDROID_HOME` ni `android/local.properties`.
+>    Le dossier `android/` étant **gitignoré et régénéré par prebuild**, la
+>    solution durable est la variable d'environnement (à faire une fois, dans un
+>    terminal, puis rouvrir le terminal) :
+>    ```bash
+>    setx ANDROID_HOME "%LOCALAPPDATA%\Android\Sdk"
+>    ```
+>    Sans elle, il faut recréer `apps/mobile/android/local.properties` avec
+>    `sdk.dir=C:/Users/<toi>/AppData/Local/Android/Sdk` après chaque `prebuild --clean`.
+>
+> 2. **NDK manquant** : le projet réclame exactement `27.1.12297006` (NDK r27b).
+>    Avoir une version voisine (27.0.x) ne suffit pas.
+>    ```bash
+>    "%LOCALAPPDATA%\Android\Sdk\cmdline-tools\latest\bin\sdkmanager.bat" "ndk;27.1.12297006"
+>    ```
+>
+> L'émulateur doit tourner sur une image **avec Google Play services**, sinon
+> Google Sign-In échoue quoi qu'on fasse (vérifiable avec
+> `adb shell pm list packages | findstr com.google.android.gms`).
 
 **2. Récupérer l'empreinte SHA-1.** Pour un build local de développement, c'est
 le **keystore de debug**, partagé par tous les projets Android de la machine :
