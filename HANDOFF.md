@@ -253,9 +253,23 @@ SHA-1 de l'étape 2. Ajouter ensuite son identifiant à `GOOGLE_CLIENT_IDS` dans
 `apps/api/.env` (liste séparée par des virgules) — c'est la liste des audiences
 que le serveur accepte.
 
+> **✅ Fait le 24 juillet 2026** pour le keystore de **debug** de la machine de
+> Brice (SHA-1 `67:FD:21:01:8F:02:6D:DA:20:EB:DE:B2:61:60:3B:B8:83:16:B2:35`).
+> Client Android : `988726398910-6dlaiaphv86eefld0ac17kmac60gp76u.apps.googleusercontent.com`.
+> Il reste à refaire l'opération avec l'empreinte du keystore **EAS** le jour de
+> la distribution, sinon Google Sign-In marchera en debug et cassera en prod.
+
+> Le fichier `client_secret_….json` téléchargé par la console **ne sert à rien**
+> ici : un client Android est un client *public*, il n'a pas de secret, et le
+> flux natif n'en utilise aucun. Ne pas l'embarquer dans l'app ni le commiter.
+
 > iOS et Web sont déjà créés. Le `iosUrlScheme` du plugin dans `app.json` est
 > l'identifiant iOS **inversé** : le changer sans changer le client OAuth casse
 > la connexion sur iPhone.
+
+> **Comment lire l'échec côté app** : `NOT_CONFIGURED` (Google renvoie
+> `DEVELOPER_ERROR`/`10`) = le couple package + SHA-1 n'est pas déclaré côté
+> Google, jamais un problème de code. `NEEDS_DEV_BUILD` = on tourne dans Expo Go.
 
 ## 6. TODO / questions ouvertes
 
