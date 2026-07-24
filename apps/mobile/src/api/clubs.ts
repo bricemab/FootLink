@@ -11,8 +11,21 @@ export interface Region {
 
 export interface ClubRequestPayload {
   clubName: string;
+  /** Correction manuelle de l'association ; sinon le serveur la déduit du canton. */
   regionCode?: string;
+  /**
+   * Terrain du club. On n'envoie que le point et son libellé : le canton, la
+   * commune et l'association en sont déduits côté serveur — un client ne décide
+   * pas de la région dans laquelle son club est rangé.
+   */
+  lat?: number;
+  lng?: number;
+  stadiumName?: string;
+  addressLine?: string;
+  /** Repli quand la recherche d'adresse est indisponible. */
   locality?: string;
+  /** Facultatif. Sans schéma (« fcsion.ch »), le serveur préfixe en https://. */
+  websiteUrl?: string;
   requestNote?: string;
 }
 

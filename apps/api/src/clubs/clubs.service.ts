@@ -6,10 +6,37 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Club, ClubMember, ClubMemberRole, ClubStatus, Prisma, UserRole } from '@prisma/client';
-import { GeoService } from '../geo/geo.service';
+import { regionForCanton } from '@footlink/shared';
 import { MailService } from '../mail/mail.service';
+import { PlacesService } from '../geo/places.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequestClubDto, UpdateClubDto } from './dto/club.dto';
+
+/**
+ * Site du club : on accepte « fcsion.ch » et on stocke une URL complète.
+ *
+ * Sans schéma, la valeur est inutilisable telle quelle — un `Linking.openURL`
+ * côté app échouerait, et un `<a href>` la traiterait comme un chemin relatif.
+ * On force `https` : proposer `http` en 2026 reviendrait à envoyer les
+ * utilisateurs sur une page non chiffrée, et les sites de clubs qui n'ont pas
+ * de TLS sont de toute façon en train de disparaître.
+ */
+function normalizeWebsite(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+/** Terrain résolu : ce qui sera réellement écrit en base pour la localisation. */
+interface PitchLocation {
+  lat: Prisma.Decimal;
+  lng: Prisma.Decimal;
+  canton: string;
+  locality: string;
+  regionCode: string | null;
+}
 
 export interface ClubContext {
   club: Club;
@@ -21,7 +48,7 @@ export class ClubsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
-    private readonly geo: GeoService,
+    private readonly places: PlacesService,
   ) {}
 
   /**
@@ -41,6 +68,13 @@ export class ClubsService {
     }
     await this.assertRegionExists(dto.regionCode);
 
+    // Le terrain donne le canton, qui donne l'association. Tout est recalculé
+    // ici : le client n'a envoyé qu'un point.
+    const pitch = await this.resolvePitch(dto.lat, dto.lng, dto.regionCode);
+    if (pitch) {
+      await this.assertRegionExists(pitch.regionCode ?? undefined);
+    }
+
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
     const club = await this.prisma.$transaction(async (tx) => {
@@ -50,9 +84,15 @@ export class ClubsService {
           status: ClubStatus.PENDING,
           contactEmail: dto.contactEmail?.toLowerCase() ?? user.email,
           requestNote: dto.requestNote ?? null,
-          regionCode: dto.regionCode ?? null,
-          canton: dto.canton ?? null,
-          locality: dto.locality ?? null,
+          websiteUrl: normalizeWebsite(dto.websiteUrl),
+          stadiumName: dto.stadiumName ?? null,
+          addressLine: dto.addressLine ?? null,
+          // Sans terrain résolu (service indisponible, saisie manuelle), on
+          // garde ce qu'on a plutôt que de refuser l'inscription.
+          regionCode: pitch?.regionCode ?? dto.regionCode ?? null,
+          canton: pitch?.canton ?? null,
+          locality: pitch?.locality ?? dto.locality ?? null,
+          ...(pitch ? { lat: pitch.lat, lng: pitch.lng } : {}),
           members: {
             create: { userId, role: ClubMemberRole.CLUB_ADMIN, isOwner: true },
           },
@@ -107,10 +147,10 @@ export class ClubsService {
     }
     await this.assertRegionExists(dto.regionCode);
 
-    const rounded =
-      dto.lat !== undefined && dto.lng !== undefined
-        ? this.geo.roundToGrid({ lat: dto.lat, lng: dto.lng })
-        : null;
+    const pitch = await this.resolvePitch(dto.lat, dto.lng, dto.regionCode);
+    if (pitch) {
+      await this.assertRegionExists(pitch.regionCode ?? undefined);
+    }
 
     return this.prisma.club.update({
       where: { id: club.id },
@@ -118,15 +158,46 @@ export class ClubsService {
         name: dto.name ?? undefined,
         description: dto.description ?? undefined,
         contactEmail: dto.contactEmail?.toLowerCase() ?? undefined,
-        regionCode: dto.regionCode ?? undefined,
-        canton: dto.canton ?? undefined,
-        locality: dto.locality ?? undefined,
-        ...(rounded
-          ? { lat: new Prisma.Decimal(rounded.lat), lng: new Prisma.Decimal(rounded.lng) }
+        websiteUrl: normalizeWebsite(dto.websiteUrl) ?? undefined,
+        stadiumName: dto.stadiumName ?? undefined,
+        addressLine: dto.addressLine ?? undefined,
+        regionCode: pitch?.regionCode ?? dto.regionCode ?? undefined,
+        // Déplacer le terrain déplace le canton et la commune avec lui : les
+        // laisser en arrière donnerait un club rangé dans la mauvaise région.
+        ...(pitch
+          ? { lat: pitch.lat, lng: pitch.lng, canton: pitch.canton, locality: pitch.locality }
           : {}),
       },
       include: { region: true },
     });
+  }
+
+  /**
+   * Point -> canton, commune, association. `null` si aucun point n'est fourni.
+   *
+   * Les coordonnées sont stockées **telles quelles**, sans l'arrondi à ~1 km
+   * appliqué aux joueurs : un terrain est un équipement public, l'arrondir ne
+   * protégerait personne et introduirait jusqu'à un kilomètre d'erreur dans le
+   * matching par distance qu'on construit en Phase 6.
+   */
+  private async resolvePitch(
+    lat: number | undefined,
+    lng: number | undefined,
+    regionOverride: string | undefined,
+  ): Promise<PitchLocation | null> {
+    if (lat === undefined || lng === undefined) {
+      return null;
+    }
+    const { canton, locality } = await this.places.resolvePoint(lat, lng);
+    return {
+      lat: new Prisma.Decimal(lat),
+      lng: new Prisma.Decimal(lng),
+      canton,
+      locality,
+      // Le choix explicite de l'utilisateur prime : la déduction n'est fiable
+      // que pour les associations mono-cantonales (cf. CANTON_TO_REGION).
+      regionCode: regionOverride ?? regionForCanton(canton),
+    };
   }
 
   // Liste des clubs sélectionnables par un joueur (club actuel). Lien DÉCLARATIF :

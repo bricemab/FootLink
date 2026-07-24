@@ -311,12 +311,23 @@ model Club {
   contactEmail String? // email du demandeur / référent du club
   requestNote  String?    @db.Text // message de la demande (contexte pour la validation)
   reviewedAt   DateTime? // date de validation/refus
-  regionCode   String? // association régionale (ex "avf") — CLUB uniquement ; cf. Region
+  regionCode   String? // association régionale (ex "avf") — déduite du canton, corrigeable ; cf. Region
+  // Terrain du club. Renseigné depuis une adresse choisie dans l'autocomplétion
+  // swisstopo : `canton` et `locality` sont déduits des coordonnées CÔTÉ SERVEUR,
+  // jamais recopiés depuis le client (ils décident de l'association régionale).
+  stadiumName  String? // "Stade de Tourbillon" — nom d'usage, affiché tel quel
+  addressLine  String? // libellé complet retourné par la recherche
+  postalCode   String?
   canton       String?
   locality     String?
+  // Position du terrain, EN PLEINE PRÉCISION — contrairement à PlayerProfile,
+  // qui reste arrondi à ~1 km (AGENTS §6.5). Un terrain de football est un
+  // équipement public, pas une donnée personnelle : l'arrondir ne protégerait
+  // personne et fausserait le matching par distance de jusqu'à un kilomètre.
   lat          Decimal?   @db.Decimal(9, 6)
   lng          Decimal?   @db.Decimal(9, 6)
   logoUrl      String?
+  websiteUrl   String? // site du club, facultatif ; normalisé en https:// à l'écriture
   description  String?    @db.Text
   verified     Boolean    @default(false) // validation d'identité approfondie (phase ultérieure, distincte du statut)
   createdAt    DateTime   @default(now())

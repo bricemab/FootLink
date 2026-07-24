@@ -15,6 +15,14 @@ export interface AppConfiguration {
   google: {
     clientIds: string[]; // audiences acceptées pour la vérif du jeton ID
   };
+  mapbox: {
+    /**
+     * Jeton public Mapbox, utilisé pour la recherche de lieux (Search Box).
+     * Vide = recherche indisponible : l'app bascule sur la saisie manuelle
+     * plutôt que de renvoyer des résultats faux.
+     */
+    token: string;
+  };
   mail: {
     host?: string;
     port: number;
@@ -55,6 +63,9 @@ export default (): AppConfiguration => ({
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),
+  },
+  mapbox: {
+    token: process.env.MAPBOX_TOKEN ?? '',
   },
   mail: {
     host: process.env.SMTP_HOST || undefined,

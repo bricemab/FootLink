@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Text, YStack } from 'tamagui';
 import { requestSignupCode, verifySignupCode } from '@/api/auth';
 import { listRegions, requestClub, type Region } from '@/api/clubs';
+import type { ResolvedPlace } from '@/api/geo';
 import { ApiError } from '@/api/client';
 import { useAuth } from '@/auth/auth-context';
 import { GoogleSignInError } from '@/auth/google-sign-in';
@@ -12,6 +13,7 @@ import { AuthFormShell } from '@/ui/auth-form-shell';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { GoogleButton } from '@/ui/google-button';
+import { PlacePicker } from '@/ui/place-picker';
 import { PrimaryButton } from '@/ui/primary-button';
 import { RegionPicker } from '@/ui/region-picker';
 import { Stepper, StepTransition } from '@/ui/stepper';
@@ -44,8 +46,14 @@ export default function RegisterClub(): ReactNode {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [clubName, setClubName] = useState('');
+  const [pitch, setPitch] = useState<ResolvedPlace>();
+  // Repli quand la recherche d'adresse est HS : mieux vaut une localité saisie à
+  // la main qu'une inscription bloquée par la panne d'un service tiers.
+  const [placesDown, setPlacesDown] = useState(false);
   const [locality, setLocality] = useState('');
   const [regionCode, setRegionCode] = useState<string>();
+  const [accessToken, setAccessToken] = useState<string>();
+  const [website, setWebsite] = useState('');
   const [note, setNote] = useState('');
   const [fieldError, setFieldError] = useState<string>();
   const [banner, setBanner] = useState<string>();
@@ -80,6 +88,23 @@ export default function RegisterClub(): ReactNode {
       cancelled = true;
     };
   }, []);
+
+  // L'autocomplétion du terrain est authentifiée : on récupère le jeton dès que
+  // l'identité est établie, pas au moment du premier caractère tapé.
+  useEffect(() => {
+    if (step !== 'CLUB' || accessToken) {
+      return;
+    }
+    let cancelled = false;
+    void loadTokens().then((tokens) => {
+      if (!cancelled && tokens) {
+        setAccessToken(tokens.accessToken);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, accessToken]);
 
   const fail = (message: string): void => setBanner(message);
 
@@ -184,11 +209,19 @@ export default function RegisterClub(): ReactNode {
   };
 
   // --- Étapes 2 et 3 : le club --------------------------------------------
+  // Le terrain est ce qui donne au club sa position, son canton et son
+  // association : sans lui, le club n'apparaîtrait dans aucune recherche par
+  // rayon. On l'exige donc, sauf si la recherche d'adresse est en panne — dans
+  // ce cas la localité saisie à la main suffit à ne pas bloquer l'inscription.
+  const [pitchError, setPitchError] = useState<string>();
+
   const goToContext = (): void => {
-    const invalid = clubName.trim().length === 0 ? t.errors.required : undefined;
-    setFieldError(invalid);
+    const nameInvalid = clubName.trim().length === 0 ? t.errors.required : undefined;
+    const locationMissing = !pitch && !(placesDown && locality.trim().length > 0);
+    setFieldError(nameInvalid);
+    setPitchError(locationMissing ? t.club.pitchRequired : undefined);
     setBanner(undefined);
-    if (!invalid) {
+    if (!nameInvalid && !locationMissing) {
       setStep('CONTEXT');
     }
   };
@@ -205,7 +238,13 @@ export default function RegisterClub(): ReactNode {
       await requestClub(tokens.accessToken, {
         clubName: clubName.trim(),
         ...(regionCode ? { regionCode } : {}),
-        ...(locality.trim() ? { locality: locality.trim() } : {}),
+        // On envoie le point brut ; canton, commune et association sont
+        // recalculés par le serveur à partir de lui.
+        ...(pitch
+          ? { lat: pitch.lat, lng: pitch.lng, stadiumName: pitch.label, addressLine: pitch.label }
+          : {}),
+        ...(!pitch && locality.trim() ? { locality: locality.trim() } : {}),
+        ...(website.trim() ? { websiteUrl: website.trim() } : {}),
         ...(note.trim() ? { requestNote: note.trim() } : {}),
       });
       router.replace('/');
@@ -340,14 +379,37 @@ export default function RegisterClub(): ReactNode {
               autoCapitalize="words"
               error={fieldError}
             />
+            {accessToken ? (
+              <PlacePicker
+                accessToken={accessToken}
+                value={pitch}
+                onChange={(place) => {
+                  setPitch(place);
+                  setPitchError(undefined);
+                  // Le terrain donne le canton, qui donne l'association : la
+                  // redemander juste après serait absurde. On ne présélectionne
+                  // que si elle est réellement ouverte — sinon on poserait une
+                  // valeur absente de la liste, donc invisible et incorrigeable.
+                  if (place?.regionCode && openRegions.some((r) => r.code === place.regionCode)) {
+                    setRegionCode(place.regionCode);
+                  }
+                }}
+                error={pitchError}
+                onUnavailable={setPlacesDown}
+              />
+            ) : null}
+            {/* Sans recherche d'adresse, on retombe sur une localité libre : le
+                club sera positionné plus tard, mais l'inscription passe. */}
+            {placesDown && !pitch ? (
+              <TextField
+                label={t.club.locality}
+                value={locality}
+                onChangeText={setLocality}
+                placeholder="Sion"
+                autoCapitalize="words"
+              />
+            ) : null}
             <RegionPicker regions={openRegions} value={regionCode} onChange={setRegionCode} />
-            <TextField
-              label={t.club.locality}
-              value={locality}
-              onChangeText={setLocality}
-              placeholder="Sion"
-              autoCapitalize="words"
-            />
             <PrimaryButton label={t.coach.next} onPress={goToContext} />
           </YStack>
         </StepTransition>
@@ -356,6 +418,17 @@ export default function RegisterClub(): ReactNode {
       {step === 'CONTEXT' ? (
         <StepTransition stepKey="context">
           <YStack gap="$4">
+            {/* Le site aide surtout le SUPER_ADMIN à valider la demande : il
+                lui suffit d'y retrouver le nom du demandeur. D'où sa place
+                ici, à côté du mot de contexte, et non dans l'identité. */}
+            <TextField
+              label={t.club.website}
+              value={website}
+              onChangeText={setWebsite}
+              placeholder={t.club.websitePlaceholder}
+              keyboardType="url"
+              autoCapitalize="none"
+            />
             <TextField
               label={t.club.note}
               value={note}

@@ -51,6 +51,14 @@ class EnvironmentVariables {
   @IsString()
   GOOGLE_CLIENT_IDS?: string;
 
+  // --- Mapbox (recherche de lieux ; sans lui, saisie manuelle) ---
+  // Jeton PUBLIC (pk.…), conçu pour être exposé côté client. On le garde
+  // néanmoins côté serveur : il n'est pas dans le binaire de l'app, donc le
+  // faire tourner ne demande aucune mise à jour sur les stores.
+  @IsOptional()
+  @IsString()
+  MAPBOX_TOKEN?: string;
+
   // --- Email (optionnel : sans SMTP, les emails sont logués) ---
   @IsOptional()
   @IsString()
