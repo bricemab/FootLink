@@ -1,113 +1,386 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState, type ReactNode } from 'react';
-import { Text, YStack } from 'tamagui';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Pressable } from 'react-native';
+import { Text, XStack, YStack } from 'tamagui';
+import { coachEntryStep, resendCoachInvite, verifyCoachCode } from '@/api/auth';
+import { getMyClub } from '@/api/clubs';
 import { ApiError } from '@/api/client';
 import { useAuth } from '@/auth/auth-context';
+import { GoogleSignInError } from '@/auth/google-sign-in';
+import { loadTokens } from '@/auth/token-storage';
 import { useI18n } from '@/i18n';
 import { AuthFormShell } from '@/ui/auth-form-shell';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
+import { GoogleButton } from '@/ui/google-button';
 import { PrimaryButton } from '@/ui/primary-button';
+import { Stepper } from '@/ui/stepper';
 import { TextField } from '@/ui/text-field';
+import { useStepper } from '@/ui/use-stepper';
 import { validateEmail, validatePassword } from '@/ui/validation';
 
 /**
- * Activation d'un compte entraîneur.
+ * Entrée de l'entraîneur, en plusieurs étapes.
  *
- * L'entraîneur ne s'inscrit pas : son compte a été créé par son club, avec
- * l'adresse email que le club a saisie. Recopier le code reçu à cette adresse
- * prouve qu'il y a accès — le compte est activé et l'email validé d'un coup.
+ * On demande d'abord l'email, puis le serveur dit quoi faire ensuite : saisir
+ * le code d'activation, saisir son mot de passe, ou passer par Google. C'est le
+ * serveur qui décide, parce que lui seul sait où en est le compte — l'entraîneur
+ * n'a pas à savoir s'il est « déjà activé ».
  *
- * Deux chemins mènent ici : le choix « Je suis entraîneur » à l'inscription, et
- * le lien de l'email, qui pré-remplit email et code.
+ * Google court-circuite le code : il prouve exactement la même chose, la
+ * maîtrise de la boîte mail. Le seul cas à traiter est celui d'une adresse
+ * Google différente de celle enregistrée par le club.
  */
+type Step = 'EMAIL' | 'CODE' | 'SET_PASSWORD' | 'PASSWORD' | 'GOOGLE_ONLY';
+
 export default function RegisterCoach(): ReactNode {
   const router = useRouter();
-  const { t } = useI18n();
-  const { acceptCoachInvite } = useAuth();
+  const { t, fill } = useI18n();
+  const { acceptCoachInvite, signIn, signInWithGoogle, signOut } = useAuth();
   const params = useLocalSearchParams<{ email?: string; code?: string }>();
 
+  const [step, setStep] = useState<Step>('EMAIL');
   const [email, setEmail] = useState(params.email ?? '');
   const [code, setCode] = useState(params.code ?? '');
   const [password, setPassword] = useState('');
-  const [emailError, setEmailError] = useState<string>();
-  const [codeError, setCodeError] = useState<string>();
-  const [passwordError, setPasswordError] = useState<string>();
+  const [confirm, setConfirm] = useState('');
+  const [fieldError, setFieldError] = useState<string>();
   const [banner, setBanner] = useState<string>();
+  const [tone, setTone] = useState<'error' | 'success'>('error');
   const [busy, setBusy] = useState(false);
+  const autoStarted = useRef(false);
 
-  const submit = async (): Promise<void> => {
-    const invalidEmail = validateEmail(email, t);
-    const invalidCode = /^\d{6}$/.test(code.trim()) ? undefined : t.errors.codeFormat;
-    const invalidPassword = validatePassword(password, t);
-    setEmailError(invalidEmail);
-    setCodeError(invalidCode);
-    setPasswordError(invalidPassword);
+  const fail = useCallback(
+    (message: string) => {
+      setTone('error');
+      setBanner(message);
+    },
+    [],
+  );
+
+  // --- Étape 1 : l'email décide de la suite -------------------------------
+  const submitEmail = useCallback(
+    async (value: string): Promise<void> => {
+      const invalid = validateEmail(value, t);
+      setFieldError(invalid);
+      setBanner(undefined);
+      if (invalid) {
+        return;
+      }
+      setBusy(true);
+      try {
+        const { step: next } = await coachEntryStep(value);
+        if (next === 'CODE') {
+          setStep('CODE');
+        } else if (next === 'PASSWORD') {
+          setStep('PASSWORD');
+        } else if (next === 'GOOGLE') {
+          setStep('GOOGLE_ONLY');
+        } else {
+          fail(t.coach.unknown);
+        }
+      } catch (error) {
+        fail(toUserMessage(error, t));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [fail, t],
+  );
+
+  // Lien de l'email : on enchaîne directement sur la saisie du code.
+  useEffect(() => {
+    if (params.email && !autoStarted.current) {
+      autoStarted.current = true;
+      void submitEmail(params.email);
+    }
+  }, [params.email, submitEmail]);
+
+  // --- Étape 2 : le code, vérifié sans être consommé ----------------------
+  const submitCode = async (): Promise<void> => {
+    const invalid = /^\d{6}$/.test(code.trim()) ? undefined : t.errors.codeFormat;
+    setFieldError(invalid);
     setBanner(undefined);
-    if (invalidEmail || invalidCode || invalidPassword) {
+    if (invalid) {
       return;
     }
-
     setBusy(true);
     try {
-      await acceptCoachInvite(email, code, password);
-      router.replace('/');
+      await verifyCoachCode(email, code);
+      setStep('SET_PASSWORD');
     } catch (error) {
-      // L'API distingue « code faux » de « code brûlé après trop d'essais » :
-      // la deuxième situation demande une action du club, pas une nouvelle
-      // tentative, donc elle mérite son propre message.
-      if (error instanceof ApiError && error.code === 'COACH_INVITE_LOCKED') {
-        setBanner(t.errors.inviteLocked);
-      } else if (error instanceof ApiError && error.code === 'COACH_INVITE_INVALID') {
-        setBanner(t.errors.inviteInvalid);
-      } else {
-        setBanner(toUserMessage(error, t));
-      }
+      fail(describeInviteError(error, t));
     } finally {
       setBusy(false);
     }
   };
 
+  const resend = async (): Promise<void> => {
+    setBusy(true);
+    setBanner(undefined);
+    try {
+      await resendCoachInvite(email);
+      setTone('success');
+      setBanner(t.coach.resent);
+    } catch (error) {
+      fail(toUserMessage(error, t));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // --- Étape 3a : création du mot de passe (activation) -------------------
+  const submitNewPassword = async (): Promise<void> => {
+    const invalid = validatePassword(password, t);
+    setFieldError(invalid);
+    setBanner(undefined);
+    if (invalid) {
+      return;
+    }
+    if (password !== confirm) {
+      fail(t.coach.mismatch);
+      return;
+    }
+    setBusy(true);
+    try {
+      await acceptCoachInvite(email, code, password);
+      router.replace('/');
+    } catch (error) {
+      fail(describeInviteError(error, t));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // --- Étape 3b : compte déjà activé, connexion normale -------------------
+  const submitExistingPassword = async (): Promise<void> => {
+    setBanner(undefined);
+    if (password.length === 0) {
+      setFieldError(t.errors.required);
+      return;
+    }
+    setBusy(true);
+    try {
+      await signIn(email, password);
+      router.replace('/');
+    } catch (error) {
+      fail(toUserMessage(error, t));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // --- Google : raccourci, mais l'adresse doit être celle du club ---------
+  const withGoogle = async (): Promise<void> => {
+    setBanner(undefined);
+    setBusy(true);
+    try {
+      await signInWithGoogle();
+      // Connecté, mais est-ce bien un entraîneur ? Sans club rattaché, c'est
+      // que l'adresse Google n'est pas celle que le club a enregistrée.
+      const tokens = await loadTokens();
+      const club = tokens ? await getMyClub(tokens.accessToken).catch(() => null) : null;
+      if (!club) {
+        await signOut();
+        fail(t.coach.googleNotInvited);
+        return;
+      }
+      router.replace('/');
+    } catch (error) {
+      if (error instanceof GoogleSignInError) {
+        if (error.reason === 'CANCELLED') {
+          return;
+        }
+        fail(
+          error.reason === 'NEEDS_DEV_BUILD'
+            ? t.google.needsDevBuild
+            : error.reason === 'NOT_CONFIGURED'
+              ? t.google.notConfigured
+              : t.google.failed,
+        );
+        return;
+      }
+      fail(toUserMessage(error, t));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const backToEmail = (): void => {
+    setStep('EMAIL');
+    setCode('');
+    setPassword('');
+    setConfirm('');
+    setFieldError(undefined);
+    setBanner(undefined);
+  };
+
+  const { title, subtitle } = headings(step, t, fill, email);
+
+  // Le nombre d'étapes dépend de l'état du compte, que seul le serveur connaît :
+  // activer une invitation en fait trois, se reconnecter n'en fait que deux.
+  // Tant qu'on ne sait pas, on annonce le parcours d'activation, qui est celui
+  // de tout entraîneur arrivant pour la première fois.
+  const labels =
+    step === 'PASSWORD'
+      ? [t.steps.email, t.steps.password]
+      : [t.steps.email, t.steps.code, t.steps.password];
+  const current = { EMAIL: 0, CODE: 1, SET_PASSWORD: 2, PASSWORD: 1, GOOGLE_ONLY: 1 }[step];
+  const { stepLabel, nextLabel } = useStepper(labels, current);
+
   return (
-    <AuthFormShell title={t.coach.title} subtitle={t.coach.subtitle}>
-      {banner ? <FormBanner message={banner} /> : null}
+    <AuthFormShell
+      title={title}
+      subtitle={subtitle}
+      header={
+        step === 'GOOGLE_ONLY' ? undefined : (
+          <Stepper steps={labels} current={current} stepLabel={stepLabel} nextLabel={nextLabel} />
+        )
+      }
+      {...(step === 'SET_PASSWORD' ? { onBack: () => setStep('CODE') } : {})}
+    >
+      {banner ? <FormBanner message={banner} tone={tone} /> : null}
 
-      <TextField
-        label={t.common.email}
-        value={email}
-        onChangeText={setEmail}
-        placeholder="prenom.nom@exemple.ch"
-        keyboardType="email-address"
-        autoComplete="email"
-        error={emailError}
-      />
-      <TextField
-        label={t.coach.codeLabel}
-        value={code}
-        onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
-        placeholder="000000"
-        keyboardType="number-pad"
-        autoComplete="one-time-code"
-        error={codeError}
-      />
-      <YStack gap="$2">
-        <TextField
-          label={t.common.password}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          autoComplete="new-password"
-          error={passwordError}
-          onSubmitEditing={() => void submit()}
-        />
-        {passwordError ? null : (
-          <Text fontSize={13} color="$brandChalkDim">
-            {t.register.passwordHint}
-          </Text>
-        )}
-      </YStack>
+      {step === 'EMAIL' ? (
+        <>
+          <TextField
+            label={t.common.email}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="prenom.nom@exemple.ch"
+            keyboardType="email-address"
+            autoComplete="email"
+            error={fieldError}
+            onSubmitEditing={() => void submitEmail(email)}
+          />
+          <PrimaryButton
+            label={t.coach.next}
+            loading={busy}
+            onPress={() => void submitEmail(email)}
+          />
+          <GoogleButton label={t.google.signIn} disabled={busy} onPress={() => void withGoogle()} />
+        </>
+      ) : null}
 
-      <PrimaryButton label={t.coach.submit} loading={busy} onPress={() => void submit()} />
+      {step === 'CODE' ? (
+        <>
+          <TextField
+            label={t.coach.codeLabel}
+            value={code}
+            onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
+            placeholder="000000"
+            keyboardType="number-pad"
+            autoComplete="one-time-code"
+            error={fieldError}
+            onSubmitEditing={() => void submitCode()}
+          />
+          <PrimaryButton label={t.coach.next} loading={busy} onPress={() => void submitCode()} />
+          <PrimaryButton
+            label={t.coach.resend}
+            variant="ghost"
+            disabled={busy}
+            onPress={() => void resend()}
+          />
+        </>
+      ) : null}
+
+      {step === 'SET_PASSWORD' ? (
+        <>
+          <YStack gap="$2">
+            <TextField
+              label={t.common.password}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoComplete="new-password"
+              error={fieldError}
+            />
+            <Text fontSize={13} color="$brandChalkDim">
+              {t.register.passwordHint}
+            </Text>
+          </YStack>
+          <TextField
+            label={t.coach.confirmLabel}
+            value={confirm}
+            onChangeText={setConfirm}
+            secureTextEntry
+            autoComplete="new-password"
+            onSubmitEditing={() => void submitNewPassword()}
+          />
+          <PrimaryButton
+            label={t.coach.submit}
+            loading={busy}
+            onPress={() => void submitNewPassword()}
+          />
+        </>
+      ) : null}
+
+      {step === 'PASSWORD' ? (
+        <>
+          <TextField
+            label={t.common.password}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoComplete="current-password"
+            error={fieldError}
+            onSubmitEditing={() => void submitExistingPassword()}
+          />
+          <PrimaryButton
+            label={t.login.submit}
+            loading={busy}
+            onPress={() => void submitExistingPassword()}
+          />
+        </>
+      ) : null}
+
+      {step === 'GOOGLE_ONLY' ? (
+        <GoogleButton label={t.google.signIn} loading={busy} onPress={() => void withGoogle()} />
+      ) : null}
+
+      {step !== 'EMAIL' ? (
+        <XStack justifyContent="center">
+          <Pressable onPress={backToEmail} accessibilityRole="button">
+            <Text fontSize={15} color="$brandChalkDim">
+              {t.coach.changeEmail}
+            </Text>
+          </Pressable>
+        </XStack>
+      ) : null}
     </AuthFormShell>
   );
+}
+
+/** Un code brûlé demande une action du club, pas une nouvelle tentative. */
+function describeInviteError(error: unknown, t: ReturnType<typeof useI18n>['t']): string {
+  if (error instanceof ApiError && error.code === 'COACH_INVITE_LOCKED') {
+    return t.errors.inviteLocked;
+  }
+  if (error instanceof ApiError && error.code === 'COACH_INVITE_INVALID') {
+    return t.errors.inviteInvalid;
+  }
+  return toUserMessage(error, t);
+}
+
+function headings(
+  step: Step,
+  t: ReturnType<typeof useI18n>['t'],
+  fill: ReturnType<typeof useI18n>['fill'],
+  email: string,
+): { title: string; subtitle: string } {
+  switch (step) {
+    case 'CODE':
+      return {
+        title: t.coach.codeTitle,
+        subtitle: fill(t.coach.codeSubtitle, { email }),
+      };
+    case 'SET_PASSWORD':
+      return { title: t.coach.setPasswordTitle, subtitle: t.coach.setPasswordSubtitle };
+    case 'PASSWORD':
+      return { title: t.coach.passwordTitle, subtitle: t.coach.passwordSubtitle };
+    case 'GOOGLE_ONLY':
+      return { title: t.coach.googleOnlyTitle, subtitle: t.coach.googleOnlySubtitle };
+    default:
+      return { title: t.coach.title, subtitle: t.coach.subtitle };
+  }
 }

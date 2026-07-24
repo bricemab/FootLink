@@ -13,10 +13,16 @@ import { PitchBackdrop } from '@/ui/pitch-backdrop';
 export function AuthFormShell({
   title,
   subtitle,
+  header,
+  onBack,
   children,
 }: {
   title: string;
   subtitle: string;
+  /** Zone au-dessus du titre : sert au stepper des inscriptions en étapes. */
+  header?: ReactNode;
+  /** Remplace le retour de navigation, pour revenir à l'étape précédente. */
+  onBack?: () => void;
   children: ReactNode;
 }): ReactNode {
   const router = useRouter();
@@ -34,13 +40,18 @@ export function AuthFormShell({
           showsVerticalScrollIndicator={false}
         >
           <YStack gap="$5">
-            {router.canGoBack() ? (
-              <Pressable onPress={() => router.back()} accessibilityRole="button">
+            {onBack ?? router.canGoBack() ? (
+              <Pressable
+                onPress={onBack ?? (() => router.back())}
+                accessibilityRole="button"
+              >
                 <Text fontSize={15} color="$brandChalkDim">
                   ← {t.common.back}
                 </Text>
               </Pressable>
             ) : null}
+
+            {header}
 
             <MotiView
               from={{ opacity: 0, translateY: 18 }}

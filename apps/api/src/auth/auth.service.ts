@@ -52,6 +52,15 @@ const COACH_CODE_MAX_ATTEMPTS = 5;
 export const COACH_INVITE_INVALID_CODE = 'COACH_INVITE_INVALID';
 export const COACH_INVITE_LOCKED_CODE = 'COACH_INVITE_LOCKED';
 
+/**
+ * Ce que l'app doit demander à l'entraîneur après son email :
+ * - `CODE`     : invitation en attente, il doit saisir le code reçu ;
+ * - `PASSWORD` : compte déjà activé, connexion normale ;
+ * - `GOOGLE`   : compte activé via Google, il n'a pas de mot de passe ;
+ * - `UNKNOWN`  : rien à cette adresse (ou invitation expirée).
+ */
+export type CoachEntryStep = 'CODE' | 'PASSWORD' | 'GOOGLE' | 'UNKNOWN';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -184,7 +193,39 @@ export class AuthService {
    * deviendrait un moyen d'énumérer les entraîneurs invités.
    */
   async acceptCoachInvite(dto: AcceptCoachInviteDto): Promise<AuthTokens> {
-    const email = dto.email.trim().toLowerCase();
+    const { user, invite } = await this.assertCoachCode(dto.email, dto.code);
+
+    await this.prisma.token.update({
+      where: { id: invite.id },
+      data: { usedAt: new Date() },
+    });
+    const updated = await this.users.update(user.id, {
+      passwordHash: await argon2.hash(dto.password),
+      emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+    });
+    // Une invitation consommée invalide les sessions antérieures du compte.
+    await this.tokens.revokeAllForUser(user.id);
+    return this.tokens.issueTokens(updated);
+  }
+
+  /**
+   * Vérifie le code SANS le consommer, pour que l'app puisse enchaîner sur le
+   * choix du mot de passe. Faire saisir un mot de passe puis annoncer que le
+   * code était faux serait une perte de temps gratuite.
+   *
+   * Le compteur de tentatives s'incrémente quand même : sans ça, cet endpoint
+   * offrirait une force brute illimitée là où `accept` en compte cinq.
+   */
+  async verifyCoachCode(dto: AcceptCoachInviteDto | { email: string; code: string }): Promise<void> {
+    await this.assertCoachCode(dto.email, dto.code);
+  }
+
+  /** Valide (email, code) ou lève. Ne modifie rien, hors compteur d'échecs. */
+  private async assertCoachCode(
+    rawEmail: string,
+    rawCode: string,
+  ): Promise<{ user: User; invite: { id: string } }> {
+    const email = rawEmail.trim().toLowerCase();
     const user = await this.users.findByEmail(email);
     const invite = user
       ? await this.prisma.token.findFirst({
@@ -213,7 +254,7 @@ export class AuthService {
         message: 'Too many failed attempts. Ask your club to send a new code.',
       });
     }
-    if (!(await argon2.verify(invite.tokenHash, dto.code.trim()))) {
+    if (!(await argon2.verify(invite.tokenHash, rawCode.trim()))) {
       await this.prisma.token.update({
         where: { id: invite.id },
         data: { attempts: { increment: 1 } },
@@ -226,18 +267,69 @@ export class AuthService {
     if (user.status !== UserStatus.ACTIVE) {
       throw new ForbiddenException('Account is not active.');
     }
+    return { user, invite };
+  }
 
-    await this.prisma.token.update({
-      where: { id: invite.id },
-      data: { usedAt: new Date() },
+  /**
+   * Dit à l'app quoi demander à l'entraîneur après sa saisie d'email : le code
+   * d'activation, son mot de passe, ou de passer par Google.
+   *
+   * ⚠️ Cet endpoint révèle l'existence d'un compte pour une adresse donnée.
+   * C'est un choix produit assumé : sans lui, impossible d'adapter l'écran, et
+   * l'inscription fuit déjà la même information (409 sur email déjà pris). Il
+   * est en contrepartie fortement rate-limité, et ne dit rien de plus que
+   * l'étape suivante — ni nom, ni club, ni rôle.
+   */
+  async coachEntryStep(email: string): Promise<{ step: CoachEntryStep }> {
+    const user = await this.users.findByEmail(email.trim().toLowerCase());
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      return { step: 'UNKNOWN' };
+    }
+    if (user.passwordHash) {
+      return { step: 'PASSWORD' };
+    }
+    if (user.googleId) {
+      return { step: 'GOOGLE' };
+    }
+    // Ni mot de passe ni Google : le compte n'est utilisable que par une
+    // invitation encore valide.
+    const invite = await this.prisma.token.findFirst({
+      where: {
+        userId: user.id,
+        type: TokenType.COACH_INVITE,
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
     });
-    const updated = await this.users.update(user.id, {
-      passwordHash: await argon2.hash(dto.password),
-      emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+    return { step: invite ? 'CODE' : 'UNKNOWN' };
+  }
+
+  /**
+   * Renvoie un code d'activation à l'entraîneur lui-même, sans passer par son
+   * club. Toujours silencieux : répondre différemment selon que l'adresse
+   * existe transformerait l'endpoint en annuaire.
+   */
+  async resendCoachInvite(email: string): Promise<void> {
+    const user = await this.users.findByEmail(email.trim().toLowerCase());
+    // Un compte déjà activé n'a rien à recevoir.
+    if (!user || user.passwordHash || user.googleId || user.status !== UserStatus.ACTIVE) {
+      return;
+    }
+    const member = await this.prisma.clubMember.findFirst({
+      where: { userId: user.id },
+      include: { club: true },
     });
-    // Une invitation consommée invalide les sessions antérieures du compte.
-    await this.tokens.revokeAllForUser(user.id);
-    return this.tokens.issueTokens(updated);
+    if (!member) {
+      return;
+    }
+    const code = await this.createCoachInviteCode(user.id);
+    await this.mail.sendCoachInviteEmail(
+      user.email,
+      member.firstName ?? '',
+      member.club.name,
+      code,
+      user.locale,
+    );
   }
 
   // Exposés pour les autres modules (ex. création de compte club en Phase 3).

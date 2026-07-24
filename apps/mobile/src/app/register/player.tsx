@@ -9,76 +9,117 @@ import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { GoogleAuthSection } from '@/ui/google-auth-section';
 import { PrimaryButton } from '@/ui/primary-button';
+import { Stepper, StepTransition } from '@/ui/stepper';
 import { TextField } from '@/ui/text-field';
+import { useStepper } from '@/ui/use-stepper';
 import { validateEmail, validatePassword } from '@/ui/validation';
 
-export default function Register(): ReactNode {
+/**
+ * Inscription joueur, en deux étapes.
+ *
+ * Un champ à la fois : on ne demande le mot de passe qu'une fois l'email jugé
+ * valide, et le stepper annonce d'avance ce qui reste. Google court-circuite
+ * les deux étapes, il reste donc proposé dès la première.
+ */
+export default function RegisterPlayer(): ReactNode {
   const router = useRouter();
   const { t, locale } = useI18n();
   const { signUp } = useAuth();
 
+  const labels = [t.steps.email, t.steps.password];
+  const [current, setCurrent] = useState(0);
+  const { stepLabel, nextLabel } = useStepper(labels, current);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [emailError, setEmailError] = useState<string>();
-  const [passwordError, setPasswordError] = useState<string>();
+  const [fieldError, setFieldError] = useState<string>();
   const [banner, setBanner] = useState<string>();
   const [busy, setBusy] = useState(false);
 
-  const submit = async (): Promise<void> => {
-    const invalidEmail = validateEmail(email, t);
-    const invalidPassword = validatePassword(password, t);
-    setEmailError(invalidEmail);
-    setPasswordError(invalidPassword);
+  const goToPassword = (): void => {
+    const invalid = validateEmail(email, t);
+    setFieldError(invalid);
     setBanner(undefined);
-    if (invalidEmail || invalidPassword) {
+    if (!invalid) {
+      setFieldError(undefined);
+      setCurrent(1);
+    }
+  };
+
+  const submit = async (): Promise<void> => {
+    const invalid = validatePassword(password, t);
+    setFieldError(invalid);
+    setBanner(undefined);
+    if (invalid) {
       return;
     }
     setBusy(true);
     try {
       await signUp(email, password, locale);
-      // Le compte existe mais l'email n'est pas validé : la garde enverra
-      // directement sur l'écran de confirmation.
       router.replace('/');
     } catch (error) {
-      setBanner(toUserMessage(error, t));
+      const message = toUserMessage(error, t);
+      setBanner(message);
+      // Un email déjà pris se corrige à l'étape 1, pas sur le mot de passe.
+      if (message === t.errors.emailTaken) {
+        setCurrent(0);
+      }
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <AuthFormShell title={t.register.title} subtitle={t.register.subtitle}>
+    <AuthFormShell
+      title={t.register.title}
+      subtitle={t.register.subtitle}
+      header={
+        <Stepper steps={labels} current={current} stepLabel={stepLabel} nextLabel={nextLabel} />
+      }
+      {...(current > 0 ? { onBack: () => setCurrent(current - 1) } : {})}
+    >
       {banner ? <FormBanner message={banner} /> : null}
 
-      <TextField
-        label={t.common.email}
-        value={email}
-        onChangeText={setEmail}
-        placeholder="prenom.nom@exemple.ch"
-        keyboardType="email-address"
-        autoComplete="email"
-        error={emailError}
-      />
-      <YStack gap="$2">
-        <TextField
-          label={t.common.password}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          autoComplete="new-password"
-          error={passwordError}
-          onSubmitEditing={() => void submit()}
-        />
-        {passwordError ? null : (
-          <Text fontSize={13} color="$brandChalkDim">
-            {t.register.passwordHint}
-          </Text>
-        )}
-      </YStack>
-
-      <PrimaryButton label={t.register.submit} loading={busy} onPress={() => void submit()} />
-
-      <GoogleAuthSection />
+      {current === 0 ? (
+        <StepTransition stepKey="email">
+          <YStack gap="$4">
+            <TextField
+              label={t.common.email}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="prenom.nom@exemple.ch"
+              keyboardType="email-address"
+              autoComplete="email"
+              error={fieldError}
+              onSubmitEditing={goToPassword}
+            />
+            <PrimaryButton label={t.coach.next} onPress={goToPassword} />
+            <GoogleAuthSection />
+          </YStack>
+        </StepTransition>
+      ) : (
+        <StepTransition stepKey="password">
+          <YStack gap="$4">
+            <YStack gap="$2">
+              <TextField
+                label={t.common.password}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoComplete="new-password"
+                error={fieldError}
+                onSubmitEditing={() => void submit()}
+              />
+              {fieldError ? null : (
+                <Text fontSize={13} color="$brandChalkDim">
+                  {t.register.passwordHint}
+                </Text>
+              )}
+            </YStack>
+            <PrimaryButton label={t.register.submit} loading={busy} onPress={() => void submit()} />
+          </YStack>
+        </StepTransition>
+      )}
 
       <XStack justifyContent="center" gap="$2">
         <Text fontSize={15} color="$brandChalkDim">

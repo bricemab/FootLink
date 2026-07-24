@@ -65,17 +65,25 @@ export class GoogleSignInDto {
   idToken!: string;
 }
 
+// Première étape de l'entrée entraîneur : savoir quoi lui demander ensuite.
+export class CoachEmailDto {
+  @IsEmail()
+  email!: string;
+}
+
 // Invitation entraîneur : le club a créé le compte et saisi l'email ; l'invité
 // prouve qu'il y a accès en recopiant le code à 6 chiffres reçu, et choisit son
 // mot de passe dans la foulée.
-export class AcceptCoachInviteDto {
+export class VerifyCoachCodeDto {
   @IsEmail()
   email!: string;
 
   @IsString()
   @Matches(/^\d{6}$/, { message: 'Code must be exactly 6 digits.' })
   code!: string;
+}
 
+export class AcceptCoachInviteDto extends VerifyCoachCodeDto {
   @IsString()
   @MinLength(8)
   @MaxLength(128)

@@ -3,9 +3,10 @@ import { Throttle } from '@nestjs/throttler';
 import { AllowUnverified } from '../common/decorators/allow-unverified.decorator';
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
-import { AuthService, MeResponse } from './auth.service';
+import { AuthService, CoachEntryStep, MeResponse } from './auth.service';
 import {
   AcceptCoachInviteDto,
+  CoachEmailDto,
   ForgotPasswordDto,
   GoogleSignInDto,
   LoginDto,
@@ -13,6 +14,7 @@ import {
   RefreshDto,
   RegisterDto,
   ResetPasswordDto,
+  VerifyCoachCodeDto,
   VerifyEmailDto,
 } from './dto/auth.dto';
 import { AuthTokens } from './token.service';
@@ -98,6 +100,36 @@ export class AuthController {
   @Post('coach-invite/accept')
   acceptCoachInvite(@Body() dto: AcceptCoachInviteDto): Promise<AuthTokens> {
     return this.auth.acceptCoachInvite(dto);
+  }
+
+  // Contrôle le code avant de demander un mot de passe. Ne le consomme pas,
+  // mais compte les échecs comme `accept` : sinon la force brute serait libre ici.
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post('coach-invite/verify')
+  async verifyCoachCode(@Body() dto: VerifyCoachCodeDto): Promise<void> {
+    await this.auth.verifyCoachCode(dto);
+  }
+
+  // Adapte l'écran d'entrée de l'entraîneur. Sévèrement limité : la réponse
+  // révèle l'existence d'un compte pour l'adresse donnée.
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('coach-invite/status')
+  coachEntryStep(@Body() dto: CoachEmailDto): Promise<{ step: CoachEntryStep }> {
+    return this.auth.coachEntryStep(dto.email);
+  }
+
+  // L'entraîneur redemande son code sans passer par son club. Toujours 204,
+  // quelle que soit l'adresse : sinon l'endpoint deviendrait un annuaire.
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post('coach-invite/resend')
+  async resendCoachInvite(@Body() dto: CoachEmailDto): Promise<void> {
+    await this.auth.resendCoachInvite(dto.email);
   }
 
   // Doit rester lisible sans email validé : l'app s'en sert pour savoir

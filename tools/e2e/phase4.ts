@@ -345,6 +345,37 @@ async function main(): Promise<void> {
   const inviteCode = await readEmailToken(coachEmail);
   check('le code reçu fait 6 chiffres', /^\d{6}$/.test(inviteCode), inviteCode);
 
+  // --- 7bis. L'écran d'entrée de l'entraîneur s'adapte ---------------------
+  console.log("\n7bis. Étape d'entrée décidée par le serveur");
+  const stepInvited = await api<{ step: string }>('POST', '/auth/coach-invite/status', {
+    body: { email: coachEmail },
+  });
+  check('une invitation en attente demande le code', stepInvited.body.step === 'CODE', stepInvited.body);
+
+  const stepUnknown = await api<{ step: string }>('POST', '/auth/coach-invite/status', {
+    body: { email: `inconnu-${RUN}@${DOMAIN}` },
+  });
+  check('une adresse inconnue ne mène nulle part', stepUnknown.body.step === 'UNKNOWN', stepUnknown.body);
+
+  const verifyWrong = await api<ErrorResponse>('POST', '/auth/coach-invite/verify', {
+    body: { email: coachEmail, code: inviteCode === '000000' ? '111111' : '000000' },
+  });
+  check('vérifier un code faux échoue', verifyWrong.status === 400, verifyWrong.body);
+
+  const verifyRight = await api('POST', '/auth/coach-invite/verify', {
+    body: { email: coachEmail, code: inviteCode },
+  });
+  check('vérifier le bon code réussit', verifyRight.status === 204, verifyRight.body);
+
+  const resendUnknown = await api('POST', '/auth/coach-invite/resend', {
+    body: { email: `inconnu-${RUN}@${DOMAIN}` },
+  });
+  check(
+    "renvoyer un code à une adresse inconnue répond quand même 204",
+    resendUnknown.status === 204,
+    resendUnknown.status,
+  );
+
   // Un code faux ne doit rien révéler et doit compter comme une tentative.
   const wrongCode = await api<ErrorResponse>('POST', '/auth/coach-invite/accept', {
     body: { email: coachEmail, code: inviteCode === '000000' ? '111111' : '000000', password: PASSWORD },
@@ -380,6 +411,15 @@ async function main(): Promise<void> {
     "activer le compte a validé l'email du même coup",
     coachMe.body.emailVerified === true,
     coachMe.body,
+  );
+
+  const stepActivated = await api<{ step: string }>('POST', '/auth/coach-invite/status', {
+    body: { email: coachEmail },
+  });
+  check(
+    'un compte activé demande désormais le mot de passe',
+    stepActivated.body.step === 'PASSWORD',
+    stepActivated.body,
   );
 
   // --- 8. Isolation de l'entraîneur ---------------------------------------
@@ -562,11 +602,13 @@ async function main(): Promise<void> {
     afterLock.body,
   );
 
-  await api('POST', `/clubs/me/coaches/${lockedCoach.body.clubMemberId}/invite`, {
-    token: adminToken,
+  // L'entraîneur se débloque lui-même, sans repasser par son club.
+  const selfResend = await api('POST', '/auth/coach-invite/resend', {
+    body: { email: lockedEmail },
   });
+  check("l'entraîneur peut redemander un code lui-même", selfResend.status === 204, selfResend.status);
   const freshCode = await readEmailToken(lockedEmail);
-  check('le club peut renvoyer un code neuf', freshCode !== realCode, { realCode, freshCode });
+  check('le code renvoyé est neuf', freshCode !== realCode, { realCode, freshCode });
   const unlocked = await api<Tokens>('POST', '/auth/coach-invite/accept', {
     body: { email: lockedEmail, code: freshCode, password: PASSWORD },
   });

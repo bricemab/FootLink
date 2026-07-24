@@ -37,6 +37,32 @@ export function googleSignIn(idToken: string): Promise<AuthTokens> {
   return apiRequest<AuthTokens>('/auth/google', { method: 'POST', body: { idToken } });
 }
 
+/** Ce que l'app doit demander à l'entraîneur une fois son email saisi. */
+export type CoachEntryStep = 'CODE' | 'PASSWORD' | 'GOOGLE' | 'UNKNOWN';
+
+export function coachEntryStep(email: string): Promise<{ step: CoachEntryStep }> {
+  return apiRequest<{ step: CoachEntryStep }>('/auth/coach-invite/status', {
+    method: 'POST',
+    body: { email: email.trim().toLowerCase() },
+  });
+}
+
+/** Contrôle le code sans le consommer, avant de demander un mot de passe. */
+export function verifyCoachCode(email: string, code: string): Promise<void> {
+  return apiRequest<void>('/auth/coach-invite/verify', {
+    method: 'POST',
+    body: { email: email.trim().toLowerCase(), code: code.trim() },
+  });
+}
+
+/** Renvoie un code d'activation. Toujours 204, même si l'adresse est inconnue. */
+export function resendCoachInvite(email: string): Promise<void> {
+  return apiRequest<void>('/auth/coach-invite/resend', {
+    method: 'POST',
+    body: { email: email.trim().toLowerCase() },
+  });
+}
+
 /**
  * Activation d'un compte entraîneur : l'email a été enregistré par le club, le
  * code à 6 chiffres prouve l'accès à cette boîte mail. Valide le compte ET
