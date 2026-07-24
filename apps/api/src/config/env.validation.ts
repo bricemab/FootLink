@@ -83,7 +83,7 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
   });
   const errors = validateSync(validated, { skipMissingProperties: false });
   if (errors.length > 0) {
-    throw new Error(`Variables d'environnement invalides :\n${errors.toString()}`);
+    throw new Error(`Invalid environment variables:\n${errors.toString()}`);
   }
   return validated;
 }

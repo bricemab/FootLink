@@ -4,7 +4,7 @@ import { IsEmail, IsEnum, IsOptional, IsString, Matches, MaxLength, MinLength } 
 // Au moins une lettre et un chiffre.
 export const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).+$/;
 export const PASSWORD_MESSAGE =
-  'Le mot de passe doit contenir au moins une lettre et un chiffre.';
+  'Password must contain at least one letter and one digit.';
 
 export class RegisterDto {
   @IsEmail()

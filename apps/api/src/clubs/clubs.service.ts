@@ -43,7 +43,7 @@ export class ClubsService {
   }> {
     const email = dto.email.toLowerCase();
     if (await this.prisma.user.findUnique({ where: { email } })) {
-      throw new ConflictException('Un compte existe déjà avec cet email.');
+      throw new ConflictException('An account with this email already exists.');
     }
     await this.assertRegionExists(dto.regionCode);
 
@@ -108,10 +108,10 @@ export class ClubsService {
       include: { club: true },
     });
     if (!member) {
-      throw new ForbiddenException('Aucun club rattaché à ce compte.');
+      throw new ForbiddenException('No club is linked to this account.');
     }
     if (requireApproved && member.club.status !== ClubStatus.APPROVED) {
-      throw new ForbiddenException("Le club doit être validé avant d'effectuer cette action.");
+      throw new ForbiddenException('The club must be approved before performing this action.');
     }
     return { club: member.club, member };
   }
@@ -119,7 +119,7 @@ export class ClubsService {
   async updateMyClub(userId: string, dto: UpdateClubDto) {
     const { club, member } = await this.getMyClubContext(userId, false);
     if (member.role !== ClubMemberRole.CLUB_ADMIN) {
-      throw new ForbiddenException('Réservé au responsable du club.');
+      throw new ForbiddenException('Restricted to the club administrator.');
     }
     await this.assertRegionExists(dto.regionCode);
 
@@ -190,7 +190,7 @@ export class ClubsService {
       include: { members: { include: { user: true } } },
     });
     if (!club) {
-      throw new NotFoundException('Club introuvable.');
+      throw new NotFoundException('Club not found.');
     }
     const updated = await this.prisma.club.update({
       where: { id: clubId },
@@ -212,7 +212,7 @@ export class ClubsService {
     }
     const region = await this.prisma.region.findUnique({ where: { code: regionCode } });
     if (!region) {
-      throw new BadRequestException('Région (association) inconnue.');
+      throw new BadRequestException('Unknown region (association).');
     }
   }
 }

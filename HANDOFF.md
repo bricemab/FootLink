@@ -79,6 +79,7 @@ Après la Phase 3, deux options ont été proposées, **il n'a pas encore tranch
 10. **`PlayerProfile.currentClubId` → `Club`** (demandé par Brice) : lien **déclaratif et NON vérifié**. Il ne crée **aucun `ClubMember`** et **aucun droit** sur le club. `currentClubName` est conservé en **repli** quand le club n'est pas encore sur FootLink.
 11. **API d'administration** (SUPER_ADMIN) créée pour valider les clubs, mais **aucune UI web** (le back-office reste post-MVP conformément à `AGENTS.md`).
 12. Stack : **pnpm 10 + Turborepo**, **NestJS 11**, **Prisma 6.19** (Prisma 7 dispo, upgrade repoussé), base MySQL `footlink`.
+13. **Messages d'erreur de l'API en anglais** (réponses JSON + erreurs de démarrage). L'API n'est pas la couche de traduction : le mobile affiche du FR/DE à partir du `statusCode` et de son propre catalogue i18n. Les **emails** restent localisés FR/DE (`MailService`). Ne pas réintroduire de français dans un `throw new ...Exception(...)`.
 
 ---
 

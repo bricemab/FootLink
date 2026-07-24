@@ -52,7 +52,7 @@ export class TokenService {
   async rotate(presented: string): Promise<{ tokens: AuthTokens; user: TokenSubject }> {
     const parsed = splitToken(presented);
     if (!parsed) {
-      throw new UnauthorizedException('Refresh token invalide.');
+      throw new UnauthorizedException('Invalid refresh token.');
     }
     const record = await this.prisma.refreshToken.findUnique({
       where: { id: parsed.id },
@@ -64,10 +64,10 @@ export class TokenService {
       record.expiresAt.getTime() < Date.now() ||
       !(await argon2.verify(record.tokenHash, parsed.secret))
     ) {
-      throw new UnauthorizedException('Refresh token invalide ou expiré.');
+      throw new UnauthorizedException('Invalid or expired refresh token.');
     }
     if (record.user.status !== UserStatus.ACTIVE) {
-      throw new UnauthorizedException('Compte inactif.');
+      throw new UnauthorizedException('Account is not active.');
     }
     await this.prisma.refreshToken.update({
       where: { id: record.id },

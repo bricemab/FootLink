@@ -52,7 +52,7 @@ export class AuthService {
     const email = dto.email.toLowerCase();
     const existing = await this.users.findByEmail(email);
     if (existing) {
-      throw new ConflictException('Un compte existe déjà avec cet email.');
+      throw new ConflictException('An account with this email already exists.');
     }
     const passwordHash = await argon2.hash(dto.password);
     const user = await this.users.create({
@@ -68,14 +68,14 @@ export class AuthService {
     const user = await this.users.findByEmail(dto.email.toLowerCase());
     // passwordHash null = compte Google uniquement -> pas de login par mot de passe.
     if (!user || !user.passwordHash) {
-      throw new UnauthorizedException('Identifiants invalides.');
+      throw new UnauthorizedException('Invalid credentials.');
     }
     if (user.status !== UserStatus.ACTIVE) {
-      throw new ForbiddenException('Compte inactif.');
+      throw new ForbiddenException('Account is not active.');
     }
     const valid = await argon2.verify(user.passwordHash, dto.password);
     if (!valid) {
-      throw new UnauthorizedException('Identifiants invalides.');
+      throw new UnauthorizedException('Invalid credentials.');
     }
     return this.tokens.issueTokens(user);
   }
@@ -93,7 +93,7 @@ export class AuthService {
   async me(userId: string): Promise<MeResponse> {
     const user = await this.users.findById(userId);
     if (!user) {
-      throw new UnauthorizedException('Utilisateur introuvable.');
+      throw new UnauthorizedException('User not found.');
     }
     return {
       id: user.id,
@@ -126,7 +126,7 @@ export class AuthService {
           });
     }
     if (user.status !== UserStatus.ACTIVE) {
-      throw new ForbiddenException('Compte inactif.');
+      throw new ForbiddenException('Account is not active.');
     }
     return this.tokens.issueTokens(user);
   }
@@ -191,7 +191,7 @@ export class AuthService {
   private async consumeToken(type: TokenType, presented: string): Promise<string> {
     const parsed = splitToken(presented);
     if (!parsed) {
-      throw new BadRequestException('Jeton invalide.');
+      throw new BadRequestException('Invalid token.');
     }
     const record = await this.prisma.token.findUnique({ where: { id: parsed.id } });
     if (
@@ -201,7 +201,7 @@ export class AuthService {
       record.expiresAt.getTime() < Date.now() ||
       !(await argon2.verify(record.tokenHash, parsed.secret))
     ) {
-      throw new BadRequestException('Jeton invalide ou expiré.');
+      throw new BadRequestException('Invalid or expired token.');
     }
     await this.prisma.token.update({ where: { id: record.id }, data: { usedAt: new Date() } });
     return record.userId;

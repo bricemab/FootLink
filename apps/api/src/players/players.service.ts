@@ -32,16 +32,18 @@ export class PlayersService {
 
     // Garde d'âge : MVP réservé aux 16 ans et plus.
     if (!isAgeAllowed(dto.birthYear, seasonStartYear)) {
-      throw new BadRequestException(`Inscription réservée aux ${MIN_PLAYER_AGE} ans et plus.`);
+      throw new BadRequestException(
+        `Registration is restricted to players aged ${MIN_PLAYER_AGE} and over.`,
+      );
     }
 
     // Exactement une position principale.
     if (dto.positions.filter((p) => p.isPrimary).length !== 1) {
-      throw new BadRequestException('Exactement une position principale est requise.');
+      throw new BadRequestException('Exactly one primary position is required.');
     }
     // Pas de poste en double.
     if (new Set(dto.positions.map((p) => p.poste)).size !== dto.positions.length) {
-      throw new BadRequestException('Un même poste ne peut pas être répété.');
+      throw new BadRequestException('A position cannot be listed twice.');
     }
 
     // Club actuel : lien DÉCLARATIF vers un club validé. Ne crée AUCUN ClubMember
@@ -53,7 +55,7 @@ export class PlayersService {
         select: { id: true, name: true },
       });
       if (!club) {
-        throw new BadRequestException('Club introuvable ou non validé.');
+        throw new BadRequestException('Club not found or not approved.');
       }
       linkedClub = club;
     }
