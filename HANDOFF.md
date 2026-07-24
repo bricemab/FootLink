@@ -2,7 +2,36 @@
 
 > **Fichier de passation.** À lire en premier par toute nouvelle instance de Claude Code
 > qui reprend le projet sans le contexte de la conversation précédente.
-> Dernière mise à jour : **23 juillet 2026** (fin de la Phase 3).
+> Dernière mise à jour : **24 juillet 2026** (Phase 4 + mobile M0 + parcours d'inscription).
+
+## 0bis. Démarrage rapide (nouvelle machine ou nouvelle session)
+
+```bash
+pnpm install
+```
+```bash
+pnpm db:migrate && pnpm db:seed
+```
+Trois serveurs, chacun dans son terminal :
+```bash
+pnpm api:dev
+```
+```bash
+pnpm --filter @footlink/shared dev
+```
+```bash
+pnpm mobile:dev
+```
+Sur émulateur Android, après **chaque** redémarrage de celui-ci :
+```bash
+pnpm mobile:reverse
+```
+
+**Ce qu'il faut savoir avant de toucher au code :**
+- `apps/api/.env` n'est **pas** commité → le recréer (§4), sinon l'API refuse de démarrer.
+- L'app mobile tourne sur un **development build** (pas Expo Go), à cause de Google Sign-In. `expo run:android` uniquement si la liste des modules natifs change ; sinon `pnpm mobile:dev --clear` suffit.
+- Vérifier son travail avec `tools/e2e/phase4.ts` (§5), pas seulement en compilant.
+- Poser une question à Brice avant toute déviation d'`AGENTS.md`.
 
 ## 0. Ordre de lecture
 
@@ -55,7 +84,8 @@ directement dans l'app plutôt que via l'API.
 | `POST /auth/logout` · `resend-verification` | auth | |
 | `GET /auth/me` | auth | **lu en DB** : `emailVerified`, `status`, `hasPassword`, `hasGoogle` |
 | `GET/PUT /players/me` | auth | profil + postes ; garde 16+ ; géo arrondie ~1 km |
-| `POST /clubs/requests` | public | crée compte `CLUB_ADMIN` + `Club PENDING` (transaction) |
+| `POST /auth/signup/request-code` · `verify-code` | public | inscription par email : **code à 6 chiffres**, puis mot de passe. L'email est validé du même geste (verrou 5 essais + rate-limit) |
+| `POST /clubs/requests` | **auth** | crée le `Club PENDING` **pour l'utilisateur du token**. Ni email ni mot de passe dans le corps : l'identité est prouvée en amont (code email ou Google) |
 | `GET/PATCH /clubs/me` | auth | **clubId dérivé du token, jamais du client** |
 | `GET /clubs?search=` | auth | clubs sélectionnables (APPROVED) |
 | `GET /regions` | public | 13 associations (table seedée) |
@@ -89,6 +119,11 @@ directement dans l'app plutôt que via l'API.
 11. **API d'administration** (SUPER_ADMIN) créée pour valider les clubs, mais **aucune UI web** (le back-office reste post-MVP conformément à `AGENTS.md`).
 12. Stack : **pnpm 10 + Turborepo**, **NestJS 11**, **Prisma 6.19** (Prisma 7 dispo, upgrade repoussé), base MySQL `footlink`.
 13. **Messages d'erreur de l'API en anglais** (réponses JSON + erreurs de démarrage). L'API n'est pas la couche de traduction : le mobile affiche du FR/DE à partir du `statusCode` et de son propre catalogue i18n. Les **emails** restent localisés FR/DE (`MailService`). Ne pas réintroduire de français dans un `throw new ...Exception(...)`.
+14. **L'identité vient toujours en premier** (24 juillet 2026, demandé par Brice). Pour un club, on authentifie **avant** de demander quoi que ce soit sur le club — sinon n'importe qui créerait un club au nom d'autrui. `POST /clubs/requests` est donc **authentifié** et ne prend ni email ni mot de passe.
+15. **Codes à 6 chiffres** pour l'inscription club et l'invitation entraîneur. Un million de combinaisons, donc devinable à la machine : **deux** garde-fous obligatoires, aucun suffisant seul — le code est **brûlé après 5 essais** (`Token.attempts`) et le débit est borné par le **rate-limit**. Ne jamais retirer l'un des deux. Les réponses ne disent **jamais** si une adresse existe : email inconnu et code faux renvoient la même erreur.
+16. **Google court-circuite systématiquement le code.** Il prouve exactement la même chose — la maîtrise de la boîte mail — et `/auth/google` marque l'email validé. Ne pas rajouter d'étape de code derrière une connexion Google : cet état ne peut pas exister.
+17. **Aucun emoji dans le produit** (écrans, i18n, emails). Icônes SVG dans `apps/mobile/src/ui/icons.tsx`. Cf. `CLAUDE.md`.
+18. **Langue** : choisie sur l'écran d'accueil, conservée sur l'appareil **et** en base (`PATCH /users/me/locale`, accessible sans email validé). C'est `User.locale` qui décide de la langue des emails et notifications, envoyés app fermée.
 
 ---
 
@@ -154,7 +189,11 @@ parfaitement.
 
 Ouvre **`tools/api-tester.html`** dans un navigateur (double-clic) : page autonome (inscription, login, `/me`, refresh, vérification email, profil joueur). Le CORS autorise le `file://` (origin `null`).
 
-**Vérification automatisée de la Phase 4** : `tools/e2e/phase4.ts` (39 contrôles — blocage email, garde club non approuvé, équipes, invitation entraîneur, isolation coach, cloisonnement inter-clubs). Mode d'emploi dans **`tools/e2e/README.md`**. ⚠️ Il faut une instance lancée **sans SMTP** (pour lire les jetons dans les logs), et **depuis Git Bash** : sous PowerShell, `$env:SMTP_PASSWORD=''` *supprime* la variable au lieu de la vider, le SMTP réel reste actif et de vrais emails partent vers les adresses de test.
+**Vérification automatisée** : `tools/e2e/phase4.ts` — **85 contrôles** contre une vraie instance et une vraie base (blocage email, langue, inscription club avec identité prouvée, garde club non approuvé, équipes, invitation entraîneur, verrou du code à 6 chiffres, isolation coach, cloisonnement inter-clubs, suppression en cascade, page de rebond, rate-limit). Il crée ses comptes sur `@e2e.footlink.test` et **nettoie derrière lui**. Mode d'emploi dans **`tools/e2e/README.md`**.
+
+⚠️ Deux pièges :
+- Il faut une instance lancée **sans SMTP** (les jetons ne sont lisibles que dans les logs), et **depuis Git Bash** : sous PowerShell, `$env:SMTP_PASSWORD=''` *supprime* la variable au lieu de la vider — le SMTP réel reste actif et de vrais emails partent vers les adresses de test. Contrôler la présence de `SMTP non configuré` dans les logs avant de lancer.
+- Le script dure ~3 min : il **attend une fenêtre de rate-limit** d'une minute, sans quoi le verrou du code à 6 chiffres ne peut pas être testé. Deux exécutions rapprochées se marchent dessus (429) : laisser passer une minute entre deux.
 
 Pour devenir **SUPER_ADMIN** (valider les clubs) : s'inscrire, puis
 ```bash
@@ -174,12 +213,16 @@ puis **se reconnecter** (le rôle est gravé dans le token à l'émission).
 | `tamagui.config.ts` | design system : config v4 + palette de marque en **tokens** (`$brandPitch`, `$brandNight`…) |
 | `src/app/_layout.tsx` | providers (Gesture, SafeArea, Tamagui, i18n, Auth) |
 | `src/app/index.tsx` | **garde de routage** : chargement → `/welcome` → `/auth/verify-email` → `/home` |
-| `src/app/register/` | **choix du rôle** puis trois parcours distincts : `player` (libre), `coach` (email + code à 6 chiffres), `club` (demande à valider) |
+| `src/app/register/` | **choix du rôle** puis trois parcours en étapes, avec stepper : `player` (email → mot de passe), `coach` (email → code → mot de passe, ou Google), `club` (**identité d'abord** : Google ou email → code → mot de passe, *puis* le club) |
 | `src/app/auth/verify-email.tsx` | même route que le lien profond `footlink://auth/verify-email?token=…` (consommé automatiquement) |
 | `src/auth/auth-context.tsx` | session, refresh automatique sur 401, `/auth/me` comme source de vérité |
 | `src/auth/token-storage.ts` | jetons dans **SecureStore** (Keychain / Keystore), jamais AsyncStorage |
 | `src/api/client.ts` | URL de l'API déduite de l'hôte Expo ; `ApiError` typée avec le code métier |
-| `src/i18n/` | catalogue FR/DE, repli FR ; l'app traduit les erreurs **anglaises** de l'API |
+| `src/i18n/` | catalogue FR/DE, repli FR ; l'app traduit les erreurs **anglaises** de l'API. Langue changeable (`setLocale`) et persistée |
+| `src/ui/icons.tsx` | **toutes** les icônes (Phosphor via sous-chemins `src/icons/<Nom>`, + un stade repris de Tabler). **Aucun emoji** dans l'app |
+| `src/ui/stepper.tsx` · `use-stepper.ts` | progression des inscriptions en étapes |
+| `src/ui/region-picker.tsx` | sélecteur d'association : liste à la demande, recherche par nom **ou par code** (`avf`), présélection si une seule est ouverte |
+| `src/ui/locale-switch.tsx` | bascule FR/DE de l'écran d'accueil, pousse en base une fois connecté |
 
 **Choix assumés au M0, à revoir :**
 - **Thème sombre forcé** (`defaultTheme="dark"`) : l'identité est nocturne, le thème clair n'a pas encore été dessiné.
@@ -333,9 +376,10 @@ que le serveur accepte.
 
 ## 6. TODO / questions ouvertes
 
-- **[Décision Brice]** Phase 4 backend **ou** détour mobile M0 (cf. §1).
+- **➡️ PROCHAINE ÉTAPE, en attente depuis plusieurs échanges : les écrans club.** Créer une équipe **avec son entraîneur** (`POST /teams` accepte déjà le bloc `coach`), lister les équipes, supprimer avec **l'alerte chiffrée** (`GET /teams/:id/deletion-impact` renvoie le décompte, `DELETE ?confirm=true` exécute). Toute l'API est prête et vérifiée ; il ne manque que l'UI. C'est ce qui permettrait à Brice de dérouler le scénario complet dans l'app — jusqu'au code à 6 chiffres reçu par l'entraîneur — sans toucher à la base.
+- **[Décision Brice] Sans mot de passe ?** Pour l'inscription club et l'activation entraîneur par email, j'ai ajouté une étape **mot de passe** après le code, sans quoi le compte n'aurait aucun moyen de se reconnecter. Brice n'avait pas tranché. S'il préfère du sans-mot-de-passe (code à chaque connexion), il faudra aussi refaire l'écran de connexion.
 - **[Décision Brice] Catalogue de clubs** : au lancement `GET /clubs` sera quasi vide (seuls les clubs validés existent) → un joueur ne pourra pas sélectionner son club réel. Option **A** = liste + saisie libre (codé aujourd'hui) ; option **B** = seeder un catalogue des ~150 clubs AVF (source à trouver, ex. matchcenter AVF) + distinguer *catalogue* vs *compte réclamé*. Recommandation : **B avant le lancement**.
-- **Client OAuth Android** non créé : exige le **SHA-1** du keystore de signature, disponible seulement une fois le mobile initialisé (`eas credentials`). À faire à la phase mobile.
+- ~~Client OAuth Android non créé.~~ **Fait le 24 juillet 2026** pour le keystore de debug (cf. §5ter). Reste à refaire avec l'empreinte du keystore **EAS** avant distribution.
 - **Bandes juniors** (U18/U19 → Juniors A, etc.) dans `packages/shared/src/season.ts` : table **documentée mais à confirmer** avec les prescriptions AVF. Sans impact au MVP (16+).
 - **`Region.labelDe`** = copie du libellé FR (le JSON ne fournit pas de libellé allemand). À corriger.
 - **ESLint** volontairement reporté à la Phase 11 (pour ne pas livrer une config bancale).
@@ -349,7 +393,10 @@ que le serveur accepte.
 
 ## 7. Pièges connus (environnement Windows)
 
-- Le **répertoire courant persiste** entre appels de l'outil Bash → éviter les `cd` relatifs, préférer `pnpm --filter <pkg>`.
+- Le **répertoire courant persiste** entre appels de l'outil Bash → éviter les `cd` relatifs, préférer `pnpm --filter <pkg>`. Attention : `pnpm --filter @footlink/api exec tsx <chemin relatif>` résout depuis `apps/api`, pas depuis la racine — donner un **chemin absolu**.
+- **Écrire un `.env` en PowerShell y ajoute un BOM** (`Set-Content -Encoding utf8`). Sans conséquence si la première ligne est un commentaire, illisible sinon. Utiliser `[System.IO.File]::WriteAllText` avec `UTF8Encoding($false)`.
+- **Ne pas lancer deux Metro** : le second échoue sur `EADDRINUSE 8081`. Et ne pas purger le cache Metro pendant qu'un build tourne — c'est ce qui a produit `Unable to deserialize cloned data`, qui tue Metro. Purge : `node_modules/.cache`, `apps/mobile/.expo`, `%TEMP%/metro-cache`.
+- **Processus fantômes** : tuer le port ne tue pas le parent `nest`/`expo`. Un `nest --watch` orphelin verrouille le moteur Prisma (`EPERM` sur `prisma generate`) et un vieux Metro sert un bundle périmé (erreurs `Unable to resolve` sur un paquet pourtant installé). Vérifier avec `Get-Process node` et la ligne de commande.
 - Arrêter le serveur : PowerShell `Get-NetTCPConnection -LocalPort 3000` puis `Stop-Process`. Un serveur lancé en tâche de fond se termine avec **exit 127 après un kill forcé** : c'est **normal**, pas une erreur.
 - `prisma migrate dev` **sans `--name`** ouvre un prompt interactif → toujours passer `--name`.
 - Ne **jamais** commiter `apps/api/.env`. Vérifier avant chaque commit :

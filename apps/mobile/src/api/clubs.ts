@@ -11,16 +11,12 @@ export interface Region {
 
 export interface ClubRequestPayload {
   clubName: string;
-  email: string;
-  password: string;
   regionCode?: string;
   locality?: string;
   requestNote?: string;
-  locale: AppLocale;
 }
 
 export interface ClubRequestResponse {
-  tokens: AuthTokens;
   club: { id: string; name: string; status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' };
 }
 
@@ -30,13 +26,17 @@ export function listRegions(): Promise<Region[]> {
 }
 
 /**
- * Demande de compte club. Crée le compte du demandeur en CLUB_ADMIN et le club
+ * Demande de compte club, par un utilisateur **déjà authentifié**. Le club naît
  * en PENDING : rien ne sera publiable tant qu'un SUPER_ADMIN n'a pas validé.
  */
-export function requestClub(payload: ClubRequestPayload): Promise<ClubRequestResponse> {
+export function requestClub(
+  accessToken: string,
+  payload: ClubRequestPayload,
+): Promise<ClubRequestResponse> {
   return apiRequest<ClubRequestResponse>('/clubs/requests', {
     method: 'POST',
-    body: { ...payload, email: payload.email.trim().toLowerCase() },
+    body: payload,
+    accessToken,
   });
 }
 

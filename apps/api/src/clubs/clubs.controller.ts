@@ -9,12 +9,12 @@ import { RequestClubDto, SearchClubsQueryDto, UpdateClubDto } from './dto/club.d
 export class ClubsController {
   constructor(private readonly clubs: ClubsService) {}
 
-  // Public : demande de compte club -> Club PENDING (validation SUPER_ADMIN requise).
-  @Public()
+  // Demande de compte club -> Club PENDING (validation SUPER_ADMIN requise).
+  // Authentifié : l'identité du demandeur est prouvée avant qu'on crée le club.
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('requests')
-  request(@Body() dto: RequestClubDto) {
-    return this.clubs.requestClub(dto);
+  request(@CurrentUser('userId') userId: string, @Body() dto: RequestClubDto) {
+    return this.clubs.requestClub(userId, dto);
   }
 
   // Liste des clubs sélectionnables (ex. "mon club actuel" côté joueur).

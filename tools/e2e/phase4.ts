@@ -112,7 +112,6 @@ interface Tokens {
 }
 
 interface ClubRequestResponse {
-  tokens: Tokens;
   club: { id: string; name: string; status: string };
 }
 
@@ -159,59 +158,102 @@ async function main(): Promise<void> {
 
   console.log(`\nBase : ${BASE}`);
 
-  // --- 1. Demande de compte club (public) ---------------------------------
-  console.log('\n1. Demande de compte club');
-  const request = await api<ClubRequestResponse>('POST', '/clubs/requests', {
-    body: { clubName: `FC E2E ${RUN}`, email: adminEmail, password: PASSWORD, regionCode: 'avf' },
+  // --- 1. Rien n'est accessible tant que l'email n'est pas validé ----------
+  // L'inscription joueur, elle, laisse le compte non validé : c'est le cas qui
+  // permet d'éprouver la garde transverse.
+  console.log("\n1. Blocage tant que l'email n'est pas validé");
+  const playerEmail = `joueur-${RUN}@${DOMAIN}`;
+  const playerSignup = await api<Tokens>('POST', '/auth/register', {
+    body: { email: playerEmail, password: PASSWORD },
   });
-  check('la demande est acceptée', request.status === 201, request.body);
-  check('le club est créé en PENDING', request.body.club?.status === 'PENDING', request.body.club);
-  const adminToken = request.body.tokens.accessToken;
-  const clubId = request.body.club.id;
+  const playerToken = playerSignup.body.accessToken;
 
-  // --- 2. Rien n'est accessible tant que l'email n'est pas validé ----------
-  console.log("\n2. Blocage tant que l'email n'est pas validé");
-  const blockedClub = await api<ErrorResponse>('GET', '/clubs/me', { token: adminToken });
+  const blockedClub = await api<ErrorResponse>('GET', '/clubs/me', { token: playerToken });
   check('GET /clubs/me est refusé', blockedClub.status === 403, blockedClub.body);
   check(
     'le code EMAIL_NOT_VERIFIED est renvoyé',
     blockedClub.body.error?.code === 'EMAIL_NOT_VERIFIED',
     blockedClub.body,
   );
-  const blockedTeams = await api<ErrorResponse>('GET', '/teams', { token: adminToken });
+  const blockedTeams = await api<ErrorResponse>('GET', '/teams', { token: playerToken });
   check('GET /teams est refusé', blockedTeams.status === 403, blockedTeams.body);
-  const blockedPlayers = await api<ErrorResponse>('GET', '/players/me', { token: adminToken });
+  const blockedPlayers = await api<ErrorResponse>('GET', '/players/me', { token: playerToken });
   check('GET /players/me est refusé', blockedPlayers.status === 403, blockedPlayers.body);
 
-  const me = await api<{ emailVerified: boolean }>('GET', '/auth/me', { token: adminToken });
+  const me = await api<{ emailVerified: boolean }>('GET', '/auth/me', { token: playerToken });
   check('GET /auth/me reste accessible', me.status === 200, me.body);
   check('/auth/me annonce emailVerified=false', me.body.emailVerified === false, me.body);
 
   // Changer de langue doit rester possible sans email validé : c'est justement
   // quand on ne comprend pas l'écran de validation qu'on en a besoin.
   const switchLocale = await api<{ locale: string }>('PATCH', '/users/me/locale', {
-    token: adminToken,
+    token: playerToken,
     body: { locale: 'DE' },
   });
   check('la langue se change sans email validé', switchLocale.status === 200, switchLocale.body);
-  const meAfterLocale = await api<{ locale: string }>('GET', '/auth/me', { token: adminToken });
+  const meAfterLocale = await api<{ locale: string }>('GET', '/auth/me', { token: playerToken });
   check('la langue est bien persistée', meAfterLocale.body.locale === 'DE', meAfterLocale.body);
   const badLocale = await api<ErrorResponse>('PATCH', '/users/me/locale', {
-    token: adminToken,
+    token: playerToken,
     body: { locale: 'ES' },
   });
   check('une langue non supportée est refusée', badLocale.status === 400, badLocale.body);
-  await api('PATCH', '/users/me/locale', { token: adminToken, body: { locale: 'FR' } });
 
-  // --- 3. Validation de l'email -------------------------------------------
-  console.log("\n3. Validation de l'email");
-  const verifyToken = await readEmailToken(adminEmail);
-  const verified = await api('POST', '/auth/verify-email', { body: { token: verifyToken } });
-  check('la validation réussit', verified.status === 200, verified.body);
+  // --- 2. Demande de compte club : l'identité d'abord ----------------------
+  // Le nom du club n'est demandé qu'après avoir prouvé QUI le demande.
+  console.log("\n2. Demande de compte club (identité prouvée d'abord)");
+  const anonymous = await api<ErrorResponse>('POST', '/clubs/requests', {
+    body: { clubName: `FC Anonyme ${RUN}` },
+  });
+  check('une demande non authentifiée est refusée', anonymous.status === 401, anonymous.status);
+
+  const codeAsked = await api('POST', '/auth/signup/request-code', {
+    body: { email: adminEmail, locale: 'FR' },
+  });
+  check("le code d'inscription part", codeAsked.status === 204, codeAsked.status);
+  const signupCode = await readEmailToken(adminEmail);
+  check('le code reçu fait 6 chiffres', /^\d{6}$/.test(signupCode), signupCode);
+
+  const wrongSignup = await api<ErrorResponse>('POST', '/auth/signup/verify-code', {
+    body: {
+      email: adminEmail,
+      code: signupCode === '000000' ? '111111' : '000000',
+      password: PASSWORD,
+    },
+  });
+  check('un code faux est refusé', wrongSignup.body.error?.code === 'SIGNUP_CODE_INVALID', wrongSignup.body);
+
+  const account = await api<Tokens>('POST', '/auth/signup/verify-code', {
+    body: { email: adminEmail, code: signupCode, password: PASSWORD },
+  });
+  check('le bon code crée le compte', account.status === 201, account.body);
+  const adminToken = account.body.accessToken;
+
+  const adminMe = await api<{ emailVerified: boolean }>('GET', '/auth/me', { token: adminToken });
+  check(
+    "le compte est validé d'emblée : plus d'écran de confirmation",
+    adminMe.body.emailVerified === true,
+    adminMe.body,
+  );
+
+  const request = await api<ClubRequestResponse>('POST', '/clubs/requests', {
+    token: adminToken,
+    body: { clubName: `FC E2E ${RUN}`, regionCode: 'avf' },
+  });
+  check('la demande est acceptée', request.status === 201, request.body);
+  check('le club est créé en PENDING', request.body.club?.status === 'PENDING', request.body.club);
+  const clubId = request.body.club.id;
+
+  const secondClub = await api<ErrorResponse>('POST', '/clubs/requests', {
+    token: adminToken,
+    body: { clubName: `FC Doublon ${RUN}` },
+  });
+  check('un même compte ne crée pas deux clubs', secondClub.status === 409, secondClub.body);
+
   const clubAfter = await api<{ club: { status: string } }>('GET', '/clubs/me', {
     token: adminToken,
   });
-  check('GET /clubs/me devient accessible', clubAfter.status === 200, clubAfter.body);
+  check('GET /clubs/me est accessible', clubAfter.status === 200, clubAfter.body);
 
   // --- 4. Un club non validé ne peut rien créer ---------------------------
   console.log('\n4. Garde « club non approuvé »');
@@ -478,13 +520,17 @@ async function main(): Promise<void> {
 
   // --- 10. Cloisonnement entre clubs --------------------------------------
   console.log('\n10. Cloisonnement entre deux clubs');
-  const rival = await api<ClubRequestResponse>('POST', '/clubs/requests', {
-    body: { clubName: `FC Rival ${RUN}`, email: rivalEmail, password: PASSWORD },
+  await api('POST', '/auth/signup/request-code', { body: { email: rivalEmail, locale: 'FR' } });
+  const rivalCode = await readEmailToken(rivalEmail);
+  const rivalAccount = await api<Tokens>('POST', '/auth/signup/verify-code', {
+    body: { email: rivalEmail, code: rivalCode, password: PASSWORD },
   });
-  const rivalVerify = await readEmailToken(rivalEmail);
-  await api('POST', '/auth/verify-email', { body: { token: rivalVerify } });
+  const rivalToken = rivalAccount.body.accessToken;
+  const rival = await api<ClubRequestResponse>('POST', '/clubs/requests', {
+    token: rivalToken,
+    body: { clubName: `FC Rival ${RUN}` },
+  });
   await api('POST', `/admin/clubs/${rival.body.club.id}/approve`, { token: superToken });
-  const rivalToken = rival.body.tokens.accessToken;
 
   const rivalSeesTeams = await api<TeamResponse[]>('GET', '/teams', { token: rivalToken });
   check('le club rival ne voit aucune équipe', rivalSeesTeams.body.length === 0, rivalSeesTeams.body);

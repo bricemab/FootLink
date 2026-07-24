@@ -1,9 +1,12 @@
 # CLAUDE.md — FootLink (mémoire opérationnelle)
 
-> ## 👉 NOUVELLE SESSION / NOUVELLE MACHINE : lis **`HANDOFF.md`** EN PREMIER
-> Il contient l'**état d'avancement** (phases faites/restantes), les **décisions prises**,
-> le **setup machine** (le `.env` n'est pas commité), les **TODO** et les **questions en attente**.
-> Sans lui, tu n'as aucun contexte sur ce qui a déjà été construit.
+> ## 👉 NOUVELLE SESSION / NOUVELLE MACHINE : lis **`HANDOFF.md`** EN PREMIER, EN ENTIER
+> C'est le **fichier de passation** : état d'avancement (phases faites/restantes),
+> décisions prises et leurs raisons, setup machine (le `.env` n'est **pas** commité),
+> commandes de démarrage, pièges connus (Windows, Gradle, Metro, pnpm), prochaine
+> étape à faire, et questions en attente d'arbitrage de Brice.
+> **Sans lui, tu n'as aucun contexte sur ce qui a déjà été construit** — et tu
+> referas des erreurs déjà payées. Commence par sa section « 0bis. Démarrage rapide ».
 
 > Lu à chaque session. Règles **ultra-importantes** à ne JAMAIS oublier.
 > Spec complète = **`AGENTS.md`** · Modèle de données = **`apps/api/prisma/schema.prisma`** · Données de réf = **`nomenclature_football_suisse.json`** · État = **`HANDOFF.md`**.
@@ -31,6 +34,7 @@ FootLink — mise en relation **joueurs amateurs ⇄ clubs** (football suisse), 
 Deux modes : **(a) email + mot de passe AVEC validation email**, ou **(b) Google Sign-In**. JWT access court + refresh hashé (rotation). Reset password + invitation coach par email (**Gmail SMTP + app password**).
 
 **L'inscription commence par un choix de rôle** : joueur (libre) · entraîneur (**ne s'inscrit pas** : son compte est créé par son club, il l'active avec son email + un **code à 6 chiffres**, ce qui valide l'email du même coup) · club (dépose une **demande** validée par le SUPER_ADMIN).
+> **L'identité vient toujours en premier.** Pour un club, on authentifie AVANT de demander quoi que ce soit sur le club (Google, ou email confirmé par code à 6 chiffres) — sinon n'importe qui créerait un club au nom d'autrui. `POST /clubs/requests` est **authentifié** et ne prend ni email ni mot de passe.
 > Le code à 6 chiffres n'a qu'un million de combinaisons : il est protégé par un **verrou à 5 essais** (`Token.attempts`, code brûlé ensuite) **et** un **rate-limit**. Ne jamais retirer l'un des deux.
 
 ## Décisions validées (à mémoriser)

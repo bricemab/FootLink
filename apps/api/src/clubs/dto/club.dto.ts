@@ -13,20 +13,13 @@ import {
 } from 'class-validator';
 import { PASSWORD_MESSAGE, PASSWORD_REGEX } from '../../auth/dto/auth.dto';
 
-// Demande de compte club : crée le compte du demandeur ET le club en PENDING.
+// Demande de compte club. Le demandeur est DÉJÀ authentifié : son identité est
+// prouvée (email validé par code, ou Google) avant qu'on crée quoi que ce soit.
+// Ni email ni mot de passe ici — ils viendraient du client, donc invérifiables.
 export class RequestClubDto {
   @IsString()
   @MaxLength(120)
   clubName!: string;
-
-  @IsEmail()
-  email!: string;
-
-  @IsString()
-  @MinLength(8)
-  @MaxLength(128)
-  @Matches(PASSWORD_REGEX, { message: PASSWORD_MESSAGE })
-  password!: string;
 
   @IsOptional()
   @IsEmail()

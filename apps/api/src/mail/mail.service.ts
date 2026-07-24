@@ -48,6 +48,32 @@ export class MailService {
     await this.send(to, subject, intro, link, token, isDe);
   }
 
+  /**
+   * Code d'inscription à 6 chiffres. Pas de lien ici : l'utilisateur est déjà
+   * devant l'app, en train d'attendre ce code — un lien le ferait sortir de son
+   * parcours pour y revenir.
+   */
+  async sendSignupCodeEmail(to: string, code: string, locale: Locale): Promise<void> {
+    const isDe = locale === Locale.DE;
+    const subject = isDe ? 'Dein FootLink-Code' : 'Ton code FootLink';
+    const intro = isDe
+      ? 'Gib diesen Code in der App ein, um deine E-Mail-Adresse zu bestätigen:'
+      : "Saisis ce code dans l'app pour confirmer ton adresse email :";
+    const validity = isDe ? 'Der Code ist 24 Stunden gültig.' : 'Le code est valable 24 heures.';
+    const html = `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto">
+        <h2>FootLink</h2>
+        <p>${intro}</p>
+        <p style="font-size:34px;font-weight:700;letter-spacing:10px;margin:24px 0">${code}</p>
+        <p style="color:#666;font-size:13px">${validity}</p>
+      </div>`;
+    await this.deliver(to, subject, html);
+    if (!this.enabled) {
+      // Même forme que les autres emails simulés, pour les scripts de test.
+      this.logger.debug(`[email simulé] ${subject} -> ${to} | token=${code}`);
+    }
+  }
+
   async sendPasswordResetEmail(to: string, token: string, locale: Locale): Promise<void> {
     const link = this.links.buildEmailLink('reset-password', { token });
     const isDe = locale === Locale.DE;

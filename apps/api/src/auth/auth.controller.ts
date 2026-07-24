@@ -13,9 +13,11 @@ import {
   LogoutDto,
   RefreshDto,
   RegisterDto,
+  RequestSignupCodeDto,
   ResetPasswordDto,
   VerifyCoachCodeDto,
   VerifyEmailDto,
+  VerifySignupCodeDto,
 } from './dto/auth.dto';
 import { AuthTokens } from './token.service';
 
@@ -100,6 +102,23 @@ export class AuthController {
   @Post('coach-invite/accept')
   acceptCoachInvite(@Body() dto: AcceptCoachInviteDto): Promise<AuthTokens> {
     return this.auth.acceptCoachInvite(dto);
+  }
+
+  // Inscription par email : on prouve l'adresse AVANT de créer quoi que ce
+  // soit derrière (un club, par exemple). Toujours 204, adresse connue ou non.
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post('signup/request-code')
+  async requestSignupCode(@Body() dto: RequestSignupCodeDto): Promise<void> {
+    await this.auth.requestSignupCode(dto);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('signup/verify-code')
+  verifySignupCode(@Body() dto: VerifySignupCodeDto): Promise<AuthTokens> {
+    return this.auth.verifySignupCode(dto);
   }
 
   // Contrôle le code avant de demander un mot de passe. Ne le consomme pas,

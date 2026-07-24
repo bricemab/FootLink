@@ -37,6 +37,25 @@ export function googleSignIn(idToken: string): Promise<AuthTokens> {
   return apiRequest<AuthTokens>('/auth/google', { method: 'POST', body: { idToken } });
 }
 
+/** Inscription par email : on prouve l'adresse avant de créer quoi que ce soit. */
+export function requestSignupCode(email: string, locale: AppLocale): Promise<void> {
+  return apiRequest<void>('/auth/signup/request-code', {
+    method: 'POST',
+    body: { email: email.trim().toLowerCase(), locale },
+  });
+}
+
+export function verifySignupCode(
+  email: string,
+  code: string,
+  password: string,
+): Promise<AuthTokens> {
+  return apiRequest<AuthTokens>('/auth/signup/verify-code', {
+    method: 'POST',
+    body: { email: email.trim().toLowerCase(), code: code.trim(), password },
+  });
+}
+
 /** Ce que l'app doit demander à l'entraîneur une fois son email saisi. */
 export type CoachEntryStep = 'CODE' | 'PASSWORD' | 'GOOGLE' | 'UNKNOWN';
 

@@ -18,7 +18,9 @@ import {
   GoogleSignInDto,
   LoginDto,
   RegisterDto,
+  RequestSignupCodeDto,
   ResetPasswordDto,
+  VerifySignupCodeDto,
 } from './dto/auth.dto';
 import { GoogleService } from './google.service';
 import { AuthTokens, TokenService } from './token.service';
@@ -45,12 +47,14 @@ const COACH_INVITE_TTL_HOURS = 24 * 7;
 // confortable, mais ça ne fait qu'un million de combinaisons : un jeton long
 // est hors d'atteinte d'une force brute, celui-ci ne l'est pas. On brûle donc
 // le code au bout de quelques essais ratés, et le club doit en renvoyer un.
-const COACH_CODE_LENGTH = 6;
+const NUMERIC_CODE_LENGTH = 6;
 const COACH_CODE_MAX_ATTEMPTS = 5;
 
 /** Codes stables pour le mobile (le texte affiché reste côté app, en FR/DE). */
 export const COACH_INVITE_INVALID_CODE = 'COACH_INVITE_INVALID';
 export const COACH_INVITE_LOCKED_CODE = 'COACH_INVITE_LOCKED';
+export const SIGNUP_CODE_INVALID = 'SIGNUP_CODE_INVALID';
+export const SIGNUP_CODE_LOCKED = 'SIGNUP_CODE_LOCKED';
 
 /**
  * Ce que l'app doit demander à l'entraîneur après son email :
@@ -343,24 +347,120 @@ export class AuthService {
    * l'email. Émettre un nouveau code invalide les précédents, sinon un code
    * qu'on croyait remplacé resterait utilisable.
    */
-  async createCoachInviteCode(userId: string): Promise<string> {
+  createCoachInviteCode(userId: string): Promise<string> {
+    return this.createNumericCode(TokenType.COACH_INVITE, userId, COACH_INVITE_TTL_HOURS);
+  }
+
+  /**
+   * Code numérique à usage unique, stocké **hashé**. Le code en clair n'existe
+   * que dans l'email. Émettre un nouveau code invalide les précédents du même
+   * type, sinon un code qu'on croyait remplacé resterait utilisable.
+   */
+  private async createNumericCode(
+    type: TokenType,
+    userId: string,
+    ttlHours: number,
+  ): Promise<string> {
     await this.prisma.token.updateMany({
-      where: { userId, type: TokenType.COACH_INVITE, usedAt: null },
+      where: { userId, type, usedAt: null },
       data: { usedAt: new Date() },
     });
 
-    const code = randomInt(0, 10 ** COACH_CODE_LENGTH)
+    const code = randomInt(0, 10 ** NUMERIC_CODE_LENGTH)
       .toString()
-      .padStart(COACH_CODE_LENGTH, '0');
+      .padStart(NUMERIC_CODE_LENGTH, '0');
     await this.prisma.token.create({
       data: {
-        type: TokenType.COACH_INVITE,
+        type,
         userId,
         tokenHash: await argon2.hash(code),
-        expiresAt: new Date(Date.now() + COACH_INVITE_TTL_HOURS * 3600 * 1000),
+        expiresAt: new Date(Date.now() + ttlHours * 3600 * 1000),
       },
     });
     return code;
+  }
+
+  /**
+   * Inscription par email, première étape : on prouve l'adresse **avant** de
+   * créer quoi que ce soit derrière (un club, par exemple).
+   *
+   * Toujours silencieux. Répondre différemment selon que l'adresse est libre,
+   * déjà prise ou déjà activée transformerait l'endpoint en annuaire — et
+   * l'écran d'entrée dispose déjà de `/auth/coach-invite/status` pour savoir
+   * quoi afficher.
+   */
+  async requestSignupCode(dto: RequestSignupCodeDto): Promise<void> {
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.users.findByEmail(email);
+
+    // Un compte déjà utilisable n'a rien à recevoir : il doit se connecter.
+    if (existing && (existing.passwordHash || existing.googleId)) {
+      return;
+    }
+    if (existing && existing.status !== UserStatus.ACTIVE) {
+      return;
+    }
+
+    const user =
+      existing ??
+      (await this.users.create({ email, locale: dto.locale ?? Locale.FR }));
+    const code = await this.createNumericCode(
+      TokenType.EMAIL_VERIFY,
+      user.id,
+      EMAIL_VERIFY_TTL_HOURS,
+    );
+    await this.mail.sendSignupCodeEmail(email, code, user.locale);
+  }
+
+  /**
+   * Deuxième étape : le code prouve l'accès à la boîte mail, le mot de passe
+   * rend le compte réutilisable. L'email est validé du même geste.
+   */
+  async verifySignupCode(dto: VerifySignupCodeDto): Promise<AuthTokens> {
+    const email = dto.email.trim().toLowerCase();
+    const user = await this.users.findByEmail(email);
+    const token = user
+      ? await this.prisma.token.findFirst({
+          where: {
+            userId: user.id,
+            type: TokenType.EMAIL_VERIFY,
+            usedAt: null,
+            expiresAt: { gt: new Date() },
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+      : null;
+
+    if (!user || !token) {
+      throw new BadRequestException({
+        code: SIGNUP_CODE_INVALID,
+        message: 'Invalid email or code.',
+      });
+    }
+    if (token.attempts >= COACH_CODE_MAX_ATTEMPTS) {
+      throw new BadRequestException({
+        code: SIGNUP_CODE_LOCKED,
+        message: 'Too many failed attempts. Request a new code.',
+      });
+    }
+    if (!(await argon2.verify(token.tokenHash, dto.code.trim()))) {
+      await this.prisma.token.update({
+        where: { id: token.id },
+        data: { attempts: { increment: 1 } },
+      });
+      throw new BadRequestException({
+        code: SIGNUP_CODE_INVALID,
+        message: 'Invalid email or code.',
+      });
+    }
+
+    await this.prisma.token.update({ where: { id: token.id }, data: { usedAt: new Date() } });
+    const updated = await this.users.update(user.id, {
+      passwordHash: await argon2.hash(dto.password),
+      emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+    });
+    await this.tokens.revokeAllForUser(user.id);
+    return this.tokens.issueTokens(updated);
   }
 
   issueTokensForUser(user: Pick<User, 'id' | 'role' | 'email'>): Promise<AuthTokens> {

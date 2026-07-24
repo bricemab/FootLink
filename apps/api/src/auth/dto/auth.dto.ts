@@ -71,6 +71,31 @@ export class CoachEmailDto {
   email!: string;
 }
 
+// Inscription par email : on prouve l'adresse AVANT de créer quoi que ce soit.
+export class RequestSignupCodeDto {
+  @IsEmail()
+  email!: string;
+
+  @IsOptional()
+  @IsEnum(Locale)
+  locale?: Locale;
+}
+
+export class VerifySignupCodeDto {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'Code must be exactly 6 digits.' })
+  code!: string;
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  @Matches(PASSWORD_REGEX, { message: PASSWORD_MESSAGE })
+  password!: string;
+}
+
 // Invitation entraîneur : le club a créé le compte et saisi l'email ; l'invité
 // prouve qu'il y a accès en recopiant le code à 6 chiffres reçu, et choisit son
 // mot de passe dans la foulée.

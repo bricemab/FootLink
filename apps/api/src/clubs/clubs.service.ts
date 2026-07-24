@@ -5,18 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  Club,
-  ClubMember,
-  ClubMemberRole,
-  ClubStatus,
-  Locale,
-  Prisma,
-  UserRole,
-} from '@prisma/client';
-import * as argon2 from 'argon2';
-import { AuthService } from '../auth/auth.service';
-import { AuthTokens } from '../auth/token.service';
+import { Club, ClubMember, ClubMemberRole, ClubStatus, Prisma, UserRole } from '@prisma/client';
 import { GeoService } from '../geo/geo.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -31,57 +20,52 @@ export interface ClubContext {
 export class ClubsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly auth: AuthService,
     private readonly mail: MailService,
     private readonly geo: GeoService,
   ) {}
 
-  // --- Demande de compte club (public) ---
-  async requestClub(dto: RequestClubDto): Promise<{
-    tokens: AuthTokens;
-    club: { id: string; name: string; status: ClubStatus };
-  }> {
-    const email = dto.email.toLowerCase();
-    if (await this.prisma.user.findUnique({ where: { email } })) {
-      throw new ConflictException('An account with this email already exists.');
+  /**
+   * Demande de compte club, par un utilisateur **déjà authentifié**.
+   *
+   * L'identité est prouvée en amont — code à 6 chiffres reçu par email, ou
+   * Google — avant qu'on crée quoi que ce soit. Le club naît en PENDING et ne
+   * peut rien publier tant qu'un SUPER_ADMIN ne l'a pas validé.
+   */
+  async requestClub(
+    userId: string,
+    dto: RequestClubDto,
+  ): Promise<{ club: { id: string; name: string; status: ClubStatus } }> {
+    const alreadyMember = await this.prisma.clubMember.findFirst({ where: { userId } });
+    if (alreadyMember) {
+      throw new ConflictException('This account is already linked to a club.');
     }
     await this.assertRegionExists(dto.regionCode);
 
-    const passwordHash = await argon2.hash(dto.password);
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
-    const { user, club } = await this.prisma.$transaction(async (tx) => {
-      const createdUser = await tx.user.create({
-        data: {
-          email,
-          passwordHash,
-          role: UserRole.CLUB_ADMIN,
-          locale: dto.locale ?? Locale.FR,
-        },
-      });
-      const createdClub = await tx.club.create({
+    const club = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.club.create({
         data: {
           name: dto.clubName,
           status: ClubStatus.PENDING,
-          contactEmail: dto.contactEmail?.toLowerCase() ?? email,
+          contactEmail: dto.contactEmail?.toLowerCase() ?? user.email,
           requestNote: dto.requestNote ?? null,
           regionCode: dto.regionCode ?? null,
           canton: dto.canton ?? null,
           locality: dto.locality ?? null,
           members: {
-            create: {
-              userId: createdUser.id,
-              role: ClubMemberRole.CLUB_ADMIN,
-              isOwner: true,
-            },
+            create: { userId, role: ClubMemberRole.CLUB_ADMIN, isOwner: true },
           },
         },
       });
-      return { user: createdUser, club: createdClub };
+      // Le rôle principal suit l'activité réelle du compte. Les droits sur le
+      // club viennent du ClubMember : un joueur devenu responsable garde donc
+      // son profil joueur intact.
+      await tx.user.update({ where: { id: userId }, data: { role: UserRole.CLUB_ADMIN } });
+      return created;
     });
 
-    await this.auth.sendEmailVerification(user);
-    const tokens = await this.auth.issueTokensForUser(user);
-    return { tokens, club: { id: club.id, name: club.name, status: club.status } };
+    return { club: { id: club.id, name: club.name, status: club.status } };
   }
 
   // --- Côté club (le clubId n'est JAMAIS pris du client : anti-IDOR) ---

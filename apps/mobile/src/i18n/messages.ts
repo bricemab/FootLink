@@ -60,6 +60,7 @@ export const fr = {
     clubIdentity: 'Ton club',
     clubAccount: 'Ton compte',
     clubContext: 'Ta demande',
+    account: 'Ton compte',
   },
   roles: {
     title: 'Tu es qui ?',
@@ -96,6 +97,12 @@ export const fr = {
     changeEmail: 'Changer d’adresse',
   },
   club: {
+    accountTitle: 'D’abord, qui es-tu ?',
+    accountSubtitle: 'On crée ton compte avant celui du club.',
+    codeTitle: 'Ton code de confirmation',
+    codeSubtitle: 'On a envoyé un code à 6 chiffres à {email}.',
+    passwordTitle: 'Choisis ton mot de passe',
+    passwordSubtitle: 'Il te servira à te reconnecter.',
     title: 'Créer le compte du club',
     subtitle: 'Ta demande sera validée manuellement avant que le club puisse publier.',
     clubName: 'Nom du club',
@@ -201,6 +208,7 @@ export const de: typeof fr = {
     clubIdentity: 'Dein Verein',
     clubAccount: 'Dein Konto',
     clubContext: 'Dein Antrag',
+    account: 'Dein Konto',
   },
   roles: {
     title: 'Wer bist du?',
@@ -238,6 +246,12 @@ export const de: typeof fr = {
     changeEmail: 'Adresse ändern',
   },
   club: {
+    accountTitle: 'Zuerst: wer bist du?',
+    accountSubtitle: 'Wir erstellen dein Konto vor dem des Vereins.',
+    codeTitle: 'Dein Bestätigungscode',
+    codeSubtitle: 'Wir haben einen 6-stelligen Code an {email} geschickt.',
+    passwordTitle: 'Wähle dein Passwort',
+    passwordSubtitle: 'Damit meldest du dich künftig an.',
     title: 'Vereinskonto erstellen',
     subtitle: 'Dein Antrag wird manuell geprüft, bevor der Verein etwas veröffentlichen kann.',
     clubName: 'Name des Vereins',
