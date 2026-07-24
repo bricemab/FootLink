@@ -42,18 +42,24 @@ Puis, dans un second terminal :
 E2E_LOG=/tmp/footlink-e2e.log npx tsx tools/e2e/phase4.ts
 ```
 
-## Ce que couvre `phase4.ts`
+## Ce que couvre `phase4.ts` (59 contrôles)
 
 - **Blocage tant que l'email n'est pas validé** : toutes les routes authentifiées
   répondent `403` avec le code `EMAIL_NOT_VERIFIED`, sauf `GET /auth/me`,
   `POST /auth/resend-verification` et `POST /auth/logout`.
 - **Garde « club non approuvé »** : ni équipe ni entraîneur avant l'approbation
   du `SUPER_ADMIN`.
-- **Équipes** : création, doublon exact refusé, suppression bloquée si l'équipe
-  porte encore des annonces.
-- **Entraîneurs** : invitation par email, jeton à **usage unique**, réassignation
-  d'équipes, retrait.
+- **Équipes** : création, doublon exact refusé.
+- **Équipe créée avec son entraîneur** en un seul appel — et surtout :
+  si l'entraîneur est refusé, **aucune équipe orpheline** ne subsiste.
+- **Entraîneurs** : nom et prénom obligatoires, invitation par email, jeton à
+  **usage unique**, réassignation d'équipes, retrait.
 - **Isolation** : un entraîneur ne voit que ses équipes assignées, ne crée pas
   d'équipe, ne gère pas les autres entraîneurs.
 - **Cloisonnement inter-clubs (anti-IDOR)** : un club ne lit, ne modifie et ne
   supprime rien qui appartienne à un autre club.
+- **Suppression en cascade** : décompte exact via `deletion-impact`, refus `409`
+  `TEAM_DELETION_CONFIRMATION_REQUIRED` sans `?confirm=true`, le refus portant
+  le décompte à afficher dans l'alerte.
+- **Page de rebond des liens d'email** : elle tente `footlink://`, prévoit le
+  repli vers le store, et refuse une action inconnue.

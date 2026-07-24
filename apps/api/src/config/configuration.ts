@@ -23,6 +23,12 @@ export interface AppConfiguration {
     from: string;
     fromName: string;
   };
+  links: {
+    /** Base HTTPS des liens envoyés par email (page de rebond vers l'app). */
+    publicBaseUrl: string;
+    iosStoreUrl: string;
+    androidStoreUrl: string;
+  };
 }
 
 const int = (value: string | undefined, fallback: number): number => {
@@ -57,5 +63,16 @@ export default (): AppConfiguration => ({
     password: process.env.SMTP_PASSWORD || undefined,
     from: process.env.EMAIL_FROM ?? 'no-reply@footlink.ch',
     fromName: process.env.EMAIL_FROM_NAME ?? 'FootLink',
+  },
+  links: {
+    // En dev, pointer sur l'IP de la machine (ex. http://192.168.1.20:3000)
+    // pour que le lien reçu sur le téléphone soit réellement joignable.
+    publicBaseUrl: (process.env.PUBLIC_BASE_URL ?? 'https://footlink.ch').replace(/\/+$/, ''),
+    // L'identifiant App Store n'existe qu'une fois l'app publiée : d'ici là, on
+    // renvoie sur la recherche du store plutôt que sur une page inexistante.
+    iosStoreUrl: process.env.IOS_STORE_URL ?? 'https://apps.apple.com/ch/search?term=footlink',
+    androidStoreUrl:
+      process.env.ANDROID_STORE_URL ??
+      'https://play.google.com/store/apps/details?id=ch.footlink.app',
   },
 });

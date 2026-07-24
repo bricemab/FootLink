@@ -5,12 +5,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ClubMember, ClubMemberRole, Locale, UserRole } from '@prisma/client';
+import {
+  Club,
+  ClubMember,
+  ClubMemberRole,
+  Locale,
+  Prisma,
+  User,
+  UserRole,
+} from '@prisma/client';
 import { AuthService } from '../auth/auth.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClubContext, ClubsService } from './clubs.service';
-import { CreateCoachDto, SetCoachTeamsDto } from './dto/coach.dto';
+import { CoachIdentityDto, CreateCoachDto, SetCoachTeamsDto } from './dto/coach.dto';
 
 // Vue exposée d'un entraîneur. `hasAccepted` remplace toute exposition du hash :
 // le mot de passe ne sort jamais du service, même sous forme dérivée.
@@ -18,11 +26,28 @@ export interface CoachView {
   clubMemberId: string;
   userId: string;
   email: string;
+  firstName: string | null;
+  lastName: string | null;
   locale: Locale;
   hasAccepted: boolean;
   emailVerified: boolean;
   teams: { id: string; name: string | null; category: string; gender: string }[];
   createdAt: string;
+}
+
+/**
+ * Un entraîneur prêt à être écrit en base : toutes les vérifications sont
+ * faites, il ne reste que les écritures. Permet de créer une équipe ET son
+ * entraîneur dans une seule transaction (cf. TeamsService), sans dupliquer les
+ * règles de validation.
+ */
+export interface PreparedCoach {
+  identity: CoachIdentityDto;
+  email: string;
+  locale: Locale;
+  existingUser: User | null;
+  /** Un compte sans mot de passe ET sans Google ne peut pas se connecter. */
+  needsInvite: boolean;
 }
 
 @Injectable()
@@ -38,60 +63,102 @@ export class CoachesService {
     const { club } = await this.assertClubAdmin(userId);
     const members = await this.prisma.clubMember.findMany({
       where: { clubId: club.id, role: ClubMemberRole.COACH },
-      include: {
-        user: true,
-        teamAssignments: { include: { team: true } },
-      },
+      include: { user: true, teamAssignments: { include: { team: true } } },
     });
     return members.map((member) => this.toView(member));
   }
 
   async createCoach(userId: string, dto: CreateCoachDto): Promise<CoachView> {
     const { club } = await this.assertClubAdmin(userId);
-    const email = dto.email.toLowerCase();
     const teamIds = await this.assertTeamsBelongToClub(club.id, dto.teamIds ?? []);
+    const prepared = await this.prepareCoach(club.id, dto);
 
-    const existing = await this.prisma.user.findUnique({ where: { email } });
-    if (existing) {
+    const member = await this.prisma.$transaction((tx) =>
+      this.persistCoach(tx, club.id, prepared, teamIds),
+    );
+
+    await this.deliverInvite(club, prepared, member.userId);
+    return this.loadView(member.id);
+  }
+
+  // --- Réutilisable par TeamsService (création équipe + entraîneur) ---------
+
+  /** Valide l'entraîneur sans rien écrire. À appeler AVANT d'ouvrir la transaction. */
+  async prepareCoach(clubId: string, identity: CoachIdentityDto): Promise<PreparedCoach> {
+    const email = identity.email.toLowerCase();
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
+
+    if (existingUser) {
       const alreadyMember = await this.prisma.clubMember.findUnique({
-        where: { clubId_userId: { clubId: club.id, userId: existing.id } },
+        where: { clubId_userId: { clubId, userId: existingUser.id } },
       });
       if (alreadyMember) {
         throw new ConflictException('This user is already a member of your club.');
       }
     }
 
-    // Un compte sans mot de passe ET sans Google ne peut pas se connecter :
-    // c'est exactement le cas qui nécessite une invitation.
-    const needsInvite = !existing || (!existing.passwordHash && !existing.googleId);
-    const locale = dto.locale ?? existing?.locale ?? Locale.FR;
+    return {
+      identity,
+      email,
+      locale: identity.locale ?? existingUser?.locale ?? Locale.FR,
+      existingUser,
+      needsInvite: !existingUser || (!existingUser.passwordHash && !existingUser.googleId),
+    };
+  }
 
-    const member = await this.prisma.$transaction(async (tx) => {
-      const user =
-        existing ??
-        (await tx.user.create({
-          data: { email, role: UserRole.COACH, locale },
-        }));
-      const created = await tx.clubMember.create({
-        data: { clubId: club.id, userId: user.id, role: ClubMemberRole.COACH },
-      });
-      if (teamIds.length > 0) {
-        await tx.coachTeamAssignment.createMany({
-          data: teamIds.map((teamId) => ({ clubMemberId: created.id, teamId })),
-        });
-      }
-      return created;
+  /** Écritures seules — s'exécute dans la transaction de l'appelant. */
+  async persistCoach(
+    tx: Prisma.TransactionClient,
+    clubId: string,
+    prepared: PreparedCoach,
+    teamIds: string[],
+  ): Promise<ClubMember> {
+    const user =
+      prepared.existingUser ??
+      (await tx.user.create({
+        data: { email: prepared.email, role: UserRole.COACH, locale: prepared.locale },
+      }));
+
+    const member = await tx.clubMember.create({
+      data: {
+        clubId,
+        userId: user.id,
+        role: ClubMemberRole.COACH,
+        firstName: prepared.identity.firstName.trim(),
+        lastName: prepared.identity.lastName.trim(),
+      },
     });
 
-    if (needsInvite) {
-      const token = await this.auth.createCoachInviteToken(member.userId);
-      await this.mail.sendCoachInviteEmail(email, club.name, token, locale);
-    } else {
-      await this.mail.sendCoachAddedEmail(email, club.name, locale);
+    if (teamIds.length > 0) {
+      await tx.coachTeamAssignment.createMany({
+        data: teamIds.map((teamId) => ({ clubMemberId: member.id, teamId })),
+      });
     }
-
-    return this.loadView(member.id);
+    return member;
   }
+
+  /** Envoi d'email — hors transaction : un SMTP lent ne doit pas tenir un verrou. */
+  async deliverInvite(club: Club, prepared: PreparedCoach, userId: string): Promise<void> {
+    const displayName = prepared.identity.firstName.trim();
+    if (prepared.needsInvite) {
+      const token = await this.auth.createCoachInviteToken(userId);
+      await this.mail.sendCoachInviteEmail(
+        prepared.email,
+        displayName,
+        club.name,
+        token,
+        prepared.locale,
+      );
+      return;
+    }
+    await this.mail.sendCoachAddedEmail(prepared.email, displayName, club.name, prepared.locale);
+  }
+
+  async viewOf(clubMemberId: string): Promise<CoachView> {
+    return this.loadView(clubMemberId);
+  }
+
+  // --- Gestion courante ----------------------------------------------------
 
   // Renvoie une invitation (email perdu, jeton expiré).
   async resendInvite(userId: string, clubMemberId: string): Promise<void> {
@@ -102,7 +169,13 @@ export class CoachesService {
       throw new BadRequestException('This coach has already activated their account.');
     }
     const token = await this.auth.createCoachInviteToken(user.id);
-    await this.mail.sendCoachInviteEmail(user.email, club.name, token, user.locale);
+    await this.mail.sendCoachInviteEmail(
+      user.email,
+      member.firstName ?? '',
+      club.name,
+      token,
+      user.locale,
+    );
   }
 
   async setCoachTeams(
@@ -156,7 +229,7 @@ export class CoachesService {
     });
   }
 
-  private async assertClubAdmin(userId: string): Promise<ClubContext> {
+  async assertClubAdmin(userId: string): Promise<ClubContext> {
     const context = await this.clubs.getMyClubContext(userId);
     if (context.member.role !== ClubMemberRole.CLUB_ADMIN) {
       throw new ForbiddenException('Restricted to the club administrator.');
@@ -199,13 +272,24 @@ export class CoachesService {
   private toView(member: {
     id: string;
     userId: string;
-    user: { email: string; locale: Locale; passwordHash: string | null; googleId: string | null; emailVerifiedAt: Date | null; createdAt: Date };
+    firstName: string | null;
+    lastName: string | null;
+    user: {
+      email: string;
+      locale: Locale;
+      passwordHash: string | null;
+      googleId: string | null;
+      emailVerifiedAt: Date | null;
+      createdAt: Date;
+    };
     teamAssignments: { team: { id: string; name: string | null; category: string; gender: string } }[];
   }): CoachView {
     return {
       clubMemberId: member.id,
       userId: member.userId,
       email: member.user.email,
+      firstName: member.firstName,
+      lastName: member.lastName,
       locale: member.user.locale,
       hasAccepted: member.user.passwordHash !== null || member.user.googleId !== null,
       emailVerified: member.user.emailVerifiedAt !== null,

@@ -13,6 +13,8 @@ import { RegionsController } from './regions.controller';
   imports: [AuthModule, GeoModule, MailModule],
   controllers: [ClubsController, CoachesController, AdminClubsController, RegionsController],
   providers: [ClubsService, CoachesService],
-  exports: [ClubsService],
+  // CoachesService est exporté pour que TeamsService puisse créer une équipe et
+  // son entraîneur dans une seule transaction.
+  exports: [ClubsService, CoachesService],
 })
 export class ClubsModule {}

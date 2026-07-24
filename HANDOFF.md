@@ -61,7 +61,10 @@ directement dans l'app plutôt que via l'API.
 | `GET /regions` | public | 13 associations (table seedée) |
 | `GET /admin/clubs` · `POST /admin/clubs/:id/approve\|reject` | **SUPER_ADMIN** | pas d'UI web (back-office = post-MVP) |
 | `POST /auth/coach-invite/accept` | public | l'entraîneur invité pose son mot de passe ; vaut validation d'email |
-| `GET/POST /teams` · `GET/PATCH/DELETE /teams/:id` | auth | CLUB_ADMIN = toutes les équipes du club · COACH = **ses équipes assignées** |
+| `GET/POST /teams` · `GET/PATCH /teams/:id` | auth | CLUB_ADMIN = toutes les équipes du club · COACH = **ses équipes assignées**. `POST` accepte un bloc `coach { email, firstName, lastName }` : équipe + compte entraîneur + invitation dans **une transaction** |
+| `GET /teams/:id/deletion-impact` | auth | décompte de ce que la suppression détruirait (annonces, candidatures, matchs, conversations, messages) |
+| `DELETE /teams/:id?confirm=true` | auth | **cascade totale**. Sans `confirm`, renvoie **409 `TEAM_DELETION_CONFIRMATION_REQUIRED`** + le décompte |
+| `GET /l/:action?token=` | public | **hors `/api/v1`** : page de rebond des liens d'email → ouvre `footlink://`, sinon redirige vers le store |
 | `GET/POST /clubs/me/coaches` | auth | **CLUB_ADMIN du club uniquement** (droit lu sur `ClubMember.role`, pas `User.role`) |
 | `POST /clubs/me/coaches/:id/invite` · `PUT .../teams` · `DELETE .../:id` | auth | renvoi d'invitation · réassignation · retrait (sessions révoquées) |
 
@@ -170,11 +173,43 @@ puis **se reconnecter** (le rôle est gravé dans le token à l'émission).
 **Choix assumés au M0, à revoir :**
 - **Thème sombre forcé** (`defaultTheme="dark"`) : l'identité est nocturne, le thème clair n'a pas encore été dessiné.
 - **Compilateur Tamagui non activé** (pas de `@tamagui/babel-plugin`) : Tamagui tourne en mode runtime. C'est une optimisation de perf à ajouter quand l'UI sera stabilisée, pas un manque fonctionnel.
-- **Google Sign-In pas encore branché** : il exige un *dev build* (impossible dans Expo Go) et le client OAuth Android n'existe pas encore (cf. SHA-1 plus bas). L'inscription email + mot de passe couvre tout le parcours.
-- **Reset de mot de passe** : le lien profond `footlink://auth/reset-password` n'a pas encore d'écran.
+- **Google Sign-In : le code est en place** (bouton sur connexion ET inscription, via `@react-native-google-signin/google-signin`, jeton ID revérifié par le serveur). ⚠️ **Ne peut pas fonctionner dans Expo Go** : c'est un module natif. L'app détecte le cas (`Constants.executionEnvironment`) et l'explique au lieu de planter. Marche à suivre en §5ter.
+- **Reset de mot de passe** : le lien passe bien par la page de rebond, mais **l'écran `/auth/reset-password` n'existe pas encore** — le lien ouvre l'app sur une route inconnue.
 - Lottie n'est **pas** installé tant qu'aucun écran ne l'utilise (pas de dépendance morte).
 - **`web.output` = `single` (SPA) et non `static`** : le rendu statique pré-rend chaque route dans Node, ce qui casse (`Cannot destructure property '__extends' of 'tslib.default'`). Le web n'est pas une cible produit — il sert seulement à inspecter l'UI dans un navigateur (`pnpm mobile:dev` puis http://localhost:8081).
 - **Sur le web, les jetons restent en mémoire** : `expo-secure-store` n'existe pas sur cette plateforme, et écrire des jetons dans `localStorage` serait un recul de sécurité gratuit. Conséquence : la session web ne survit pas à un rechargement. Sur mobile, rien ne change (Keychain / Keystore).
+
+## 5ter. Activer Google Sign-In (à faire par Brice)
+
+Le code est écrit et branché ; il manque **l'environnement d'exécution** et **un
+client OAuth Android**. Google Sign-In est un module natif : il n'existe pas
+dans Expo Go, qui embarque un jeu fixe de modules.
+
+**1. Créer un *development build*** (une seule fois par plateforme) :
+```bash
+pnpm --filter @footlink/mobile exec eas login
+```
+```bash
+pnpm --filter @footlink/mobile exec eas build --profile development --platform android
+```
+On installe l'APK obtenu sur le téléphone, puis on lance `pnpm mobile:dev`
+comme d'habitude : c'est ce build qui remplace Expo Go.
+
+**2. Récupérer l'empreinte SHA-1** du keystore de signature :
+```bash
+pnpm --filter @footlink/mobile exec eas credentials
+```
+(Android → *Keystore* → l'empreinte `SHA1` s'affiche.)
+
+**3. Créer le client OAuth Android** dans la Google Cloud Console (projet
+`footlink-503320`) : type *Android*, package `ch.footlink.app`, et l'empreinte
+SHA-1 de l'étape 2. Ajouter ensuite son identifiant à `GOOGLE_CLIENT_IDS` dans
+`apps/api/.env` (liste séparée par des virgules) — c'est la liste des audiences
+que le serveur accepte.
+
+> iOS et Web sont déjà créés. Le `iosUrlScheme` du plugin dans `app.json` est
+> l'identifiant iOS **inversé** : le changer sans changer le client OAuth casse
+> la connexion sur iPhone.
 
 ## 6. TODO / questions ouvertes
 
@@ -186,8 +221,8 @@ puis **se reconnecter** (le rôle est gravé dans le token à l'émission).
 - **ESLint** volontairement reporté à la Phase 11 (pour ne pas livrer une config bancale).
 - **Prisma** : `package.json#prisma` est déprécié (Prisma 7) → migrer vers `prisma.config.ts` au durcissement.
 - **`GET /players/me`** renvoie `null` (HTTP 200) si aucun profil : c'est voulu (l'app sait qu'il faut onboarder).
-- **[Décision Brice] Un entraîneur n'a pas de nom.** Ni `User` ni `ClubMember` ne portent de prénom/nom : la liste des entraîneurs d'un club n'affiche donc que des **adresses email**. Un club avec 8 coachs va mal le vivre. Il manque un champ (`ClubMember.displayName`, ou `firstName`/`lastName` sur `User`) — **changement de schéma, donc non tranché seul**. Codé aujourd'hui : email uniquement.
-- **[Décision Brice] Suppression d'équipe bloquée si elle porte des annonces** (400). Supprimer sans garde-fou détruirait en cascade annonces → candidatures → matchs → conversations. Choix défensif de ma part ; à confirmer ou assouplir (ex. archivage d'équipe plutôt que suppression).
+- ~~Un entraîneur n'a pas de nom.~~ **Tranché le 24 juillet 2026** : `ClubMember.firstName` / `ClubMember.lastName` (migration `club_member_identity`). Volontairement sur `ClubMember` et non sur `User` — c'est le club qui saisit le nom, **avant** que le compte existe, et un joueur déjà inscrit garde son `PlayerProfile` intact.
+- ~~Suppression d'équipe bloquée si elle porte des annonces.~~ **Tranché le 24 juillet 2026** : la suppression **casse tout en cascade** (annonces → candidatures → intérêts club → matchs → conversations → messages), mais elle est **impossible sans confirmation explicite**. Sans `?confirm=true`, l'API renvoie **409 `TEAM_DELETION_CONFIRMATION_REQUIRED`** *avec le décompte exact* : le client ne peut donc pas supprimer sans avoir de quoi afficher l'alerte. `GET /teams/:id/deletion-impact` permet de l'afficher en amont. ⚠️ **L'alerte elle-même reste à écrire** : l'app n'a pas encore d'écrans club.
 - **`GET /teams` renvoie `[]` pour un club encore `PENDING`** (pas de 403) : l'app peut afficher l'écran « club en attente de validation » sans traiter une erreur.
 
 ---

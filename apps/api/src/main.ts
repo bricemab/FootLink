@@ -10,7 +10,10 @@ async function bootstrap(): Promise<void> {
   const config = app.get(ConfigService);
 
   // API versionnée : /api/v1/...
-  app.setGlobalPrefix('api');
+  // `l/:action` est exclu : c'est la page de rebond des liens d'email, une URL
+  // que des humains voient et partagent. Elle doit rester courte et stable,
+  // donc ni préfixée ni versionnée.
+  app.setGlobalPrefix('api', { exclude: ['l/:action'] });
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
 
   // Validation stricte des entrées (sécurité : rejet des champs inconnus)

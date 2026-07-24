@@ -75,6 +75,19 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   EMAIL_FROM_NAME?: string;
+
+  // --- Liens d'email (rebond vers l'app, repli sur les stores) ---
+  @IsOptional()
+  @IsString()
+  PUBLIC_BASE_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  IOS_STORE_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  ANDROID_STORE_URL?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

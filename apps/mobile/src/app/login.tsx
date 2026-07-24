@@ -7,6 +7,7 @@ import { useI18n } from '@/i18n';
 import { AuthFormShell } from '@/ui/auth-form-shell';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
+import { GoogleAuthSection } from '@/ui/google-auth-section';
 import { PrimaryButton } from '@/ui/primary-button';
 import { TextField } from '@/ui/text-field';
 import { validateEmail } from '@/ui/validation';
@@ -64,6 +65,8 @@ export default function Login(): ReactNode {
       />
 
       <PrimaryButton label={t.login.submit} loading={busy} onPress={() => void submit()} />
+
+      <GoogleAuthSection />
 
       <XStack justifyContent="center" gap="$2">
         <Text fontSize={15} color="$brandChalkDim">

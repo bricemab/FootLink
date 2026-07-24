@@ -337,6 +337,14 @@ model ClubMember {
   role    ClubMemberRole @default(COACH)
   isOwner Boolean        @default(false) // le demandeur initial du club (un CLUB_ADMIN)
 
+  // Identité DANS ce club. Volontairement ici et non sur User : c'est le club
+  // qui saisit le nom de son entraîneur au moment de l'invitation, avant même
+  // que le compte existe. Un joueur déjà inscrit garde son PlayerProfile
+  // intact ; le nom affiché côté club reste celui saisi par le club.
+  // Nullable : les CLUB_ADMIN créés par une demande de club n'en ont pas.
+  firstName String?
+  lastName  String?
+
   teamAssignments CoachTeamAssignment[]
 
   @@unique([clubId, userId])

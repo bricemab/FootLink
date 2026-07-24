@@ -28,6 +28,19 @@ export const fr = {
     forgot: 'Mot de passe oublié ?',
     noAccount: 'Pas encore de compte ?',
   },
+  google: {
+    signIn: 'Continuer avec Google',
+    separator: 'ou',
+    needsDevBuild:
+      "Google Sign-In ne fonctionne pas dans Expo Go : il faut une version de développement de l'app. Utilise l'email et le mot de passe en attendant.",
+    failed: 'La connexion Google a échoué.',
+  },
+  coachInvite: {
+    title: 'Bienvenue dans ton club',
+    subtitle: 'Choisis ton mot de passe pour activer ton compte entraîneur.',
+    submit: 'Activer mon compte',
+    missingToken: "Ce lien d'invitation est incomplet. Rouvre-le depuis ton email.",
+  },
   register: {
     title: 'Rejoins FootLink',
     subtitle: 'Deux minutes, et ton profil est en ligne.',
@@ -88,6 +101,19 @@ export const de: typeof fr = {
     submit: 'Anmelden',
     forgot: 'Passwort vergessen?',
     noAccount: 'Noch kein Konto?',
+  },
+  google: {
+    signIn: 'Mit Google fortfahren',
+    separator: 'oder',
+    needsDevBuild:
+      'Google Sign-In funktioniert nicht in Expo Go: dafür braucht es einen Development Build. Nutze so lange E-Mail und Passwort.',
+    failed: 'Die Google-Anmeldung ist fehlgeschlagen.',
+  },
+  coachInvite: {
+    title: 'Willkommen in deinem Verein',
+    subtitle: 'Wähle dein Passwort, um dein Trainerkonto zu aktivieren.',
+    submit: 'Konto aktivieren',
+    missingToken: 'Dieser Einladungslink ist unvollständig. Öffne ihn erneut aus deiner E-Mail.',
   },
   register: {
     title: 'Komm zu FootLink',

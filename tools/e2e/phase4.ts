@@ -53,14 +53,27 @@ async function api<T = unknown>(
   path: string,
   options: { token?: string; body?: unknown } = {},
 ): Promise<ApiResult<T>> {
-  const response = await fetch(`${BASE}${path}`, {
-    method,
-    headers: {
-      ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      ...(options.token === undefined ? {} : { Authorization: `Bearer ${options.token}` }),
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
+  const request = (): Promise<Response> =>
+    fetch(`${BASE}${path}`, {
+      method,
+      headers: {
+        ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(options.token === undefined ? {} : { Authorization: `Bearer ${options.token}` }),
+      },
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    });
+
+  let response: Response;
+  try {
+    response = await request();
+  } catch {
+    // Les appels `sql()` bloquent la boucle d'événements plusieurs secondes :
+    // le serveur ferme entre-temps les sockets keep-alive inactives, et la
+    // requête suivante part sur une connexion morte (ECONNRESET). Un seul
+    // réessai suffit, la nouvelle connexion est saine.
+    response = await request();
+  }
+
   const text = await response.text();
   const body = text.length === 0 ? (undefined as T) : (JSON.parse(text) as T);
   return { status: response.status, body };
@@ -113,12 +126,29 @@ interface TeamResponse {
 interface CoachResponse {
   clubMemberId: string;
   email: string;
+  firstName: string | null;
+  lastName: string | null;
   hasAccepted: boolean;
   teams: { id: string }[];
 }
 
+/** POST /teams renvoie l'équipe ET l'entraîneur créé au passage, s'il y en a un. */
+interface CreateTeamResponse {
+  team: TeamResponse;
+  coach: CoachResponse | null;
+}
+
+interface DeletionImpact {
+  listings: number;
+  applications: number;
+  matches: number;
+  conversations: number;
+  messages: number;
+  isEmpty: boolean;
+}
+
 interface ErrorResponse {
-  error?: { code?: string; message?: string | string[] };
+  error?: { code?: string; message?: string | string[]; impact?: DeletionImpact };
 }
 
 async function main(): Promise<void> {
@@ -174,9 +204,11 @@ async function main(): Promise<void> {
     body: { category: 'TROISIEME_LIGUE' },
   });
   check('créer une équipe est refusé', earlyTeam.status === 403, earlyTeam.body);
+  // Charge utile volontairement VALIDE : sinon on testerait la validation du
+  // DTO (400) au lieu de la garde « club non approuvé » (403).
   const earlyCoach = await api<ErrorResponse>('POST', '/clubs/me/coaches', {
     token: adminToken,
-    body: { email: coachEmail },
+    body: { email: coachEmail, firstName: 'Yann', lastName: 'Bianchi' },
   });
   check('créer un entraîneur est refusé', earlyCoach.status === 403, earlyCoach.body);
 
@@ -202,12 +234,13 @@ async function main(): Promise<void> {
 
   // --- 6. Équipes ----------------------------------------------------------
   console.log('\n6. Création des équipes');
-  const teamA = await api<TeamResponse>('POST', '/teams', {
+  const teamA = await api<CreateTeamResponse>('POST', '/teams', {
     token: adminToken,
     body: { category: 'TROISIEME_LIGUE', gender: 'MALE', name: 'Trois A' },
   });
   check('la première équipe est créée', teamA.status === 201, teamA.body);
-  const teamB = await api<TeamResponse>('POST', '/teams', {
+  check('aucun entraîneur si on ne le demande pas', teamA.body.coach === null, teamA.body.coach);
+  const teamB = await api<CreateTeamResponse>('POST', '/teams', {
     token: adminToken,
     body: { category: 'JUNIORS_B', gender: 'MALE', name: 'Juniors B — 1' },
   });
@@ -226,19 +259,82 @@ async function main(): Promise<void> {
     adminTeams.body.map((team) => team.name),
   );
 
+  // --- 6bis. Équipe créée AVEC son entraîneur ------------------------------
+  console.log("\n6bis. Création d'une équipe avec son entraîneur");
+  const withCoachEmail = `duo-${RUN}@${DOMAIN}`;
+  const teamWithCoach = await api<CreateTeamResponse>('POST', '/teams', {
+    token: adminToken,
+    body: {
+      category: 'QUATRIEME_LIGUE',
+      gender: 'MALE',
+      name: 'Quatre A',
+      coach: { email: withCoachEmail, firstName: 'Diego', lastName: 'Rossi' },
+    },
+  });
+  check("l'équipe et l'entraîneur sont créés ensemble", teamWithCoach.status === 201, teamWithCoach.body);
+  check(
+    "le nom de l'entraîneur est enregistré",
+    teamWithCoach.body.coach?.firstName === 'Diego' && teamWithCoach.body.coach?.lastName === 'Rossi',
+    teamWithCoach.body.coach,
+  );
+  check(
+    "il est assigné à l'équipe créée",
+    teamWithCoach.body.coach?.teams[0]?.id === teamWithCoach.body.team.id,
+    teamWithCoach.body.coach?.teams,
+  );
+  check(
+    "il reçoit bien une invitation",
+    (await readEmailToken(withCoachEmail)).length > 0,
+  );
+
+  // Entraîneur invalide -> aucune équipe orpheline ne doit rester derrière.
+  const teamsBeforeFailure = (await api<TeamResponse[]>('GET', '/teams', { token: adminToken })).body
+    .length;
+  const rejectedDuo = await api<ErrorResponse>('POST', '/teams', {
+    token: adminToken,
+    body: {
+      category: 'CINQUIEME_LIGUE',
+      coach: { email: withCoachEmail, firstName: 'Diego', lastName: 'Rossi' },
+    },
+  });
+  check('un entraîneur déjà membre est refusé', rejectedDuo.status === 409, rejectedDuo.body);
+  const teamsAfterFailure = (await api<TeamResponse[]>('GET', '/teams', { token: adminToken })).body
+    .length;
+  check(
+    "l'équipe n'est pas créée si l'entraîneur est refusé",
+    teamsAfterFailure === teamsBeforeFailure,
+    { teamsBeforeFailure, teamsAfterFailure },
+  );
+
   // --- 7. Compte entraîneur + invitation ----------------------------------
   console.log('\n7. Compte entraîneur');
   const coach = await api<CoachResponse>('POST', '/clubs/me/coaches', {
     token: adminToken,
-    body: { email: coachEmail, teamIds: [teamA.body.id] },
+    body: { email: coachEmail, firstName: 'Yann', lastName: 'Bianchi', teamIds: [teamA.body.team.id] },
   });
   check("l'entraîneur est créé", coach.status === 201, coach.body);
   check("l'invitation est en attente", coach.body.hasAccepted === false, coach.body);
   check('une équipe lui est assignée', coach.body.teams.length === 1, coach.body.teams);
+  check(
+    'son identité est exposée au club',
+    coach.body.firstName === 'Yann' && coach.body.lastName === 'Bianchi',
+    coach.body,
+  );
+
+  const namelessCoach = await api<ErrorResponse>('POST', '/clubs/me/coaches', {
+    token: adminToken,
+    body: { email: `sansnom-${RUN}@${DOMAIN}` },
+  });
+  check('un entraîneur sans nom est refusé', namelessCoach.status === 400, namelessCoach.body);
 
   const foreignTeam = await api<ErrorResponse>('POST', '/clubs/me/coaches', {
     token: adminToken,
-    body: { email: `other-${RUN}@${DOMAIN}`, teamIds: ['clnotarealteamid00000000'] },
+    body: {
+      email: `other-${RUN}@${DOMAIN}`,
+      firstName: 'Alex',
+      lastName: 'Dupont',
+      teamIds: ['clnotarealteamid00000000'],
+    },
   });
   check(
     "assigner une équipe d'un autre club est refusé",
@@ -263,12 +359,12 @@ async function main(): Promise<void> {
   const coachTeams = await api<TeamResponse[]>('GET', '/teams', { token: coachToken });
   check(
     "l'entraîneur ne voit que son équipe assignée",
-    coachTeams.body.length === 1 && coachTeams.body[0].id === teamA.body.id,
+    coachTeams.body.length === 1 && coachTeams.body[0].id === teamA.body.team.id,
     coachTeams.body.map((team) => team.name),
   );
-  const coachOnOwnTeam = await api('GET', `/teams/${teamA.body.id}`, { token: coachToken });
+  const coachOnOwnTeam = await api('GET', `/teams/${teamA.body.team.id}`, { token: coachToken });
   check('il accède à son équipe', coachOnOwnTeam.status === 200, coachOnOwnTeam.body);
-  const coachOnOtherTeam = await api<ErrorResponse>('GET', `/teams/${teamB.body.id}`, {
+  const coachOnOtherTeam = await api<ErrorResponse>('GET', `/teams/${teamB.body.team.id}`, {
     token: coachToken,
   });
   check(
@@ -290,7 +386,7 @@ async function main(): Promise<void> {
   console.log('\n9. Réassignation des équipes');
   const reassigned = await api<CoachResponse>('PUT', `/clubs/me/coaches/${coach.body.clubMemberId}/teams`, {
     token: adminToken,
-    body: { teamIds: [teamA.body.id, teamB.body.id] },
+    body: { teamIds: [teamA.body.team.id, teamB.body.team.id] },
   });
   check('la réassignation réussit', reassigned.status === 200, reassigned.body);
   const coachTeamsAfter = await api<TeamResponse[]>('GET', '/teams', { token: coachToken });
@@ -308,11 +404,11 @@ async function main(): Promise<void> {
 
   const rivalSeesTeams = await api<TeamResponse[]>('GET', '/teams', { token: rivalToken });
   check('le club rival ne voit aucune équipe', rivalSeesTeams.body.length === 0, rivalSeesTeams.body);
-  const rivalReadsTeam = await api<ErrorResponse>('GET', `/teams/${teamA.body.id}`, {
+  const rivalReadsTeam = await api<ErrorResponse>('GET', `/teams/${teamA.body.team.id}`, {
     token: rivalToken,
   });
   check("le club rival ne lit pas l'équipe voisine", rivalReadsTeam.status === 404, rivalReadsTeam.body);
-  const rivalUpdatesTeam = await api<ErrorResponse>('PATCH', `/teams/${teamA.body.id}`, {
+  const rivalUpdatesTeam = await api<ErrorResponse>('PATCH', `/teams/${teamA.body.team.id}`, {
     token: rivalToken,
     body: { name: 'piraté' },
   });
@@ -347,10 +443,79 @@ async function main(): Promise<void> {
 
   // --- 12. Suppression d'équipe -------------------------------------------
   console.log("\n12. Suppression d'équipe");
-  const deleted = await api('DELETE', `/teams/${teamB.body.id}`, { token: adminToken });
-  check("l'équipe sans annonce est supprimée", deleted.status === 204, deleted.body);
-  const teamsEnd = await api<TeamResponse[]>('GET', '/teams', { token: adminToken });
-  check('il reste 1 équipe', teamsEnd.body.length === 1, teamsEnd.body.length);
+
+  const emptyImpact = await api<DeletionImpact>(
+    'GET',
+    `/teams/${teamB.body.team.id}/deletion-impact`,
+    { token: adminToken },
+  );
+  check("l'impact d'une équipe vide est nul", emptyImpact.body.isEmpty === true, emptyImpact.body);
+
+  const deleted = await api('DELETE', `/teams/${teamB.body.team.id}`, { token: adminToken });
+  check(
+    "une équipe sans rien à détruire part sans confirmation",
+    deleted.status === 204,
+    deleted.body,
+  );
+
+  // Une équipe qui porte une annonce ne doit PAS partir sans confirmation.
+  const listingTeam = await api<CreateTeamResponse>('POST', '/teams', {
+    token: adminToken,
+    body: { category: 'DEUXIEME_LIGUE', gender: 'MALE', name: 'Deux A' },
+  });
+  sql(
+    `INSERT INTO \`Listing\` (id, teamId, posteRecherche, status, season, createdAt, updatedAt) ` +
+      `VALUES ('e2elisting${RUN}', '${listingTeam.body.team.id}', 'GARDIEN', 'ACTIVE', '2026/2027', NOW(3), NOW(3));`,
+  );
+
+  const impact = await api<DeletionImpact>(
+    'GET',
+    `/teams/${listingTeam.body.team.id}/deletion-impact`,
+    { token: adminToken },
+  );
+  check("l'impact remonte l'annonce", impact.body.listings === 1, impact.body);
+  check("l'impact n'est pas vide", impact.body.isEmpty === false, impact.body);
+
+  const refused = await api<ErrorResponse>('DELETE', `/teams/${listingTeam.body.team.id}`, {
+    token: adminToken,
+  });
+  check('la suppression est refusée sans confirmation', refused.status === 409, refused.body);
+  check(
+    'le refus porte un code exploitable par l’app',
+    refused.body.error?.code === 'TEAM_DELETION_CONFIRMATION_REQUIRED',
+    refused.body,
+  );
+  check(
+    'le refus contient le décompte à afficher dans l’alerte',
+    refused.body.error?.impact?.listings === 1,
+    refused.body.error?.impact,
+  );
+
+  const confirmed = await api('DELETE', `/teams/${listingTeam.body.team.id}?confirm=true`, {
+    token: adminToken,
+  });
+  check('la suppression confirmée passe', confirmed.status === 204, confirmed.body);
+
+  const impactGone = await api<ErrorResponse>(
+    'GET',
+    `/teams/${listingTeam.body.team.id}/deletion-impact`,
+    { token: adminToken },
+  );
+  check("l'équipe n'existe plus", impactGone.status === 404, impactGone.body);
+
+  // --- 13. Page de rebond des liens d'email --------------------------------
+  console.log("\n13. Page de rebond des liens d'email");
+  const bounceUrl = `${BASE.replace(/\/api\/v1$/, '')}/l/coach-invite?token=abc.def`;
+  const bounce = await fetch(bounceUrl);
+  const bounceHtml = await bounce.text();
+  check('la page répond', bounce.status === 200, bounce.status);
+  check(
+    "elle tente d'ouvrir l'app",
+    bounceHtml.includes('footlink://auth/coach-invite?token=abc.def'),
+  );
+  check('elle prévoit le repli vers le store', bounceHtml.includes('play.google.com'));
+  const unknownAction = await fetch(`${BASE.replace(/\/api\/v1$/, '')}/l/nimporte-quoi`);
+  check('une action inconnue est refusée', unknownAction.status === 400, unknownAction.status);
 
   // --- Nettoyage -----------------------------------------------------------
   console.log('\nNettoyage des données de test');

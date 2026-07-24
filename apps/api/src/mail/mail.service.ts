@@ -2,9 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Locale } from '@prisma/client';
 import { createTransport, Transporter } from 'nodemailer';
-
-// Deep link mobile pour ouvrir l'app directement sur l'écran concerné.
-const DEEP_LINK_SCHEME = 'footlink://';
+import { LinksService } from '../links/links.service';
 
 @Injectable()
 export class MailService {
@@ -13,7 +11,10 @@ export class MailService {
   private readonly from: string;
   private readonly enabled: boolean;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly links: LinksService,
+  ) {
     const host = this.config.get<string>('mail.host');
     const port = this.config.get<number>('mail.port') ?? 587;
     const user = this.config.get<string>('mail.user');
@@ -38,7 +39,7 @@ export class MailService {
   }
 
   async sendVerificationEmail(to: string, token: string, locale: Locale): Promise<void> {
-    const link = `${DEEP_LINK_SCHEME}auth/verify-email?token=${encodeURIComponent(token)}`;
+    const link = this.links.buildEmailLink('verify-email', token);
     const isDe = locale === Locale.DE;
     const subject = isDe ? 'Bestätige deine E-Mail-Adresse' : 'Confirme ton adresse email';
     const intro = isDe
@@ -48,7 +49,7 @@ export class MailService {
   }
 
   async sendPasswordResetEmail(to: string, token: string, locale: Locale): Promise<void> {
-    const link = `${DEEP_LINK_SCHEME}auth/reset-password?token=${encodeURIComponent(token)}`;
+    const link = this.links.buildEmailLink('reset-password', token);
     const isDe = locale === Locale.DE;
     const subject = isDe ? 'Passwort zurücksetzen' : 'Réinitialise ton mot de passe';
     const intro = isDe
@@ -61,26 +62,34 @@ export class MailService {
   // mot de passe via ce lien. Le jeton en clair n'existe que dans cet email.
   async sendCoachInviteEmail(
     to: string,
+    firstName: string,
     clubName: string,
     token: string,
     locale: Locale,
   ): Promise<void> {
-    const link = `${DEEP_LINK_SCHEME}auth/coach-invite?token=${encodeURIComponent(token)}`;
+    const link = this.links.buildEmailLink('coach-invite', token);
     const isDe = locale === Locale.DE;
+    const greeting = firstName.trim().length > 0 ? `${isDe ? 'Hallo' : 'Salut'} ${firstName}, ` : '';
     const subject = isDe ? `Trainerkonto bei ${clubName}` : `Compte entraîneur chez ${clubName}`;
     const intro = isDe
-      ? `${clubName} hat dir ein Trainerkonto auf FootLink erstellt. Lege dein Passwort fest:`
-      : `${clubName} t'a créé un compte entraîneur sur FootLink. Définis ton mot de passe :`;
+      ? `${greeting}${clubName} hat dir ein Trainerkonto auf FootLink erstellt. Lege dein Passwort fest:`
+      : `${greeting}${clubName} t'a créé un compte entraîneur sur FootLink. Définis ton mot de passe :`;
     await this.send(to, subject, intro, link, token, isDe);
   }
 
   // L'invité avait déjà un compte FootLink : rien à définir, simple information.
-  async sendCoachAddedEmail(to: string, clubName: string, locale: Locale): Promise<void> {
+  async sendCoachAddedEmail(
+    to: string,
+    firstName: string,
+    clubName: string,
+    locale: Locale,
+  ): Promise<void> {
     const isDe = locale === Locale.DE;
+    const greeting = firstName.trim().length > 0 ? `${isDe ? 'Hallo' : 'Salut'} ${firstName}, ` : '';
     const subject = isDe ? `Du bist jetzt Trainer bei ${clubName}` : `Tu es entraîneur chez ${clubName}`;
     const intro = isDe
-      ? `${clubName} hat dich als Trainer hinzugefügt. Melde dich wie gewohnt in der App an.`
-      : `${clubName} t'a ajouté comme entraîneur. Connecte-toi normalement dans l'app.`;
+      ? `${greeting}${clubName} hat dich als Trainer hinzugefügt. Melde dich wie gewohnt in der App an.`
+      : `${greeting}${clubName} t'a ajouté comme entraîneur. Connecte-toi normalement dans l'app.`;
     const html = `
       <div style="font-family:sans-serif;max-width:480px;margin:auto">
         <h2>FootLink</h2>

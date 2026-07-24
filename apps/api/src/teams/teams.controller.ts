@@ -8,9 +8,10 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { CreateTeamDto, UpdateTeamDto } from './dto/team.dto';
+import { CreateTeamDto, DeleteTeamQueryDto, UpdateTeamDto } from './dto/team.dto';
 import { TeamsService } from './teams.service';
 
 @Controller({ path: 'teams', version: '1' })
@@ -28,6 +29,12 @@ export class TeamsController {
     return this.teams.getTeam(userId, id);
   }
 
+  // Ce que la suppression détruirait — de quoi alimenter l'alerte côté app.
+  @Get(':id/deletion-impact')
+  deletionImpact(@CurrentUser('userId') userId: string, @Param('id') id: string) {
+    return this.teams.getDeletionImpact(userId, id);
+  }
+
   @Post()
   create(@CurrentUser('userId') userId: string, @Body() dto: CreateTeamDto) {
     return this.teams.createTeam(userId, dto);
@@ -42,9 +49,15 @@ export class TeamsController {
     return this.teams.updateTeam(userId, id, dto);
   }
 
+  // Suppression en cascade. Sans `?confirm=true`, l'API refuse et renvoie le
+  // décompte : impossible de supprimer sans avoir de quoi prévenir l'utilisateur.
   @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(':id')
-  async remove(@CurrentUser('userId') userId: string, @Param('id') id: string): Promise<void> {
-    await this.teams.deleteTeam(userId, id);
+  async remove(
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Query() query: DeleteTeamQueryDto,
+  ): Promise<void> {
+    await this.teams.deleteTeam(userId, id, query.confirm === true);
   }
 }

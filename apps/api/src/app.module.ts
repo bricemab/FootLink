@@ -9,6 +9,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { ClubsModule } from './clubs/clubs.module';
 import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
+import { LinksModule } from './links/links.module';
 import { MailModule } from './mail/mail.module';
 import { AppConfigModule } from './modules/app-config/app-config.module';
 import { PlayersModule } from './players/players.module';
@@ -27,6 +28,7 @@ import { UsersModule } from './users/users.module';
     // Rate-limiting global (100 req / 60 s) ; endpoints d'auth plus stricts via @Throttle.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
+    LinksModule,
     UsersModule,
     MailModule,
     AuthModule,

@@ -32,6 +32,19 @@ export function login(email: string, password: string): Promise<AuthTokens> {
   return apiRequest<AuthTokens>('/auth/login', { method: 'POST', body: { email, password } });
 }
 
+/** Le serveur revérifie signature et audience du jeton : aucune confiance au client. */
+export function googleSignIn(idToken: string): Promise<AuthTokens> {
+  return apiRequest<AuthTokens>('/auth/google', { method: 'POST', body: { idToken } });
+}
+
+/** Invitation entraîneur : l'invité pose son mot de passe et récupère une session. */
+export function acceptCoachInvite(token: string, password: string): Promise<AuthTokens> {
+  return apiRequest<AuthTokens>('/auth/coach-invite/accept', {
+    method: 'POST',
+    body: { token, password },
+  });
+}
+
 export function refresh(refreshToken: string): Promise<AuthTokens> {
   return apiRequest<AuthTokens>('/auth/refresh', { method: 'POST', body: { refreshToken } });
 }

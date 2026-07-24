@@ -12,6 +12,7 @@ import {
 import * as authApi from '@/api/auth';
 import type { AuthTokens, MeResponse } from '@/api/auth';
 import { ApiError } from '@/api/client';
+import { getGoogleIdToken, googleSignOut } from './google-sign-in';
 import { clearTokens, loadTokens, saveTokens, type StoredTokens } from './token-storage';
 
 type Phase = 'loading' | 'signedOut' | 'signedIn';
@@ -22,6 +23,8 @@ interface AuthValue {
   user: MeResponse | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, locale: AppLocale) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  acceptCoachInvite: (token: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   verifyEmail: (token: string) => Promise<void>;
   resendVerification: () => Promise<void>;
@@ -137,12 +140,30 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     [adopt, reload],
   );
 
+  const signInWithGoogle = useCallback(async () => {
+    // Le jeton ID est renvoyé tel quel au serveur, qui en revérifie signature
+    // et audience. L'app ne décode rien et ne fait confiance à rien.
+    const idToken = await getGoogleIdToken();
+    await adopt(await authApi.googleSignIn(idToken));
+    await reload();
+  }, [adopt, reload]);
+
+  const acceptCoachInvite = useCallback(
+    async (token: string, password: string) => {
+      await adopt(await authApi.acceptCoachInvite(token.trim(), password));
+      await reload();
+    },
+    [adopt, reload],
+  );
+
   const signOut = useCallback(async () => {
     const current = tokens.current;
     if (current) {
       // Best effort : si le serveur ne répond pas, la session locale part quand même.
       await authApi.logout(current.refreshToken, current.accessToken).catch(() => undefined);
     }
+    // Sinon Google reconnecte silencieusement le même compte au clic suivant.
+    await googleSignOut();
     await forgetSession();
   }, [forgetSession]);
 
@@ -159,8 +180,30 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   }, [authed]);
 
   const value = useMemo<AuthValue>(
-    () => ({ phase, user, signIn, signUp, signOut, verifyEmail, resendVerification, reload }),
-    [phase, user, signIn, signUp, signOut, verifyEmail, resendVerification, reload],
+    () => ({
+      phase,
+      user,
+      signIn,
+      signUp,
+      signInWithGoogle,
+      acceptCoachInvite,
+      signOut,
+      verifyEmail,
+      resendVerification,
+      reload,
+    }),
+    [
+      phase,
+      user,
+      signIn,
+      signUp,
+      signInWithGoogle,
+      acceptCoachInvite,
+      signOut,
+      verifyEmail,
+      resendVerification,
+      reload,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
