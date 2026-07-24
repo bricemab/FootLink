@@ -33,6 +33,13 @@ import { AuthTokens, TokenService } from './token.service';
  */
 export const EMAIL_ALREADY_USED_CODE = 'EMAIL_ALREADY_USED';
 
+/**
+ * Code stable pour le mobile : l'adresse existe mais n'a pas de mot de passe,
+ * elle se connecte par Google. Révélé volontairement (l'utilisateur doit savoir
+ * quoi faire) ; c'est le seul cas de login qui sort de l'erreur générique.
+ */
+export const ACCOUNT_IS_GOOGLE_CODE = 'ACCOUNT_IS_GOOGLE';
+
 // Vue "qui suis-je" : lue depuis la DB (fraîche), jamais depuis le token.
 export interface MeResponse {
   id: string;
@@ -107,8 +114,17 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<AuthTokens> {
     const user = await this.users.findByEmail(dto.email.toLowerCase());
-    // passwordHash null = compte Google uniquement -> pas de login par mot de passe.
     if (!user || !user.passwordHash) {
+      // Compte SANS mot de passe mais AVEC Google : on le dit, sinon
+      // l'utilisateur s'acharne sur un mot de passe qui n'existe pas. Un
+      // compte sans mot de passe ET sans Google (inscription à moitié faite)
+      // reste, lui, une erreur générique — rien à révéler.
+      if (user?.googleId) {
+        throw new UnauthorizedException({
+          code: ACCOUNT_IS_GOOGLE_CODE,
+          message: 'This account uses Google sign-in.',
+        });
+      }
       throw new UnauthorizedException('Invalid credentials.');
     }
     if (user.status !== UserStatus.ACTIVE) {

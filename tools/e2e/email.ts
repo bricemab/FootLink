@@ -196,6 +196,37 @@ async function checkApi(secret: string): Promise<void> {
   });
   check('le check ne consomme pas le jeton (verify-code -> 201)', consume.status === 201, consume.status);
 
+  // --- Login sur un compte Google : on le dit --------------------------------
+  // Compte avec googleId mais SANS mot de passe : se connecter par mot de passe
+  // doit renvoyer un code dédié, pas l'erreur générique.
+  const gId = `e2egoog${RUN}`;
+  const gEmail = `google-${RUN}@${DOMAIN}`;
+  sql(
+    `INSERT INTO \`User\` (id,email,role,status,googleId,emailVerifiedAt,locale,createdAt,updatedAt)
+     VALUES ('${gId}','${gEmail}','PLAYER','ACTIVE','g-${RUN}',NOW(),'FR',NOW(),NOW());`,
+  );
+  const googleLogin = await call<ApiError>('/auth/login', {
+    method: 'POST',
+    body: { email: gEmail, password: 'FootLink2026' },
+  });
+  check('login mot de passe sur compte Google -> 401', googleLogin.status === 401, googleLogin.status);
+  check(
+    'code métier ACCOUNT_IS_GOOGLE',
+    googleLogin.body?.error?.code === 'ACCOUNT_IS_GOOGLE',
+    googleLogin.body?.error?.code,
+  );
+
+  // Une adresse inconnue reste une erreur GÉNÉRIQUE (pas d'énumération).
+  const unknown = await call<ApiError>('/auth/login', {
+    method: 'POST',
+    body: { email: `nobody-${RUN}@${DOMAIN}`, password: 'FootLink2026' },
+  });
+  check(
+    'login sur adresse inconnue ne révèle rien (pas ACCOUNT_IS_GOOGLE)',
+    unknown.status === 401 && unknown.body?.error?.code !== 'ACCOUNT_IS_GOOGLE',
+    unknown.body?.error?.code,
+  );
+
   // --- Un compte ne peut être rattaché qu'à un seul club --------------------
   const token = jwt.sign({ sub: id, role: 'PLAYER', email }, secret, { expiresIn: '15m' });
   const first = await call('/clubs/requests', {

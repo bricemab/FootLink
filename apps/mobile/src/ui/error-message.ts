@@ -22,6 +22,9 @@ export function toUserMessage(error: unknown, t: Messages): string {
   if (error.code === 'EMAIL_ALREADY_USED') {
     return t.errors.emailTaken;
   }
+  if (error.code === 'ACCOUNT_IS_GOOGLE') {
+    return t.errors.accountIsGoogle;
+  }
   if (error.code === 'CLUB_ALREADY_LINKED') {
     return t.errors.clubAlreadyLinked;
   }
