@@ -1,0 +1,52 @@
+import type { AppLocale } from '@footlink/shared';
+import type { AuthTokens } from './auth';
+import { apiRequest } from './client';
+
+export interface Region {
+  code: string;
+  labelFr: string;
+  labelDe: string;
+  active: boolean;
+}
+
+export interface ClubRequestPayload {
+  clubName: string;
+  email: string;
+  password: string;
+  regionCode?: string;
+  locality?: string;
+  requestNote?: string;
+  locale: AppLocale;
+}
+
+export interface ClubRequestResponse {
+  tokens: AuthTokens;
+  club: { id: string; name: string; status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' };
+}
+
+/** Public : les 13 associations régionales (seule l'AVF est active au MVP). */
+export function listRegions(): Promise<Region[]> {
+  return apiRequest<Region[]>('/regions');
+}
+
+/**
+ * Demande de compte club. Crée le compte du demandeur en CLUB_ADMIN et le club
+ * en PENDING : rien ne sera publiable tant qu'un SUPER_ADMIN n'a pas validé.
+ */
+export function requestClub(payload: ClubRequestPayload): Promise<ClubRequestResponse> {
+  return apiRequest<ClubRequestResponse>('/clubs/requests', {
+    method: 'POST',
+    body: { ...payload, email: payload.email.trim().toLowerCase() },
+  });
+}
+
+export interface MyClubResponse {
+  club: { id: string; name: string; status: string };
+  membership: { role: 'CLUB_ADMIN' | 'COACH'; isOwner: boolean };
+  canOperate: boolean;
+}
+
+/** `null` si le compte n'est rattaché à aucun club. */
+export function getMyClub(accessToken: string): Promise<MyClubResponse | null> {
+  return apiRequest<MyClubResponse | null>('/clubs/me', { accessToken });
+}

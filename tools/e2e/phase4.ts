@@ -342,17 +342,45 @@ async function main(): Promise<void> {
     foreignTeam.body,
   );
 
-  const inviteToken = await readEmailToken(coachEmail);
+  const inviteCode = await readEmailToken(coachEmail);
+  check('le code reçu fait 6 chiffres', /^\d{6}$/.test(inviteCode), inviteCode);
+
+  // Un code faux ne doit rien révéler et doit compter comme une tentative.
+  const wrongCode = await api<ErrorResponse>('POST', '/auth/coach-invite/accept', {
+    body: { email: coachEmail, code: inviteCode === '000000' ? '111111' : '000000', password: PASSWORD },
+  });
+  check('un code faux est refusé', wrongCode.status === 400, wrongCode.body);
+  check(
+    'le refus ne dit pas si le compte existe',
+    wrongCode.body.error?.code === 'COACH_INVITE_INVALID',
+    wrongCode.body,
+  );
+  const unknownEmail = await api<ErrorResponse>('POST', '/auth/coach-invite/accept', {
+    body: { email: `fantome-${RUN}@${DOMAIN}`, code: '123456', password: PASSWORD },
+  });
+  check(
+    'un email inconnu renvoie exactement la même erreur',
+    unknownEmail.status === 400 && unknownEmail.body.error?.code === 'COACH_INVITE_INVALID',
+    unknownEmail.body,
+  );
+
   const accepted = await api<Tokens>('POST', '/auth/coach-invite/accept', {
-    body: { token: inviteToken, password: PASSWORD },
+    body: { email: coachEmail, code: inviteCode, password: PASSWORD },
   });
   check("l'invitation est acceptée", accepted.status === 201, accepted.body);
   const coachToken = accepted.body.accessToken;
 
   const replay = await api<ErrorResponse>('POST', '/auth/coach-invite/accept', {
-    body: { token: inviteToken, password: PASSWORD },
+    body: { email: coachEmail, code: inviteCode, password: PASSWORD },
   });
-  check('le jeton d’invitation est à usage unique', replay.status === 400, replay.body);
+  check('le code d’invitation est à usage unique', replay.status === 400, replay.body);
+
+  const coachMe = await api<{ emailVerified: boolean }>('GET', '/auth/me', { token: coachToken });
+  check(
+    "activer le compte a validé l'email du même coup",
+    coachMe.body.emailVerified === true,
+    coachMe.body,
+  );
 
   // --- 8. Isolation de l'entraîneur ---------------------------------------
   console.log("\n8. Isolation de l'entraîneur");
@@ -503,19 +531,78 @@ async function main(): Promise<void> {
   );
   check("l'équipe n'existe plus", impactGone.status === 404, impactGone.body);
 
+  // --- 12bis. Verrouillage du code après trop d'essais ---------------------
+  console.log("\n12bis. Le code d'invitation se brûle après 5 essais ratés");
+  // L'endpoint est volontairement rate-limité (c'est la première protection
+  // contre la force brute d'un code à 6 chiffres). Cette section en consomme
+  // le quota : on attend la fenêtre suivante pour tester le VERROU applicatif
+  // sans être coupé par le rate-limit.
+  console.log('   (attente de la fenêtre de rate-limit, ~1 min)');
+  await new Promise((done) => setTimeout(done, 61_000));
+
+  const lockedEmail = `verrou-${RUN}@${DOMAIN}`;
+  const lockedCoach = await api<CoachResponse>('POST', '/clubs/me/coaches', {
+    token: adminToken,
+    body: { email: lockedEmail, firstName: 'Nadia', lastName: 'Perret' },
+  });
+  const realCode = await readEmailToken(lockedEmail);
+  const wrong = realCode === '000000' ? '111111' : '000000';
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await api('POST', '/auth/coach-invite/accept', {
+      body: { email: lockedEmail, code: wrong, password: PASSWORD },
+    });
+  }
+  const afterLock = await api<ErrorResponse>('POST', '/auth/coach-invite/accept', {
+    body: { email: lockedEmail, code: realCode, password: PASSWORD },
+  });
+  check(
+    'même le bon code ne passe plus une fois verrouillé',
+    afterLock.body.error?.code === 'COACH_INVITE_LOCKED',
+    afterLock.body,
+  );
+
+  await api('POST', `/clubs/me/coaches/${lockedCoach.body.clubMemberId}/invite`, {
+    token: adminToken,
+  });
+  const freshCode = await readEmailToken(lockedEmail);
+  check('le club peut renvoyer un code neuf', freshCode !== realCode, { realCode, freshCode });
+  const unlocked = await api<Tokens>('POST', '/auth/coach-invite/accept', {
+    body: { email: lockedEmail, code: freshCode, password: PASSWORD },
+  });
+  check('le nouveau code débloque le compte', unlocked.status === 201, unlocked.body);
+  const staleCode = await api<ErrorResponse>('POST', '/auth/coach-invite/accept', {
+    body: { email: lockedEmail, code: realCode, password: PASSWORD },
+  });
+  check("l'ancien code est bien mort", staleCode.status === 400, staleCode.body);
+
   // --- 13. Page de rebond des liens d'email --------------------------------
   console.log("\n13. Page de rebond des liens d'email");
-  const bounceUrl = `${BASE.replace(/\/api\/v1$/, '')}/l/coach-invite?token=abc.def`;
+  const bounceUrl = `${BASE.replace(/\/api\/v1$/, '')}/l/coach-invite?email=a%40b.ch&code=123456`;
   const bounce = await fetch(bounceUrl);
   const bounceHtml = await bounce.text();
   check('la page répond', bounce.status === 200, bounce.status);
   check(
-    "elle tente d'ouvrir l'app",
-    bounceHtml.includes('footlink://auth/coach-invite?token=abc.def'),
+    "elle ouvre l'app sur l'écran d'activation, pré-rempli",
+    bounceHtml.includes('footlink://register/coach?email=a%40b.ch&code=123456'),
   );
   check('elle prévoit le repli vers le store', bounceHtml.includes('play.google.com'));
   const unknownAction = await fetch(`${BASE.replace(/\/api\/v1$/, '')}/l/nimporte-quoi`);
   check('une action inconnue est refusée', unknownAction.status === 400, unknownAction.status);
+
+  // --- 14. Rate-limit sur l'activation entraîneur --------------------------
+  // Le verrou applicatif brûle un code après 5 essais, mais rien n'empêcherait
+  // d'essayer un million de codes sur un million d'emails : c'est le
+  // rate-limit qui borne le débit. En dernier, parce qu'il épuise le quota.
+  console.log("\n14. Rate-limit sur l'activation entraîneur");
+  let sawThrottle = false;
+  for (let attempt = 0; attempt < 15 && !sawThrottle; attempt += 1) {
+    const response = await api('POST', '/auth/coach-invite/accept', {
+      body: { email: `brute-${RUN}@${DOMAIN}`, code: '424242', password: PASSWORD },
+    });
+    sawThrottle = response.status === 429;
+  }
+  check('les essais en rafale finissent bloqués (429)', sawThrottle);
 
   // --- Nettoyage -----------------------------------------------------------
   console.log('\nNettoyage des données de test');

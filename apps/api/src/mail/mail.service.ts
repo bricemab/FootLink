@@ -39,7 +39,7 @@ export class MailService {
   }
 
   async sendVerificationEmail(to: string, token: string, locale: Locale): Promise<void> {
-    const link = this.links.buildEmailLink('verify-email', token);
+    const link = this.links.buildEmailLink('verify-email', { token });
     const isDe = locale === Locale.DE;
     const subject = isDe ? 'Bestätige deine E-Mail-Adresse' : 'Confirme ton adresse email';
     const intro = isDe
@@ -49,7 +49,7 @@ export class MailService {
   }
 
   async sendPasswordResetEmail(to: string, token: string, locale: Locale): Promise<void> {
-    const link = this.links.buildEmailLink('reset-password', token);
+    const link = this.links.buildEmailLink('reset-password', { token });
     const isDe = locale === Locale.DE;
     const subject = isDe ? 'Passwort zurücksetzen' : 'Réinitialise ton mot de passe';
     const intro = isDe
@@ -58,23 +58,48 @@ export class MailService {
     await this.send(to, subject, intro, link, token, isDe);
   }
 
-  // Invitation entraîneur (Phase 4) : le club a créé le compte, l'invité pose son
-  // mot de passe via ce lien. Le jeton en clair n'existe que dans cet email.
+  /**
+   * Invitation entraîneur : un code à 6 chiffres, que l'invité recopie dans
+   * l'app après avoir choisi « Je suis entraîneur ». Le lien fait la même chose
+   * en un clic (il pré-remplit email et code) ; le code reste là pour qui
+   * consulte ses mails sur un autre appareil que son téléphone.
+   * Le code en clair n'existe que dans cet email.
+   */
   async sendCoachInviteEmail(
     to: string,
     firstName: string,
     clubName: string,
-    token: string,
+    code: string,
     locale: Locale,
   ): Promise<void> {
-    const link = this.links.buildEmailLink('coach-invite', token);
+    const link = this.links.buildEmailLink('coach-invite', { email: to, code });
     const isDe = locale === Locale.DE;
     const greeting = firstName.trim().length > 0 ? `${isDe ? 'Hallo' : 'Salut'} ${firstName}, ` : '';
     const subject = isDe ? `Trainerkonto bei ${clubName}` : `Compte entraîneur chez ${clubName}`;
     const intro = isDe
-      ? `${greeting}${clubName} hat dir ein Trainerkonto auf FootLink erstellt. Lege dein Passwort fest:`
-      : `${greeting}${clubName} t'a créé un compte entraîneur sur FootLink. Définis ton mot de passe :`;
-    await this.send(to, subject, intro, link, token, isDe);
+      ? `${greeting}${clubName} hat dir ein Trainerkonto auf FootLink erstellt.`
+      : `${greeting}${clubName} t'a créé un compte entraîneur sur FootLink.`;
+    const instruction = isDe
+      ? 'Wähle in der App « Ich bin Trainer », gib diese E-Mail-Adresse und den folgenden Code ein:'
+      : "Dans l'app, choisis « Je suis entraîneur », saisis cette adresse email puis ce code :";
+    const validity = isDe ? 'Der Code ist 7 Tage gültig.' : 'Le code est valable 7 jours.';
+    const cta = isDe ? 'In der App öffnen' : "Ouvrir dans l'app";
+
+    const html = `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto">
+        <h2>FootLink</h2>
+        <p>${intro}</p>
+        <p>${instruction}</p>
+        <p style="font-size:34px;font-weight:700;letter-spacing:10px;margin:24px 0">${code}</p>
+        <p style="color:#666;font-size:13px">${validity}</p>
+        <p><a href="${link}" style="display:inline-block;padding:12px 20px;background:#111;color:#fff;border-radius:8px;text-decoration:none">${cta}</a></p>
+      </div>`;
+    await this.deliver(to, subject, html);
+    if (!this.enabled) {
+      // Même forme que les autres emails simulés, pour que les scripts de test
+      // puissent relire le code.
+      this.logger.debug(`[email simulé] ${subject} -> ${to} | token=${code}`);
+    }
   }
 
   // L'invité avait déjà un compte FootLink : rien à définir, simple information.

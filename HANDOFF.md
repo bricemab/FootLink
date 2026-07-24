@@ -60,7 +60,7 @@ directement dans l'app plutôt que via l'API.
 | `GET /clubs?search=` | auth | clubs sélectionnables (APPROVED) |
 | `GET /regions` | public | 13 associations (table seedée) |
 | `GET /admin/clubs` · `POST /admin/clubs/:id/approve\|reject` | **SUPER_ADMIN** | pas d'UI web (back-office = post-MVP) |
-| `POST /auth/coach-invite/accept` | public | l'entraîneur invité pose son mot de passe ; vaut validation d'email |
+| `POST /auth/coach-invite/accept` | public | `{ email, code, password }` — **code à 6 chiffres**. Active le compte **et** valide l'email. Verrou après 5 échecs (`COACH_INVITE_LOCKED`), rate-limité |
 | `GET/POST /teams` · `GET/PATCH /teams/:id` | auth | CLUB_ADMIN = toutes les équipes du club · COACH = **ses équipes assignées**. `POST` accepte un bloc `coach { email, firstName, lastName }` : équipe + compte entraîneur + invitation dans **une transaction** |
 | `GET /teams/:id/deletion-impact` | auth | décompte de ce que la suppression détruirait (annonces, candidatures, matchs, conversations, messages) |
 | `DELETE /teams/:id?confirm=true` | auth | **cascade totale**. Sans `confirm`, renvoie **409 `TEAM_DELETION_CONFIRMATION_REQUIRED`** + le décompte |
@@ -164,6 +164,7 @@ puis **se reconnecter** (le rôle est gravé dans le token à l'émission).
 | `tamagui.config.ts` | design system : config v4 + palette de marque en **tokens** (`$brandPitch`, `$brandNight`…) |
 | `src/app/_layout.tsx` | providers (Gesture, SafeArea, Tamagui, i18n, Auth) |
 | `src/app/index.tsx` | **garde de routage** : chargement → `/welcome` → `/auth/verify-email` → `/home` |
+| `src/app/register/` | **choix du rôle** puis trois parcours distincts : `player` (libre), `coach` (email + code à 6 chiffres), `club` (demande à valider) |
 | `src/app/auth/verify-email.tsx` | même route que le lien profond `footlink://auth/verify-email?token=…` (consommé automatiquement) |
 | `src/auth/auth-context.tsx` | session, refresh automatique sur 401, `/auth/me` comme source de vérité |
 | `src/auth/token-storage.ts` | jetons dans **SecureStore** (Keychain / Keystore), jamais AsyncStorage |
@@ -185,21 +186,28 @@ Le code est écrit et branché ; il manque **l'environnement d'exécution** et *
 client OAuth Android**. Google Sign-In est un module natif : il n'existe pas
 dans Expo Go, qui embarque un jeu fixe de modules.
 
-**1. Créer un *development build*** (une seule fois par plateforme) :
-```bash
-pnpm --filter @footlink/mobile exec eas login
-```
-```bash
-pnpm --filter @footlink/mobile exec eas build --profile development --platform android
-```
-On installe l'APK obtenu sur le téléphone, puis on lance `pnpm mobile:dev`
-comme d'habitude : c'est ce build qui remplace Expo Go.
+**Ça marche très bien sur un émulateur Android**, à une condition : l'image de
+l'AVD doit inclure les **Google Play services** (dans Android Studio, choisir
+une image « Google Play » ou au minimum « Google APIs » — pas une image AOSP
+nue, qui n'a pas Play services et où la connexion échouera).
 
-**2. Récupérer l'empreinte SHA-1** du keystore de signature :
+**1. Construire un build de développement, en local, directement sur l'émulateur** —
+inutile de passer par EAS, `expo run:android` compile et installe :
 ```bash
-pnpm --filter @footlink/mobile exec eas credentials
+pnpm --filter @footlink/mobile exec expo run:android
 ```
-(Android → *Keystore* → l'empreinte `SHA1` s'affiche.)
+(demande Android Studio + un JDK ; l'émulateur doit être démarré). Ensuite,
+`pnpm mobile:dev` se connecte à cette app comme il le ferait à Expo Go.
+
+**2. Récupérer l'empreinte SHA-1.** Pour un build local de développement, c'est
+le **keystore de debug**, partagé par tous les projets Android de la machine :
+```bash
+keytool -list -v -alias androiddebugkey -keystore "$USERPROFILE/.android/debug.keystore" -storepass android -keypass android
+```
+Pour un build EAS (plus tard, pour la vraie distribution), c'est un autre
+keystore : `pnpm --filter @footlink/mobile exec eas credentials`. **Les deux
+empreintes doivent être enregistrées** dans la console Google, sinon la
+connexion marche en debug et casse en production (ou l'inverse).
 
 **3. Créer le client OAuth Android** dans la Google Cloud Console (projet
 `footlink-503320`) : type *Android*, package `ch.footlink.app`, et l'empreinte

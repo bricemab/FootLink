@@ -1,8 +1,10 @@
 import { useRouter } from 'expo-router';
 import { MotiView } from 'moti';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
+import { getMyClub, type MyClubResponse } from '@/api/clubs';
 import { useAuth } from '@/auth/auth-context';
+import { loadTokens } from '@/auth/token-storage';
 import { useI18n } from '@/i18n';
 import { PitchBackdrop } from '@/ui/pitch-backdrop';
 import { PrimaryButton } from '@/ui/primary-button';
@@ -15,6 +17,29 @@ export default function Home(): ReactNode {
   const router = useRouter();
   const { t } = useI18n();
   const { user, signOut } = useAuth();
+  const [club, setClub] = useState<MyClubResponse | null>(null);
+
+  // Un responsable de club doit savoir où en est sa demande : sans ça, l'écran
+  // ne lui dit rien et il ne peut de toute façon rien faire tant que le club
+  // n'est pas validé.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const tokens = await loadTokens();
+      if (!tokens) {
+        return;
+      }
+      const result = await getMyClub(tokens.accessToken).catch(() => null);
+      if (!cancelled) {
+        setClub(result);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const pendingClub = club !== null && !club.canOperate;
 
   return (
     <PitchBackdrop>
@@ -29,10 +54,10 @@ export default function Home(): ReactNode {
               FOOTLINK
             </Text>
             <Text fontSize={34} fontWeight="800" color="$brandChalk" letterSpacing={-0.6}>
-              {t.home.title}
+              {pendingClub ? t.club.pendingTitle : t.home.title}
             </Text>
             <Text fontSize={16} lineHeight={22} color="$brandChalkDim">
-              {t.home.subtitle}
+              {pendingClub ? t.club.pendingBody : t.home.subtitle}
             </Text>
           </YStack>
         </MotiView>
@@ -53,6 +78,7 @@ export default function Home(): ReactNode {
             <InfoRow label={t.common.email} value={user?.email ?? '—'} />
             <InfoRow label={t.home.role} value={user?.role ?? '—'} />
             <InfoRow label={t.home.status} value={user?.status ?? '—'} />
+            {club ? <InfoRow label={club.club.name} value={club.club.status} /> : null}
           </YStack>
         </MotiView>
 

@@ -23,17 +23,27 @@ export class LinksController {
   @Get(':action')
   bounce(
     @Param('action') action: string,
-    @Query('token') token: string | undefined,
+    @Query() query: Record<string, string>,
     @Res() response: Response,
   ): void {
     if (!isLinkAction(action)) {
       throw new BadRequestException('Unknown link action.');
     }
+    // Liste blanche : la page réinjecte ces paramètres dans un lien et dans du
+    // JavaScript. On ne recopie que ce qu'on attend, jamais tout ce qui passe.
+    const forwarded: Record<string, string> = {};
+    for (const key of ['token', 'email', 'code']) {
+      const value = query[key];
+      if (typeof value === 'string' && value.length > 0) {
+        forwarded[key] = value;
+      }
+    }
+
     response
       .status(200)
       .type('html')
       // Un jeton à usage unique n'a rien à faire dans un cache partagé.
       .setHeader('Cache-Control', 'no-store');
-    response.send(this.links.renderBouncePage(action, token ?? ''));
+    response.send(this.links.renderBouncePage(action, forwarded));
   }
 }

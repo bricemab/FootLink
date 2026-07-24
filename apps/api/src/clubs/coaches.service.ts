@@ -141,12 +141,12 @@ export class CoachesService {
   async deliverInvite(club: Club, prepared: PreparedCoach, userId: string): Promise<void> {
     const displayName = prepared.identity.firstName.trim();
     if (prepared.needsInvite) {
-      const token = await this.auth.createCoachInviteToken(userId);
+      const code = await this.auth.createCoachInviteCode(userId);
       await this.mail.sendCoachInviteEmail(
         prepared.email,
         displayName,
         club.name,
-        token,
+        code,
         prepared.locale,
       );
       return;
@@ -168,12 +168,12 @@ export class CoachesService {
     if (user.passwordHash || user.googleId) {
       throw new BadRequestException('This coach has already activated their account.');
     }
-    const token = await this.auth.createCoachInviteToken(user.id);
+    const code = await this.auth.createCoachInviteCode(user.id);
     await this.mail.sendCoachInviteEmail(
       user.email,
       member.firstName ?? '',
       club.name,
-      token,
+      code,
       user.locale,
     );
   }

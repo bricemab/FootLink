@@ -48,6 +48,35 @@ export const fr = {
     hasAccount: 'Déjà inscrit ?',
     passwordHint: '8 caractères minimum, avec au moins une lettre et un chiffre.',
   },
+  roles: {
+    title: 'Tu es qui ?',
+    subtitle: 'On adapte la suite à ton rôle.',
+    player: 'Je suis joueur',
+    playerHint: 'Je cherche un club.',
+    coach: 'Je suis entraîneur',
+    coachHint: "Mon club m'a déjà ajouté et j'ai reçu un code.",
+    club: 'Je représente un club',
+    clubHint: 'Je crée le compte de mon club.',
+  },
+  coach: {
+    title: 'Active ton compte entraîneur',
+    subtitle: 'Saisis l’adresse email que ton club a enregistrée, puis le code reçu.',
+    codeLabel: 'Code à 6 chiffres',
+    submit: 'Activer mon compte',
+  },
+  club: {
+    title: 'Créer le compte du club',
+    subtitle: 'Ta demande sera validée manuellement avant que le club puisse publier.',
+    clubName: 'Nom du club',
+    region: 'Association régionale',
+    locality: 'Localité',
+    note: 'Un mot pour la validation',
+    notePlaceholder: 'Ton rôle dans le club, un lien vers le site, un contact…',
+    submit: 'Envoyer la demande',
+    pendingTitle: 'Demande envoyée',
+    pendingBody:
+      'Ton club est en attente de validation. Confirme ton adresse email en attendant — tu recevras un message dès que le club sera validé.',
+  },
   verify: {
     title: 'Confirme ton email',
     subtitle: 'On a envoyé un lien à {email}. Tant qu’il n’est pas validé, ton compte reste bloqué.',
@@ -75,6 +104,9 @@ export const fr = {
     required: 'Ce champ est obligatoire.',
     emailFormat: 'Cette adresse email n’est pas valide.',
     passwordFormat: '8 caractères minimum, avec une lettre et un chiffre.',
+    codeFormat: 'Le code fait 6 chiffres.',
+    inviteInvalid: 'Email ou code incorrect. Vérifie l’adresse enregistrée par ton club.',
+    inviteLocked: 'Trop de tentatives. Demande à ton club de renvoyer un code.',
   },
 };
 
@@ -122,6 +154,35 @@ export const de: typeof fr = {
     hasAccount: 'Bereits registriert?',
     passwordHint: 'Mindestens 8 Zeichen, mit mindestens einem Buchstaben und einer Ziffer.',
   },
+  roles: {
+    title: 'Wer bist du?',
+    subtitle: 'Wir passen den Rest an deine Rolle an.',
+    player: 'Ich bin Spieler',
+    playerHint: 'Ich suche einen Verein.',
+    coach: 'Ich bin Trainer',
+    coachHint: 'Mein Verein hat mich bereits hinzugefügt, ich habe einen Code erhalten.',
+    club: 'Ich vertrete einen Verein',
+    clubHint: 'Ich erstelle das Konto meines Vereins.',
+  },
+  coach: {
+    title: 'Aktiviere dein Trainerkonto',
+    subtitle: 'Gib die E-Mail-Adresse ein, die dein Verein hinterlegt hat, dann den Code.',
+    codeLabel: '6-stelliger Code',
+    submit: 'Konto aktivieren',
+  },
+  club: {
+    title: 'Vereinskonto erstellen',
+    subtitle: 'Dein Antrag wird manuell geprüft, bevor der Verein etwas veröffentlichen kann.',
+    clubName: 'Name des Vereins',
+    region: 'Regionalverband',
+    locality: 'Ort',
+    note: 'Ein Wort zur Prüfung',
+    notePlaceholder: 'Deine Rolle im Verein, ein Link zur Website, ein Kontakt…',
+    submit: 'Antrag senden',
+    pendingTitle: 'Antrag gesendet',
+    pendingBody:
+      'Dein Verein wartet auf die Freigabe. Bestätige in der Zwischenzeit deine E-Mail-Adresse — du wirst benachrichtigt, sobald der Verein freigegeben ist.',
+  },
   verify: {
     title: 'Bestätige deine E-Mail',
     subtitle:
@@ -150,6 +211,9 @@ export const de: typeof fr = {
     required: 'Dieses Feld ist erforderlich.',
     emailFormat: 'Diese E-Mail-Adresse ist ungültig.',
     passwordFormat: 'Mindestens 8 Zeichen, mit einem Buchstaben und einer Ziffer.',
+    codeFormat: 'Der Code besteht aus 6 Ziffern.',
+    inviteInvalid: 'E-Mail oder Code ist falsch. Prüfe die von deinem Verein hinterlegte Adresse.',
+    inviteLocked: 'Zu viele Versuche. Bitte deinen Verein, einen neuen Code zu senden.',
   },
 };
 

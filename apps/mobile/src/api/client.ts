@@ -25,8 +25,19 @@ export function resolveApiBaseUrl(): string {
 export type ApiErrorCode =
   | 'EMAIL_NOT_VERIFIED'
   | 'ACCOUNT_NOT_ACTIVE'
+  | 'COACH_INVITE_INVALID'
+  | 'COACH_INVITE_LOCKED'
+  | 'TEAM_DELETION_CONFIRMATION_REQUIRED'
   | 'NETWORK'
   | 'UNKNOWN';
+
+const KNOWN_CODES: readonly string[] = [
+  'EMAIL_NOT_VERIFIED',
+  'ACCOUNT_NOT_ACTIVE',
+  'COACH_INVITE_INVALID',
+  'COACH_INVITE_LOCKED',
+  'TEAM_DELETION_CONFIRMATION_REQUIRED',
+];
 
 export class ApiError extends Error {
   readonly status: number;
@@ -59,7 +70,7 @@ function extractDetail(body: ApiErrorBody): string | undefined {
 }
 
 function toCode(raw: string | undefined): ApiErrorCode {
-  return raw === 'EMAIL_NOT_VERIFIED' || raw === 'ACCOUNT_NOT_ACTIVE' ? raw : 'UNKNOWN';
+  return raw !== undefined && KNOWN_CODES.includes(raw) ? (raw as ApiErrorCode) : 'UNKNOWN';
 }
 
 export interface RequestOptions {

@@ -37,11 +37,19 @@ export function googleSignIn(idToken: string): Promise<AuthTokens> {
   return apiRequest<AuthTokens>('/auth/google', { method: 'POST', body: { idToken } });
 }
 
-/** Invitation entraîneur : l'invité pose son mot de passe et récupère une session. */
-export function acceptCoachInvite(token: string, password: string): Promise<AuthTokens> {
+/**
+ * Activation d'un compte entraîneur : l'email a été enregistré par le club, le
+ * code à 6 chiffres prouve l'accès à cette boîte mail. Valide le compte ET
+ * l'email en un seul appel.
+ */
+export function acceptCoachInvite(
+  email: string,
+  code: string,
+  password: string,
+): Promise<AuthTokens> {
   return apiRequest<AuthTokens>('/auth/coach-invite/accept', {
     method: 'POST',
-    body: { token, password },
+    body: { email: email.trim().toLowerCase(), code: code.trim(), password },
   });
 }
 

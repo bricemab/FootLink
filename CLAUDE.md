@@ -30,6 +30,9 @@ FootLink — mise en relation **joueurs amateurs ⇄ clubs** (football suisse), 
 ## 🔑 Auth / inscription (MVP)
 Deux modes : **(a) email + mot de passe AVEC validation email**, ou **(b) Google Sign-In**. JWT access court + refresh hashé (rotation). Reset password + invitation coach par email (**Gmail SMTP + app password**).
 
+**L'inscription commence par un choix de rôle** : joueur (libre) · entraîneur (**ne s'inscrit pas** : son compte est créé par son club, il l'active avec son email + un **code à 6 chiffres**, ce qui valide l'email du même coup) · club (dépose une **demande** validée par le SUPER_ADMIN).
+> Le code à 6 chiffres n'a qu'un million de combinaisons : il est protégé par un **verrou à 5 essais** (`Token.attempts`, code brûlé ensuite) **et** un **rate-limit**. Ne jamais retirer l'un des deux.
+
 ## Décisions validées (à mémoriser)
 1. **Région = table `Region` (seedée), rattachée au CLUB uniquement.** Un joueur n'a **pas** de région → trouvable inter-cantons via rayon géo (ex. frontière VD/VS = visible des deux côtés).
 2. **Emails via Gmail SMTP + app password** (Nodemailer). Modèle `Token` (EMAIL_VERIFY / PASSWORD_RESET / COACH_INVITE).

@@ -8,7 +8,10 @@ import { ConfigService } from '@nestjs/config';
 export const LINK_ACTIONS = {
   'verify-email': 'auth/verify-email',
   'reset-password': 'auth/reset-password',
-  'coach-invite': 'auth/coach-invite',
+  // L'entraîneur invité arrive directement sur son écran d'activation, avec
+  // email et code pré-remplis : c'est le même écran que s'il avait choisi
+  // « Je suis entraîneur » à l'inscription.
+  'coach-invite': 'register/coach',
 } as const;
 
 export type LinkAction = keyof typeof LINK_ACTIONS;
@@ -24,9 +27,9 @@ export class LinksService {
   constructor(private readonly config: ConfigService) {}
 
   /** URL HTTPS à mettre dans un email : elle rebondit vers l'app ou vers le store. */
-  buildEmailLink(action: LinkAction, token: string): string {
+  buildEmailLink(action: LinkAction, params: Record<string, string>): string {
     const base = this.config.getOrThrow<string>('links.publicBaseUrl');
-    return `${base}/l/${action}?token=${encodeURIComponent(token)}`;
+    return `${base}/l/${action}?${new URLSearchParams(params).toString()}`;
   }
 
   /**
@@ -41,14 +44,15 @@ export class LinksService {
    * c'est ce qui se produit quand l'app s'ouvre vraiment, et ça évite d'envoyer
    * sur le store quelqu'un qui a l'app.
    */
-  renderBouncePage(action: LinkAction, token: string): string {
-    const deepLink = `${APP_SCHEME}${LINK_ACTIONS[action]}?token=${encodeURIComponent(token)}`;
+  renderBouncePage(action: LinkAction, params: Record<string, string>): string {
+    const query = new URLSearchParams(params).toString();
+    const deepLink = `${APP_SCHEME}${LINK_ACTIONS[action]}${query.length > 0 ? `?${query}` : ''}`;
     const ios = this.config.getOrThrow<string>('links.iosStoreUrl');
     const android = this.config.getOrThrow<string>('links.androidStoreUrl');
 
-    // Le jeton transite déjà dans l'URL de l'email : il est réinjecté tel quel
-    // dans le lien de l'app. On l'échappe pour qu'il ne puisse pas fermer
-    // l'attribut HTML ni la chaîne JavaScript.
+    // Les paramètres transitent déjà dans l'URL de l'email : ils sont réinjectés
+    // tels quels dans le lien de l'app. On les échappe pour qu'ils ne puissent
+    // fermer ni l'attribut HTML ni la chaîne JavaScript.
     return `<!doctype html>
 <html lang="fr">
 <head>

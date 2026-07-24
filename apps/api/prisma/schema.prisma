@@ -208,6 +208,11 @@ model Token {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   usedAt    DateTime? // usage unique : renseigné à la consommation
+  // COACH_INVITE est un code à 6 chiffres : un million de combinaisons, donc
+  // devinable à la machine. On compte les échecs pour brûler le code avant
+  // qu'une énumération n'aboutisse. Inutile pour les jetons longs, qui sont
+  // hors de portée d'une attaque par force brute.
+  attempts  Int       @default(0)
   createdAt DateTime  @default(now())
 
   @@index([userId])

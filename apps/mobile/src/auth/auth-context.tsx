@@ -24,7 +24,9 @@ interface AuthValue {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, locale: AppLocale) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
-  acceptCoachInvite: (token: string, password: string) => Promise<void>;
+  acceptCoachInvite: (email: string, code: string, password: string) => Promise<void>;
+  /** Adopte une session émise par un endpoint hors module auth (demande de club). */
+  adoptSession: (tokens: AuthTokens) => Promise<void>;
   signOut: () => Promise<void>;
   verifyEmail: (token: string) => Promise<void>;
   resendVerification: () => Promise<void>;
@@ -149,8 +151,16 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   }, [adopt, reload]);
 
   const acceptCoachInvite = useCallback(
-    async (token: string, password: string) => {
-      await adopt(await authApi.acceptCoachInvite(token.trim(), password));
+    async (email: string, code: string, password: string) => {
+      await adopt(await authApi.acceptCoachInvite(email, code, password));
+      await reload();
+    },
+    [adopt, reload],
+  );
+
+  const adoptSession = useCallback(
+    async (issued: AuthTokens) => {
+      await adopt(issued);
       await reload();
     },
     [adopt, reload],
@@ -187,6 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       signUp,
       signInWithGoogle,
       acceptCoachInvite,
+      adoptSession,
       signOut,
       verifyEmail,
       resendVerification,
@@ -199,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       signUp,
       signInWithGoogle,
       acceptCoachInvite,
+      adoptSession,
       signOut,
       verifyEmail,
       resendVerification,

@@ -65,10 +65,16 @@ export class GoogleSignInDto {
   idToken!: string;
 }
 
-// Invitation entraîneur : le club a créé le compte, l'invité pose son mot de passe.
+// Invitation entraîneur : le club a créé le compte et saisi l'email ; l'invité
+// prouve qu'il y a accès en recopiant le code à 6 chiffres reçu, et choisit son
+// mot de passe dans la foulée.
 export class AcceptCoachInviteDto {
+  @IsEmail()
+  email!: string;
+
   @IsString()
-  token!: string;
+  @Matches(/^\d{6}$/, { message: 'Code must be exactly 6 digits.' })
+  code!: string;
 
   @IsString()
   @MinLength(8)
