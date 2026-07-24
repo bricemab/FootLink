@@ -138,13 +138,28 @@ interface MyClub {
   };
 }
 
-async function run(secret: string): Promise<void> {
-  const token = makeUser('main', secret);
+// Chaque recherche Mapbox consomme une SESSION facturée (franchise mensuelle).
+// Les contrôles qui la frappent ne tournent donc que sur demande explicite ;
+// par défaut on part d'un point connu, et tout le reste — déduction serveur du
+// canton, précision, client menteur, hors-Suisse — se vérifie sans un seul
+// appel Mapbox (swisstopo est gratuit et sans quota).
+const LIVE_SEARCH = process.env.E2E_LIVE_SEARCH === '1';
+const TOURBILLON = { lat: 46.232906, lng: 7.375564, label: 'Stade de Tourbillon' };
 
-  // --- Autocomplétion -------------------------------------------------------
+/** Point de départ des contrôles. En mode LIVE, il vient d'une vraie recherche. */
+async function resolvePitch(token: string): Promise<{ lat: number; lng: number; label: string }> {
+  if (!LIVE_SEARCH) {
+    console.log(
+      '    (recherche Mapbox ignorée : E2E_LIVE_SEARCH!=1 — 0 session facturée.\n' +
+        '     Qualité de recherche et vue satellite NON couvertes ce run.)',
+    );
+    return TOURBILLON;
+  }
+
+  const session = `e2e${RUN}session`;
+
   // Le cas qui a motivé le passage à Mapbox : un terrain de club de village,
   // absent du registre officiel swisstopo, que les gens cherchent par son nom.
-  const session = `e2e${RUN}session`;
   const village = await call<Suggestion[]>(
     `/geo/places?q=${encodeURIComponent('Stade de Pranoé Grimisuat')}&session=${session}`,
     token,
@@ -211,39 +226,48 @@ async function run(secret: string): Promise<void> {
     token,
   );
   check('résolution du lieu choisi -> 200', detail.status === 200, detail.body);
-  const pitch = detail.body;
+  const resolved = detail.body;
   check(
     'coordonnées en Suisse',
-    Boolean(pitch && pitch.lat > 45.7 && pitch.lat < 47.9 && pitch.lng > 5.9 && pitch.lng < 10.6),
-    pitch,
+    Boolean(resolved && resolved.lat > 45.7 && resolved.lat < 47.9 && resolved.lng > 5.9 && resolved.lng < 10.6),
+    resolved,
   );
   // Ce que l'app utilise pour présélectionner l'association sans redemander.
-  check('canton renvoyé dès la sélection', pitch?.canton === 'VS', pitch?.canton);
-  check('commune renvoyée dès la sélection', pitch?.locality === 'Sion', pitch?.locality);
-  check('association suggérée dès la sélection', pitch?.regionCode === 'avf', pitch?.regionCode);
+  check('canton renvoyé dès la sélection', resolved?.canton === 'VS', resolved?.canton);
+  check('commune renvoyée dès la sélection', resolved?.locality === 'Sion', resolved?.locality);
+  check('association suggérée dès la sélection', resolved?.regionCode === 'avf', resolved?.regionCode);
 
   // La vue satellite est fabriquée côté serveur : l'app n'a pas le jeton, et
   // les mentions retirées de l'image doivent l'être des DEUX (logo et texte),
   // sinon on sort des conditions d'utilisation Mapbox.
   check(
     "URL satellite renvoyée par l'API",
-    Boolean(pitch?.aerialUrl?.startsWith('https://api.mapbox.com/styles/')),
-    pitch?.aerialUrl?.slice(0, 60),
+    Boolean(resolved?.aerialUrl?.startsWith('https://api.mapbox.com/styles/')),
+    resolved?.aerialUrl?.slice(0, 60),
   );
   check(
     'mentions incrustées retirées (compensées sous l’image)',
-    Boolean(pitch?.aerialUrl?.includes('logo=false') && pitch.aerialUrl.includes('attribution=false')),
+    Boolean(
+      resolved?.aerialUrl?.includes('logo=false') && resolved.aerialUrl.includes('attribution=false'),
+    ),
   );
-  const aerial = await fetch(pitch.aerialUrl);
+  const aerial = await fetch(resolved!.aerialUrl);
   check(
     'la vue satellite se charge vraiment',
     aerial.ok && (aerial.headers.get('content-type') ?? '').startsWith('image'),
     `${aerial.status} ${aerial.headers.get('content-type')}`,
   );
 
-  if (!pitch) {
+  if (!resolved) {
     throw new Error('Pas de coordonnées : la suite des contrôles serait vide de sens.');
   }
+  return { lat: resolved.lat, lng: resolved.lng, label: resolved.label };
+}
+
+async function run(secret: string): Promise<void> {
+  const token = makeUser('main', secret);
+
+  const pitch = await resolvePitch(token);
 
   // --- Création du club à partir du seul point -------------------------------
   const created = await call('/clubs/requests', token, {

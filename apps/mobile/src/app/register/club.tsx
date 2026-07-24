@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Text, YStack } from 'tamagui';
+import { Pressable } from 'react-native';
+import { Text, XStack, YStack } from 'tamagui';
 import { requestSignupCode, verifySignupCode } from '@/api/auth';
 import { getMyClub, listRegions, requestClub, type Region } from '@/api/clubs';
 import type { ResolvedPlace } from '@/api/geo';
@@ -319,6 +320,19 @@ export default function RegisterClub(): ReactNode {
               disabled={busy}
               onPress={() => void withGoogle()}
             />
+            {/* Un compte déjà utilisable sur cette adresse fait échouer l'envoi
+                du code (409) : le lien donne l'issue au lieu de laisser
+                l'utilisateur buter sur le message. */}
+            <XStack justifyContent="center" gap="$2">
+              <Text fontSize={15} color="$brandChalkDim">
+                {t.register.hasAccount}
+              </Text>
+              <Pressable onPress={() => router.replace('/login')} accessibilityRole="button">
+                <Text fontSize={15} fontWeight="700" color="$brandPitchBright">
+                  {t.login.submit}
+                </Text>
+              </Pressable>
+            </XStack>
           </YStack>
         </StepTransition>
       ) : null}

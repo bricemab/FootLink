@@ -397,19 +397,30 @@ export class AuthService {
    * Inscription par email, première étape : on prouve l'adresse **avant** de
    * créer quoi que ce soit derrière (un club, par exemple).
    *
-   * Toujours silencieux. Répondre différemment selon que l'adresse est libre,
-   * déjà prise ou déjà activée transformerait l'endpoint en annuaire — et
-   * l'écran d'entrée dispose déjà de `/auth/coach-invite/status` pour savoir
-   * quoi afficher.
+   * Un compte **déjà utilisable** (mot de passe ou Google) est signalé
+   * explicitement — sinon l'app avançait vers l'écran du code, où aucun code
+   * n'arrivait jamais : un cul-de-sac. C'est le seul cas révélé, et il équivaut
+   * à ce qu'un utilisateur découvre de toute façon en essayant de se connecter.
+   *
+   * Pour tout le reste, on reste **muet** : un compte à moitié inscrit reçoit
+   * son code, une adresse libre aussi, et rien ne distingue les deux. La
+   * vérification du code (`verifySignupCode`) reste, elle, totalement
+   * silencieuse (adresse inconnue et code faux = même erreur) — c'est là que
+   * se joue l'anti-énumération de la décision 15, pas ici.
    */
   async requestSignupCode(dto: RequestSignupCodeDto): Promise<void> {
     const email = dto.email.trim().toLowerCase();
     const existing = await this.users.findByEmail(email);
 
-    // Un compte déjà utilisable n'a rien à recevoir : il doit se connecter.
+    // Compte déjà utilisable : il doit se connecter, pas s'inscrire à nouveau.
     if (existing && (existing.passwordHash || existing.googleId)) {
-      return;
+      throw new ConflictException({
+        code: EMAIL_ALREADY_USED_CODE,
+        message: 'An account with this email already exists.',
+      });
     }
+    // Compte suspendu/désactivé : on ne relance pas d'inscription dessus, mais
+    // on ne le dit pas non plus (ce n'est pas au demandeur de le savoir).
     if (existing && existing.status !== UserStatus.ACTIVE) {
       return;
     }

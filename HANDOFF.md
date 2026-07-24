@@ -148,7 +148,8 @@ directement dans l'app plutôt que via l'API.
     - ⚠️ Aucune migration de données n'a été faite : la base ne contenait qu'un compte, déjà normalisé. Une base de prod existante demanderait de traiter les collisions **avant** d'activer la règle.
 26ter. **Codes métier sur les conflits.** `409` renvoie désormais `EMAIL_ALREADY_USED` (inscription) ou `CLUB_ALREADY_LINKED` (demande de club). Avant, le mobile traduisait **tout** 409 par « adresse déjà utilisée » — un club qui en demandait un second se voyait donc reprocher son email. Le repli sur le statut existe encore, mais **tout nouveau conflit doit porter un code**.
     - Le parcours club vérifie aussi `GET /clubs/me` **avant** d'afficher le formulaire : se connecter avec un compte existant (Google surtout, qui ne distingue pas « s'inscrire » de « se connecter ») menait droit au formulaire, et l'échec ne tombait qu'à l'envoi.
-    - ⚠️ **Tension assumée avec la décision 15** : les endpoints à code à 6 chiffres continuent de **ne rien révéler** sur l'existence d'une adresse (sinon ils deviennent un annuaire). Seule `POST /auth/register` répond 409 — un endpoint d'inscription fuite de toute façon. Ne pas « harmoniser » les deux au nom de la cohérence.
+    - **`POST /auth/signup/request-code` révèle désormais un compte DÉJÀ UTILISABLE** (mot de passe ou Google) par un 409 `EMAIL_ALREADY_USED`. Avant, il restait muet même dans ce cas, et l'app avançait vers l'écran du code où **aucun code n'arrivait jamais** — un cul-de-sac. Le cas révélé équivaut à ce qu'un utilisateur découvre en essayant de se connecter. **Déviation à la décision 15, demandée deux fois par Brice.**
+    - ⚠️ **La décision 15 tient toujours là où elle compte** : `verifySignupCode` reste **totalement muet** (adresse inconnue et code faux = même erreur), et un compte à moitié inscrit (sans mot de passe ni Google) reçoit son code sans que rien ne le distingue d'une adresse libre. Seul le cas « compte complet » est signalé. Ne pas étendre la révélation au-delà.
 26. **Site internet du club** : facultatif, saisi à l'étape « contexte ». Normalisé en `https://` à l'écriture (personne ne tape le schéma, et sans lui la valeur est inutilisable par `Linking.openURL`).
 
 ---
@@ -231,6 +232,11 @@ pnpm --filter @footlink/api exec tsx C:\projects-web\FootLink\tools\e2e\email.ts
 ```
 
 Il n'appelle **aucun** endpoint qui envoie un email : les comptes sont posés en base et le conflit est levé avant toute tentative d'envoi. Aucun message ne part vers une adresse inexistante. Il importe `packages/shared/dist` **par chemin relatif** — `tools/` n'est pas un paquet du workspace, donc `@footlink/shared` n'y est pas résolu : lancer `pnpm --filter @footlink/shared build` avant.
+
+> **`pitch.ts` par défaut ne frappe PAS Mapbox** (0 session facturée) et couvre toute la logique serveur depuis un point connu. Pour rejouer la qualité de recherche et la vue satellite (coûte ~2 sessions Mapbox) :
+> ```bash
+> E2E_LIVE_SEARCH=1 pnpm --filter @footlink/api exec tsx C:\projects-web\FootLink\tools\e2e\pitch.ts
+> ```
 
 Contrairement à `phase4.ts`, il n'exige **pas** une instance sans SMTP : il pose ses comptes en base avec `emailVerifiedAt` déjà rempli et signe lui-même ses jetons. Il exige en revanche un accès réseau à `api.mapbox.com` et `api3.geo.admin.ch`. Il attend seul la fenêtre de rate-limit quand elle est pleine (~1 min).
 
@@ -427,7 +433,10 @@ que le serveur accepte.
 - ~~Client OAuth Android non créé.~~ **Fait le 24 juillet 2026** pour le keystore de debug (cf. §5ter). Reste à refaire avec l'empreinte du keystore **EAS** avant distribution.
 - **Bandes juniors** (U18/U19 → Juniors A, etc.) dans `packages/shared/src/season.ts` : table **documentée mais à confirmer** avec les prescriptions AVF. Sans impact au MVP (16+).
 - **`Region.labelDe`** = copie du libellé FR (le JSON ne fournit pas de libellé allemand). À corriger.
-- **[Décision Brice] Quota Mapbox.** La recherche et la vue satellite sont facturées à l'usage, avec une franchise mensuelle. Personne n'a encore regardé le tableau de bord Mapbox pour savoir où se situe la franchise ni ce que coûterait un dépassement. À vérifier avant le lancement, pas après.
+- **Quota Mapbox — modèle de facturation (docs Mapbox, vérifié).** La recherche (`suggest` + `retrieve`) est facturée **par SESSION**, pas par requête. Une session regroupe toutes les frappes d'une recherche sous un même `session_token` et se **conclut** au `retrieve`, **ou après 180 s d'inactivité**, **ou après 50 `suggest`**. Conséquence directe : une recherche **abandonnée** (l'utilisateur tape mais ne choisit pas) est quand même facturée après 180 s. La vue satellite (`static/…`) est un endpoint **séparé**, facturé par requête (franchise à part, généreuse).
+  - Côté app : le `session_token` est **réutilisé entre toutes les frappes** et n'est régénéré **qu'après un `retrieve`** (`place-picker.tsx`). Donc une saisie complète, même avec plusieurs requêtes tapées puis effacées, = **une seule** session. 1 club créé ≈ 1 session. Avec 500 sessions/mois gratuites, c'est très large pour le MVP valaisan. Le repli sur le mot générique fait un 2ᵉ `suggest` dans la **même** session → **pas** de coût supplémentaire.
+  - **Le compteur se remplit surtout en TEST.** Chaque run de `pitch.ts` en mode live faisait ~2 sessions. D'où `E2E_LIVE_SEARCH` : par défaut le test part d'un point connu (Tourbillon) et ne touche **pas** Mapbox ; il faut `E2E_LIVE_SEARCH=1` pour rejouer la qualité de recherche. Le run par défaut couvre toute la logique sensible (déduction canton, précision, client menteur) via swisstopo, gratuit.
+  - Reste **[Décision Brice]** : personne n'a regardé le tableau de bord Mapbox pour situer la franchise exacte ni le coût d'un dépassement. À faire avant le lancement.
 - **`CANTON_TO_REGION` à compléter** (`packages/shared/src/geo.ts`) avant l'extension hors Valais — mais **seulement après avoir confirmé le découpage réel sur football.ch**, cf. décision 25. En l'état, un club hors des cinq cantons romands mono-associations devra choisir son association à la main.
 - **La vue satellite n'est renvoyée qu'à la sélection du terrain** (`GET /geo/places/:id`). Les futurs écrans club en auront besoin à partir du `Club` stocké : prévoir d'exposer `aerialUrl` sur `GET /clubs/me` (le service a déjà `PlacesService.aerialUrl(lat, lng)`).
 - **Mentions Mapbox** : les URL satellite sont générées avec `logo=false&attribution=false`. Mapbox ne l'autorise **qu'à condition** d'afficher l'attribution ailleurs dans l'interface — c'est le rôle de la ligne `© Mapbox © Maxar` sous l'image. Si un écran affiche une vue satellite sans cette mention, on sort des conditions d'utilisation.

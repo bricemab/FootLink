@@ -26,7 +26,11 @@ import { CheckIcon } from '@/ui/icons';
  * laisser un client décider de la région de son club.
  */
 
-const DEBOUNCE_MS = 350;
+// 500 ms plutôt que 350 : on n'interroge Mapbox qu'une fois la frappe vraiment
+// posée. Toutes les frappes d'une même recherche partagent la session, donc ça
+// ne change pas le nombre de sessions facturées — mais ça réduit nettement le
+// volume de requêtes suggest, et une pause d'un demi-seconde reste invisible.
+const DEBOUNCE_MS = 500;
 const MIN_CHARS = 3;
 // Assez haut pour que le terrain remplisse le cadre, assez bas pour que le
 // bouton « Continuer » reste visible sans faire défiler.

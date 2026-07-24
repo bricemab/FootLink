@@ -132,6 +132,26 @@ async function checkApi(secret: string): Promise<void> {
   });
   check('inscription avec une casse différente -> 409', cased.status === 409, cased.status);
 
+  // Le compte du test a un mot de passe : il est « utilisable ». Demander un
+  // code d'inscription dessus doit échouer explicitement, au lieu d'avancer
+  // vers un écran de code où aucun code n'arrive. On ne teste QUE ce cas : une
+  // adresse libre déclencherait un vrai envoi d'email.
+  sql(`UPDATE \`User\` SET passwordHash='e2e-placeholder-hash' WHERE id='${id}';`);
+  const codeForExisting = await call<ApiError>('/auth/signup/request-code', {
+    method: 'POST',
+    body: { email },
+  });
+  check(
+    'demande de code sur un compte existant -> 409',
+    codeForExisting.status === 409,
+    codeForExisting.status,
+  );
+  check(
+    'code métier EMAIL_ALREADY_USED sur request-code',
+    codeForExisting.body?.error?.code === 'EMAIL_ALREADY_USED',
+    codeForExisting.body?.error?.code,
+  );
+
   // --- Un compte ne peut être rattaché qu'à un seul club --------------------
   const token = jwt.sign({ sub: id, role: 'PLAYER', email }, secret, { expiresIn: '15m' });
   const first = await call('/clubs/requests', {
