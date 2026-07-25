@@ -76,6 +76,11 @@ export default function RegisterCoach(): ReactNode {
           setStep('PASSWORD');
         } else if (next === 'GOOGLE') {
           setStep('GOOGLE_ONLY');
+        } else if (next === 'NOT_A_COACH') {
+          // Le compte existe mais aucun club ne l'a enregistré comme
+          // entraîneur : on le dit, au lieu de lui demander un mot de passe
+          // comme s'il était l'entraîneur attendu.
+          fail(t.coach.notACoach);
         } else {
           fail(t.coach.unknown);
         }
@@ -262,6 +267,18 @@ export default function RegisterCoach(): ReactNode {
             onPress={() => void submitEmail(email)}
           />
           <GoogleButton label={t.google.signIn} disabled={busy} onPress={() => void withGoogle()} />
+          {/* Une adresse déjà prise, ou un compte qui n'est pas entraîneur,
+              n'a qu'une issue : la connexion normale. Autant la proposer. */}
+          <XStack justifyContent="center" gap="$2">
+            <Text fontSize={15} color="$brandChalkDim">
+              {t.register.hasAccount}
+            </Text>
+            <Pressable onPress={() => router.replace('/login')} accessibilityRole="button">
+              <Text fontSize={15} fontWeight="700" color="$brandPitchBright">
+                {t.login.submit}
+              </Text>
+            </Pressable>
+          </XStack>
         </>
       ) : null}
 

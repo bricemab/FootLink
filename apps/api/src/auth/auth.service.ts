@@ -5,7 +5,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Locale, TokenType, User, UserRole, UserStatus } from '@prisma/client';
+import { ClubMemberRole, Locale, TokenType, User, UserRole, UserStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { randomBytes, randomInt } from 'node:crypto';
 import { splitToken } from '../common/utils/token.util';
@@ -84,7 +84,14 @@ export const SIGNUP_CODE_LOCKED = 'SIGNUP_CODE_LOCKED';
  * - `GOOGLE`   : compte activé via Google, il n'a pas de mot de passe ;
  * - `UNKNOWN`  : rien à cette adresse (ou invitation expirée).
  */
-export type CoachEntryStep = 'CODE' | 'PASSWORD' | 'GOOGLE' | 'UNKNOWN';
+/**
+ * Ce que l'app doit demander à l'entraîneur après sa saisie d'email.
+ *
+ * `NOT_A_COACH` : l'adresse a bien un compte, mais aucun club ne l'a enregistrée
+ * comme entraîneur (un joueur, ou un responsable de club qui saisit sa propre
+ * adresse). À distinguer d'`UNKNOWN`, qui couvre l'adresse sans compte du tout.
+ */
+export type CoachEntryStep = 'CODE' | 'PASSWORD' | 'GOOGLE' | 'NOT_A_COACH' | 'UNKNOWN';
 
 @Injectable()
 export class AuthService {
@@ -217,8 +224,12 @@ export class AuthService {
     // C'est l'ADRESSE qui identifie le compte : c'est elle que le club a saisie
     // en créant son entraîneur, bien avant qu'un jeton Google n'existe.
     const user = await this.users.findByEmail(identity.email);
+    // Rôle COACH exigé, pas une appartenance quelconque : un responsable de
+    // club n'est pas un entraîneur invité, il se connecte normalement.
     const membership = user
-      ? await this.prisma.clubMember.findFirst({ where: { userId: user.id } })
+      ? await this.prisma.clubMember.findFirst({
+          where: { userId: user.id, role: ClubMemberRole.COACH },
+        })
       : null;
 
     if (!user || !membership) {
@@ -393,6 +404,32 @@ export class AuthService {
     if (!user || user.status !== UserStatus.ACTIVE) {
       return { step: 'UNKNOWN' };
     }
+
+    /*
+     * Un entraîneur est un compte qu'un club a créé **en tant qu'entraîneur** :
+     * on exige donc un `ClubMember` de rôle COACH, pas une appartenance
+     * quelconque.
+     *
+     * Sans ce contrôle, n'importe quel compte existant était routé comme s'il
+     * était l'entraîneur attendu. Un responsable de club qui saisissait sa
+     * propre adresse ici s'entendait répondre « connecte-toi avec Google » —
+     * réponse absurde, puisqu'aucun club ne l'a enregistré comme entraîneur.
+     * Le rôle CLUB_ADMIN ne compte pas : un responsable qui entraîne aussi
+     * passe par la connexion normale, pas par cette activation.
+     *
+     * Même principe que `googleCoachSignIn` (décision 27), à l'étape d'avant.
+     */
+    const coachMembership = await this.prisma.clubMember.findFirst({
+      where: { userId: user.id, role: ClubMemberRole.COACH },
+    });
+    if (!coachMembership) {
+      // Le compte existe, mais pas comme entraîneur : on le dit franchement
+      // plutôt que d'envoyer la personne se battre avec un mot de passe. Ça ne
+      // révèle rien de neuf — `POST /auth/register` répond déjà 409 sur une
+      // adresse connue.
+      return { step: 'NOT_A_COACH' };
+    }
+
     if (user.passwordHash) {
       return { step: 'PASSWORD' };
     }

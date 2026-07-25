@@ -75,7 +75,7 @@ export function verifySignupCode(
 }
 
 /** Ce que l'app doit demander à l'entraîneur une fois son email saisi. */
-export type CoachEntryStep = 'CODE' | 'PASSWORD' | 'GOOGLE' | 'UNKNOWN';
+export type CoachEntryStep = 'CODE' | 'PASSWORD' | 'GOOGLE' | 'NOT_A_COACH' | 'UNKNOWN';
 
 export function coachEntryStep(email: string): Promise<{ step: CoachEntryStep }> {
   return apiRequest<{ step: CoachEntryStep }>('/auth/coach-invite/status', {

@@ -104,24 +104,34 @@ export default function RegisterClub(): ReactNode {
    *    qu'à l'envoi, après avoir tout ressaisi.
    */
   useEffect(() => {
-    if (step !== 'CLUB' || accessToken) {
+    if (step !== 'CLUB') {
       return;
     }
     let cancelled = false;
-    void loadTokens().then(async (tokens) => {
+    void (async () => {
+      const tokens = await loadTokens();
       if (cancelled || !tokens) {
         return;
       }
-      setAccessToken(tokens.accessToken);
       const existing = await getMyClub(tokens.accessToken).catch(() => null);
-      if (!cancelled && existing) {
-        setAlreadyHasClub(true);
+      if (cancelled) {
+        return;
       }
-    });
+      // Les deux états sont posés ENSEMBLE, à la fin. Poser `accessToken` avant
+      // l'attente changeait les dépendances de cet effet, ce qui déclenchait son
+      // nettoyage, donc `cancelled = true`, donc `alreadyHasClub` n'était JAMAIS
+      // renseigné : un compte ayant déjà un club se voyait offrir le formulaire
+      // de création, et n'apprenait le refus qu'à l'envoi.
+      setAccessToken(tokens.accessToken);
+      setAlreadyHasClub(existing !== null);
+    })();
     return () => {
       cancelled = true;
     };
-  }, [step, accessToken]);
+    // `accessToken` est volontairement HORS des dépendances : cet effet l'écrit,
+    // l'y remettre le ferait s'annuler lui-même (le bug ci-dessus).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   const fail = (message: string): void => setBanner(message);
 

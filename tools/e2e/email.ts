@@ -234,6 +234,68 @@ async function checkApi(secret: string): Promise<void> {
   });
   check('entrée coach Google : jeton invalide -> 401', coachRoute.status === 401, coachRoute.status);
 
+  // --- L'entrée entraîneur ne routera pas un compte qui n'est pas entraîneur --
+  // Un compte existant SANS appartenance à un club (joueur, responsable de
+  // club) doit tomber sur « aucune invitation », pas sur « connecte-toi » comme
+  // s'il était un entraîneur attendu.
+  const plainId = `e2eplain${RUN}`;
+  const plainEmail = `plain-${RUN}@${DOMAIN}`;
+  sql(
+    `INSERT INTO \`User\` (id,email,role,status,passwordHash,emailVerifiedAt,locale,createdAt,updatedAt)
+     VALUES ('${plainId}','${plainEmail}','PLAYER','ACTIVE','x',NOW(),'FR',NOW(),NOW());`,
+  );
+  const notCoach = await call<{ step: string }>('/auth/coach-invite/status', {
+    method: 'POST',
+    body: { email: plainEmail },
+  });
+  check(
+    'compte existant sans club -> NOT_A_COACH',
+    notCoach.body?.step === 'NOT_A_COACH',
+    notCoach.body?.step,
+  );
+
+  // Rattaché en CLUB_ADMIN : toujours pas un entraîneur. C'est le cas signalé
+  // par Brice — son compte club s'entendait répondre « connecte-toi avec
+  // Google » comme s'il était l'entraîneur attendu.
+  const anyClub = `SELECT id FROM \`Club\` LIMIT 1`;
+  sql(
+    `INSERT INTO \`ClubMember\` (id,clubId,userId,role,isOwner)
+     SELECT 'cma${RUN}', id, '${plainId}', 'CLUB_ADMIN', 0 FROM (${anyClub}) c;`,
+  );
+  const asAdmin = await call<{ step: string }>('/auth/coach-invite/status', {
+    method: 'POST',
+    body: { email: plainEmail },
+  });
+  check(
+    'compte CLUB_ADMIN -> NOT_A_COACH (et non PASSWORD)',
+    asAdmin.body?.step === 'NOT_A_COACH',
+    asAdmin.body?.step,
+  );
+
+  // Rattaché en COACH : là, c'est un entraîneur légitime.
+  sql(`UPDATE \`ClubMember\` SET role='COACH' WHERE id='cma${RUN}';`);
+  const nowCoach = await call<{ step: string }>('/auth/coach-invite/status', {
+    method: 'POST',
+    body: { email: plainEmail },
+  });
+  check(
+    'compte rattaché en COACH -> PASSWORD',
+    nowCoach.body?.step === 'PASSWORD',
+    nowCoach.body?.step,
+  );
+
+  // Une adresse totalement inconnue reste UNKNOWN : rien ne dit qu'un compte
+  // existe, puisqu'il n'en existe pas.
+  const noAccount = await call<{ step: string }>('/auth/coach-invite/status', {
+    method: 'POST',
+    body: { email: `ghost-${RUN}@${DOMAIN}` },
+  });
+  check(
+    'adresse sans compte -> UNKNOWN',
+    noAccount.body?.step === 'UNKNOWN',
+    noAccount.body?.step,
+  );
+
   // Une adresse inconnue reste une erreur GÉNÉRIQUE (pas d'énumération).
   const unknown = await call<ApiError>('/auth/login', {
     method: 'POST',
@@ -295,6 +357,7 @@ async function main(): Promise<void> {
   } catch (error) {
     check(`exception : ${error instanceof Error ? error.message : String(error)}`, false);
   } finally {
+    // Les ClubMember partent en cascade avec le User ; les Club, non.
     sql(`DELETE FROM \`Club\` WHERE name LIKE '${CLUB_NAME}%';`);
     sql(`DELETE FROM \`User\` WHERE email LIKE '%@${DOMAIN}';`);
   }

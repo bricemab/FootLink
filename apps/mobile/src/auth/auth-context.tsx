@@ -193,7 +193,10 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       await authApi.logout(current.refreshToken, current.accessToken).catch(() => undefined);
     }
     // Sinon Google reconnecte silencieusement le même compte au clic suivant.
-    await googleSignOut();
+    // `catch` obligatoire : sans lui, un échec côté Google empêchait
+    // `forgetSession()` de tourner, et l'utilisateur restait connecté
+    // localement après avoir demandé sa déconnexion.
+    await googleSignOut().catch(() => undefined);
     await forgetSession();
   }, [forgetSession]);
 

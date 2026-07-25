@@ -92,6 +92,8 @@ export const fr = {
     googleOnlySubtitle: 'Ce compte se connecte avec Google. Utilise le bouton ci-dessous.',
     unknown:
       'Aucune invitation pour cette adresse. Vérifie l’orthographe, ou demande à ton club de t’ajouter.',
+    notACoach:
+      'Un compte existe déjà avec cette adresse, mais aucun club ne l’a enregistrée comme entraîneur. Connecte-toi normalement.',
     googleNotInvited:
       'Ce compte Google n’est pas celui enregistré par ton club. Utilise l’adresse que ton club a saisie.',
     changeEmail: 'Changer d’adresse',
@@ -254,6 +256,8 @@ export const de: typeof fr = {
     googleOnlySubtitle: 'Dieses Konto meldet sich mit Google an. Nutze die Schaltfläche unten.',
     unknown:
       'Keine Einladung für diese Adresse. Prüfe die Schreibweise oder bitte deinen Verein, dich hinzuzufügen.',
+    notACoach:
+      'Mit dieser Adresse existiert bereits ein Konto, aber kein Verein hat sie als Trainer hinterlegt. Melde dich normal an.',
     googleNotInvited:
       'Dieses Google-Konto ist nicht das von deinem Verein hinterlegte. Nutze die Adresse, die dein Verein eingetragen hat.',
     changeEmail: 'Adresse ändern',
