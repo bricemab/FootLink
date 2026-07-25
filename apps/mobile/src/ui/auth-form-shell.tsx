@@ -21,6 +21,7 @@ export function AuthFormShell({
   subtitle,
   header,
   onBack,
+  allowStackBack = true,
   children,
 }: {
   title: string;
@@ -29,10 +30,21 @@ export function AuthFormShell({
   header?: ReactNode;
   /** Remplace le retour de navigation, pour revenir à l'étape précédente. */
   onBack?: () => void;
+  /**
+   * Faux = à défaut d'`onBack`, ne PAS proposer le retour de navigation. À
+   * mettre sur un écran obligatoire : l'onboarding est atteint par redirection
+   * alors que la session est ouverte, et `router.back()` y renvoyait sur
+   * l'écran de connexion — une porte de sortie d'un passage obligé.
+   */
+  allowStackBack?: boolean;
   children: ReactNode;
 }): ReactNode {
   const router = useRouter();
   const { t } = useI18n();
+
+  // Parenthèses volontaires : `??` lie plus fort que `?:`, donc
+  // `onBack ?? router.canGoBack() ? …` ne testait pas ce qu'il semblait dire.
+  const showBack = onBack !== undefined || (allowStackBack && router.canGoBack());
 
   return (
     <PitchBackdrop>
@@ -46,7 +58,7 @@ export function AuthFormShell({
           showsVerticalScrollIndicator={false}
         >
           <YStack gap="$5">
-            {onBack ?? router.canGoBack() ? (
+            {showBack ? (
               <Pressable
                 onPress={onBack ?? (() => router.back())}
                 accessibilityRole="button"

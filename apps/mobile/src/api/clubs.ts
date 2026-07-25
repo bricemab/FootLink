@@ -1,4 +1,4 @@
-import type { AppLocale } from '@footlink/shared';
+import type { AppLocale, ClubStatus } from '@footlink/shared';
 import type { AuthTokens } from './auth';
 import { apiRequest } from './client';
 
@@ -30,7 +30,7 @@ export interface ClubRequestPayload {
 }
 
 export interface ClubRequestResponse {
-  club: { id: string; name: string; status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' };
+  club: { id: string; name: string; status: ClubStatus };
 }
 
 /** Public : les 13 associations régionales (seule l'AVF est active au MVP). */
@@ -54,9 +54,26 @@ export function requestClub(
 }
 
 export interface MyClubResponse {
-  club: { id: string; name: string; status: string };
+  club: {
+    id: string;
+    name: string;
+    status: ClubStatus;
+    canton: string | null;
+    locality: string | null;
+    stadiumName: string | null;
+    addressLine: string | null;
+    regionCode: string | null;
+    websiteUrl: string | null;
+    description: string | null;
+  };
   membership: { role: 'CLUB_ADMIN' | 'COACH'; isOwner: boolean };
+  /** Faux tant que le club n'est pas APPROVED : aucune équipe, aucun entraîneur. */
   canOperate: boolean;
+  /**
+   * Vue satellite du terrain, fabriquée par le serveur (l'URL porte le jeton
+   * Mapbox, qui n'a rien à faire ici). `null` si le club n'a pas de point.
+   */
+  aerialUrl: string | null;
 }
 
 /**

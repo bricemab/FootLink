@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import * as authApi from '@/api/auth';
-import type { AuthTokens, MeResponse } from '@/api/auth';
+import type { AuthTokens, MeResponse, ProfileHints } from '@/api/auth';
 import { ApiError } from '@/api/client';
 import { getGoogleIdToken, googleSignOut } from './google-sign-in';
 import { clearTokens, loadTokens, saveTokens, type StoredTokens } from './token-storage';
@@ -35,6 +35,27 @@ interface AuthValue {
   verifyEmail: (token: string) => Promise<void>;
   resendVerification: () => Promise<void>;
   reload: () => Promise<void>;
+  /**
+   * Exécute un appel authentifié en **rejouant après rotation** si le jeton
+   * d'accès a expiré. Tout appel authentifié doit passer par ici.
+   *
+   * Sans lui, un écran qui lisait `loadTokens()` gardait un instantané du jeton
+   * et cassait dès la fin de sa durée de vie — un onboarding entamé se voyait
+   * refuser sa recherche d'adresse, puis sa sauvegarde, sans rien pour le dire.
+   */
+  authed: <T>(call: (accessToken: string) => Promise<T>) => Promise<T>;
+  /**
+   * Prénom et nom annoncés par Google à la dernière connexion, pour préremplir
+   * l'onboarding. `undefined` par email, ou si Google n'en a pas fourni.
+   *
+   * Gardés **en mémoire seulement** : le serveur ne les stocke pas, donc ils
+   * disparaissent au redémarrage de l'app. C'est assumé — l'onboarding suit la
+   * connexion, et des champs vides valent mieux que des données personnelles
+   * conservées sans raison.
+   */
+  profileHints?: ProfileHints;
+  /** À appeler quand les indices ont servi, pour ne pas réécrire un champ corrigé. */
+  clearProfileHints: () => void;
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
@@ -45,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   // Les jetons vivent aussi en mémoire : évite un aller-retour SecureStore à
   // chaque requête, tout en restant la source de vérité côté stockage sécurisé.
   const tokens = useRef<StoredTokens | null>(null);
+  const [profileHints, setProfileHints] = useState<ProfileHints | undefined>();
 
   const forgetSession = useCallback(async () => {
     tokens.current = null;
@@ -150,9 +172,13 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     // Le jeton ID est renvoyé tel quel au serveur, qui en revérifie signature
     // et audience. L'app ne décode rien et ne fait confiance à rien.
     const idToken = await getGoogleIdToken();
-    await adopt(await authApi.googleSignIn(idToken));
+    const issued = await authApi.googleSignIn(idToken);
+    await adopt(issued);
+    setProfileHints(issued.profileHints);
     await reload();
   }, [adopt, reload]);
+
+  const clearProfileHints = useCallback(() => setProfileHints(undefined), []);
 
   /**
    * Entrée entraîneur par Google : le serveur exige une invitation de club et
@@ -248,6 +274,9 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       verifyEmail,
       resendVerification,
       reload,
+      authed,
+      ...(profileHints ? { profileHints } : {}),
+      clearProfileHints,
     }),
     [
       phase,
@@ -263,6 +292,9 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       verifyEmail,
       resendVerification,
       reload,
+      authed,
+      profileHints,
+      clearProfileHints,
     ],
   );
 

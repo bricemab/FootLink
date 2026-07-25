@@ -1,11 +1,28 @@
-import type { AppLocale, UserRole, UserStatus } from '@footlink/shared';
+import type { AppLocale, ClubStatus, UserRole, UserStatus } from '@footlink/shared';
 import { apiRequest } from './client';
+
+/**
+ * Prénom et nom annoncés par Google, pour **préremplir** un formulaire.
+ *
+ * Google énonce un nom, il ne le prouve pas : ces valeurs restent modifiables et
+ * n'autorisent rien. Volontairement **non stockées** côté serveur — elles ne
+ * servent qu'à l'onboarding qui suit la connexion (minimisation, AGENTS §10).
+ *
+ * L'année de naissance n'y est pas : elle n'existe pas dans le jeton ID Google.
+ * L'obtenir demanderait la People API et le scope restreint `user.birthday.read`.
+ */
+export interface ProfileHints {
+  firstName: string | null;
+  lastName: string | null;
+}
 
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
   tokenType: 'Bearer';
   expiresIn: number;
+  /** Présent seulement quand l'entrée Google en a fourni. */
+  profileHints?: ProfileHints;
 }
 
 /** Réponse de GET /auth/me — lue en base, donc toujours à jour. */
@@ -19,6 +36,15 @@ export interface MeResponse {
   hasPassword: boolean;
   hasGoogle: boolean;
   createdAt: string;
+  /** Faux = le joueur doit passer l'onboarding avant d'entrer dans l'app. */
+  hasPlayerProfile: boolean;
+  /** URL de lecture signée de la photo de la personne, ou `null`. */
+  avatarUrl: string | null;
+  /**
+   * Statut du club de la personne, `null` si elle n'en a aucun. Un CLUB_ADMIN à
+   * `null` n'a pas fini d'envoyer sa demande.
+   */
+  clubStatus: ClubStatus | null;
 }
 
 export function register(email: string, password: string, locale: AppLocale): Promise<AuthTokens> {
@@ -81,6 +107,21 @@ export function verifySignupCode(
   password: string,
 ): Promise<AuthTokens> {
   return apiRequest<AuthTokens>('/auth/signup/verify-code', {
+    method: 'POST',
+    body: { email: email.trim().toLowerCase(), code: code.trim(), password },
+  });
+}
+
+/**
+ * Même inscription, empruntée depuis le parcours club : le compte naît
+ * `CLUB_ADMIN`. C'est le chemin qui décide du rôle, pas un champ envoyé d'ici.
+ */
+export function verifyClubSignupCode(
+  email: string,
+  code: string,
+  password: string,
+): Promise<AuthTokens> {
+  return apiRequest<AuthTokens>('/auth/signup/verify-code/club', {
     method: 'POST',
     body: { email: email.trim().toLowerCase(), code: code.trim(), password },
   });
