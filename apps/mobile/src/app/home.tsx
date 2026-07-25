@@ -3,7 +3,6 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 import { getMyClub, type MyClubResponse } from '@/api/clubs';
 import { useAuth } from '@/auth/auth-context';
-import { loadTokens } from '@/auth/token-storage';
 import { useI18n } from '@/i18n';
 import { PitchBackdrop } from '@/ui/pitch-backdrop';
 import { PrimaryButton } from '@/ui/primary-button';
@@ -15,7 +14,7 @@ import { PrimaryButton } from '@/ui/primary-button';
 export default function Home(): ReactNode {
   const router = useRouter();
   const { t } = useI18n();
-  const { user, signOut } = useAuth();
+  const { user, signOut, authed } = useAuth();
   const [club, setClub] = useState<MyClubResponse | null>(null);
 
   // Un responsable de club doit savoir où en est sa demande : sans ça, l'écran
@@ -24,11 +23,10 @@ export default function Home(): ReactNode {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const tokens = await loadTokens();
-      if (!tokens) {
-        return;
-      }
-      const result = await getMyClub(tokens.accessToken).catch(() => null);
+      // `authed` et non `loadTokens` : un jeton lu directement est un instantané,
+      // et il expire (décision 35 du HANDOFF). Ici l'écran est court-vécu, mais
+      // la règle vaut partout — c'est ce genre d'exception qui la fait oublier.
+      const result = await authed((token) => getMyClub(token)).catch(() => null);
       if (!cancelled) {
         setClub(result);
       }
@@ -36,7 +34,7 @@ export default function Home(): ReactNode {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authed]);
 
   // Un joueur n'a pas de club : `club` reste nul et l'écran garde son contenu
   // habituel. Le message d'attente ne concerne qu'un club pas encore validé.

@@ -65,6 +65,9 @@ export interface MyClubResponse {
     regionCode: string | null;
     websiteUrl: string | null;
     description: string | null;
+    contactEmail: string | null;
+    /** Faux = les joueurs ne verront pas l'adresse de contact. */
+    showContactEmail: boolean;
   };
   membership: { role: 'CLUB_ADMIN' | 'COACH'; isOwner: boolean };
   /** Faux tant que le club n'est pas APPROVED : aucune équipe, aucun entraîneur. */
@@ -74,6 +77,12 @@ export interface MyClubResponse {
    * Mapbox, qui n'a rien à faire ici). `null` si le club n'a pas de point.
    */
   aerialUrl: string | null;
+  /**
+   * URL de lecture signee du logo, resolue par le serveur. `null` s'il n'y en a
+   * pas : `Club.logoKey` porte la cle, et le bucket etant prive, l'adresse de
+   * lecture est signee donc perissable.
+   */
+  logoUrl: string | null;
 }
 
 /**
@@ -86,4 +95,37 @@ export interface MyClubResponse {
  */
 export async function getMyClub(accessToken: string): Promise<MyClubResponse | null> {
   return (await apiRequest<MyClubResponse | undefined>('/clubs/me', { accessToken })) ?? null;
+}
+
+/**
+ * Modification de la fiche du club, reservee au CLUB_ADMIN (verifie serveur sur
+ * le `ClubMember`, jamais sur le `User.role`).
+ *
+ * `canton` et `locality` n'y figurent pas volontairement : ils sont **recalcules**
+ * a partir du point envoye. Un client ne decide pas de la region dans laquelle
+ * son club est range.
+ */
+export interface UpdateClubPayload {
+  name?: string;
+  description?: string;
+  websiteUrl?: string;
+  contactEmail?: string;
+  showContactEmail?: boolean;
+  regionCode?: string;
+  /** Deplacer le terrain : on n'envoie que le point et son libelle. */
+  lat?: number;
+  lng?: number;
+  stadiumName?: string;
+  addressLine?: string;
+}
+
+export function updateMyClub(
+  accessToken: string,
+  payload: UpdateClubPayload,
+): Promise<MyClubResponse['club']> {
+  return apiRequest<MyClubResponse['club']>('/clubs/me', {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
 }

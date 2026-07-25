@@ -48,10 +48,17 @@ export function PitchPositions({
   value,
   onChange,
   maxSecondary = 3,
+  labels,
 }: {
   value: PitchSelection;
   onChange: (next: PitchSelection) => void;
   maxSecondary?: number;
+  /**
+   * Ce que la selection DESIGNE. Par defaut les postes d'un joueur ; une annonce
+   * de club y met « poste cherche » et « postes acceptes aussi ». Meme geste,
+   * sens different — d'ou un libelle injecte plutot que code en dur.
+   */
+  labels?: { primary: string; secondary: string };
 }): ReactNode {
   const { t, locale } = useI18n();
   const [width, setWidth] = useState(0);
@@ -210,7 +217,7 @@ export function PitchPositions({
       <YStack gap="$2">
         <XStack alignItems="center" gap="$2" flexWrap="wrap">
           <Text fontSize={12.5} fontWeight="700" letterSpacing={0.6} color="$brandChalkDim">
-            {t.onboarding.primaryPosition.toUpperCase()}
+            {(labels?.primary ?? t.onboarding.primaryPosition).toUpperCase()}
           </Text>
           <Text fontSize={15} fontWeight="700" color={value.primary ? '$brandPitchBright' : '$brandChalkDim'}>
             {value.primary ? posteLabel(value.primary, locale) : t.onboarding.tapThePitch}
@@ -220,7 +227,7 @@ export function PitchPositions({
         {value.secondary.length > 0 ? (
           <XStack alignItems="center" gap="$2" flexWrap="wrap">
             <Text fontSize={12.5} fontWeight="700" letterSpacing={0.6} color="$brandChalkDim">
-              {t.onboarding.otherPositions.toUpperCase()}
+              {(labels?.secondary ?? t.onboarding.otherPositions).toUpperCase()}
             </Text>
             <Text fontSize={14} color="$brandChalk" flexShrink={1}>
               {value.secondary.map((p) => posteLabel(p, locale)).join(' · ')}

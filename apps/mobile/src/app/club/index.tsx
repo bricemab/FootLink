@@ -1,38 +1,62 @@
-import { AERIAL_ATTRIBUTION, regionForCanton } from '@footlink/shared';
-import { useRouter } from 'expo-router';
+import { regionForCanton } from '@footlink/shared';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Image } from 'react-native';
+import { ActivityIndicator, Image, Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
-import { getMyClub, type MyClubResponse } from '@/api/clubs';
+import {
+  confirmClubLogo,
+  createClubLogoUpload,
+  putToStorage,
+  removeClubLogo,
+} from '@/api/club-logo';
+import { getMyClub, listRegions, updateMyClub, type MyClubResponse, type Region } from '@/api/clubs';
 import { listCoaches } from '@/api/coaches';
-import { listMyTeams } from '@/api/teams';
+import type { ResolvedPlace } from '@/api/geo';
+import { useRouter } from 'expo-router';
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
 import { AppScreen, Badge, Card } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
+import { CoachIcon, ChevronIcon, StadiumIcon } from '@/ui/icons';
+import { PlacePicker } from '@/ui/place-picker';
+import { RegionPicker } from '@/ui/region-picker';
 import { PrimaryButton } from '@/ui/primary-button';
+import { TextField } from '@/ui/text-field';
+import { validateEmail } from '@/ui/validation';
 
 /**
- * Vue de supervision du club.
+ * Configuration du club — onglet d'accueil de l'espace club.
  *
- * Deux états, pas un : tant que le club n'est pas `APPROVED`, l'API refuse
- * équipes et entraîneurs (`canOperate: false`). L'écran l'annonce **avant** de
- * proposer quoi que ce soit, plutôt que de laisser la personne buter sur un 403
- * — c'est la garde d'AGENTS §4bis rendue lisible.
+ * Remplace un tableau de bord qui ne faisait qu'aiguiller : un écran
+ * d'aiguillage n'apprend rien et ajoute un appui avant chaque chose utile. Tout
+ * ce qui compose la fiche vue par les joueurs se règle ici, et l'onglet
+ * « Aperçu » en montre le résultat.
  *
- * Les décomptes sont lus depuis les mêmes listes que les écrans dédiés : aucun
- * endpoint de statistiques à maintenir, et jamais deux chiffres qui divergent.
+ * Ouvert même à un club encore `PENDING` : préparer sa fiche pendant l'attente
+ * est légitime, la publier ne l'est pas. Seules les équipes et les entraîneurs
+ * exigent l'approbation (AGENTS §4bis).
  */
-export default function ClubHome(): ReactNode {
+export default function ClubConfig(): ReactNode {
   const router = useRouter();
   const { t, fill } = useI18n();
-  const { authed, signOut } = useAuth();
+  const { authed } = useAuth();
 
   const [club, setClub] = useState<MyClubResponse | null>(null);
-  const [teamCount, setTeamCount] = useState<number>();
   const [coachCount, setCoachCount] = useState<number>();
+  const [openRegions, setOpenRegions] = useState<Region[]>([]);
+  const [regionCode, setRegionCode] = useState<string>();
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [website, setWebsite] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [showContactEmail, setShowContactEmail] = useState(false);
+  const [pitch, setPitch] = useState<ResolvedPlace>();
+  const [movingPitch, setMovingPitch] = useState(false);
+  const [emailError, setEmailError] = useState<string>();
   const [banner, setBanner] = useState<string>();
+  const [notice, setNotice] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async (): Promise<void> => {
@@ -40,18 +64,23 @@ export default function ClubHome(): ReactNode {
     try {
       const mine = await authed((token) => getMyClub(token));
       setClub(mine);
-      if (mine?.canOperate !== true) {
-        // Inutile de demander équipes et entraîneurs : l'API répondrait 403.
-        setTeamCount(undefined);
-        setCoachCount(undefined);
-        return;
+      if (mine) {
+        setName(mine.club.name);
+        setDescription(mine.club.description ?? '');
+        setWebsite(mine.club.websiteUrl ?? '');
+        setContactEmail(mine.club.contactEmail ?? '');
+        setShowContactEmail(mine.club.showContactEmail);
+        setRegionCode(mine.club.regionCode ?? undefined);
       }
-      const [teams, coaches] = await Promise.all([
-        authed((token) => listMyTeams(token)),
-        authed((token) => listCoaches(token)),
-      ]);
-      setTeamCount(teams.length);
-      setCoachCount(coaches.length);
+      // Le decompte des entraineurs vient de la meme liste que leur ecran : pas
+      // d'endpoint de statistiques a maintenir, donc jamais deux chiffres qui
+      // divergent. Inutile de le demander si le club n'est pas encore valide,
+      // l'API repondrait 403.
+      setCoachCount(
+        mine?.canOperate === true
+          ? (await authed((token) => listCoaches(token)).catch(() => [])).length
+          : undefined,
+      );
     } catch (error) {
       setBanner(toUserMessage(error, t));
     } finally {
@@ -63,18 +92,175 @@ export default function ClubHome(): ReactNode {
     void load();
   }, [load]);
 
-  const status = club ? statusLabel(club.club.status, t) : '';
+  /*
+   * Associations ouvertes.
+   *
+   * `active` est pilote en base : ouvrir un canton ne demande aucune livraison.
+   * Le selecteur se tait de lui-meme s'il n'y en a qu'une -- il n'y a alors rien
+   * a choisir, seulement a informer.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    void listRegions()
+      .then((list) => {
+        if (!cancelled) {
+          setOpenRegions(list.filter((region) => region.active));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const save = async (): Promise<void> => {
+    setBanner(undefined);
+    setNotice(undefined);
+    setEmailError(undefined);
+
+    // L'adresse n'est vérifiée que si elle est renseignée : elle est facultative,
+    // et un champ vide veut dire « pas d'adresse », pas « adresse invalide ».
+    if (contactEmail.trim().length > 0) {
+      const invalid = validateEmail(contactEmail, t);
+      if (invalid) {
+        setEmailError(invalid);
+        return;
+      }
+    }
+
+    setBusy(true);
+    try {
+      await authed((token) =>
+        updateMyClub(token, {
+          // Nom envoye seulement s'il en reste un : vide, il effacerait le nom du
+          // club. Le serveur le refuse aussi (MinLength), mais autant ne pas
+          // fabriquer une requete qu'on sait mauvaise.
+          ...(name.trim().length > 0 ? { name: name.trim() } : {}),
+          // La presentation, elle, peut legitimement etre videe : la chaine vide
+          // est donc une valeur, pas une absence.
+          description: description.trim(),
+          ...(website.trim().length > 0 ? { websiteUrl: website.trim() } : {}),
+          ...(contactEmail.trim().length > 0 ? { contactEmail: contactEmail.trim() } : {}),
+          showContactEmail,
+          ...(regionCode ? { regionCode } : {}),
+          // Terrain déplacé : on n'envoie que le point et son libellé, jamais le
+          // canton ni la commune — le serveur les recalcule depuis le point.
+          ...(pitch
+            ? {
+                lat: pitch.lat,
+                lng: pitch.lng,
+                stadiumName: pitch.label,
+                addressLine: pitch.label,
+              }
+            : {}),
+        }),
+      );
+      setPitch(undefined);
+      setMovingPitch(false);
+      setNotice(t.clubSpace.saved);
+      await load();
+    } catch (error) {
+      setBanner(toUserMessage(error, t));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * Choix du logo, puis téléversement direct vers le stockage.
+   *
+   * Le type MIME annoncé au serveur doit être celui du fichier réellement
+   * envoyé : l'URL pré-signée n'est valable que pour lui.
+   *
+   * 🔴 **`expo-image-picker` est chargé ICI, pas en haut du fichier.** C'est un
+   * module natif : sur un client de développement construit avant son ajout,
+   * un import de premier niveau fait échouer **tout le module de route**, donc
+   * l'écran ne s'exporte plus et l'application entière tombe
+   * (`Cannot read property 'ErrorBoundary' of undefined`). Chargé à l'appui,
+   * seul le choix du logo échoue, avec un message — le reste de l'app vit.
+   */
+  const pickLogo = async (): Promise<void> => {
+    setBanner(undefined);
+    setNotice(undefined);
+
+    let ImagePicker: typeof import('expo-image-picker');
+    try {
+      ImagePicker = await import('expo-image-picker');
+    } catch {
+      setBanner(t.clubSpace.logoUnavailable);
+      return;
+    }
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync().catch(() => null);
+    if (!permission) {
+      // Module présent mais natif absent : la promesse rejette.
+      setBanner(t.clubSpace.logoUnavailable);
+      return;
+    }
+    if (!permission.granted) {
+      setBanner(t.clubSpace.logoDenied);
+      return;
+    }
+
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+    // Annuler n'est pas une erreur : on ne dit rien.
+    if (picked.canceled || picked.assets.length === 0) {
+      return;
+    }
+
+    const asset = picked.assets[0];
+    const contentType = asset.mimeType ?? 'image/jpeg';
+
+    setUploading(true);
+    try {
+      const ticket = await authed((token) => createClubLogoUpload(token, contentType));
+      await putToStorage(ticket.uploadUrl, asset.uri, contentType);
+      // La confirmation rattache la clé au club : sans elle, l'objet reste
+      // orphelin dans le bucket et le logo ne change pas.
+      await authed((token) => confirmClubLogo(token, ticket.key));
+      await load();
+    } catch (error) {
+      setBanner(toUserMessage(error, t));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const dropLogo = async (): Promise<void> => {
+    setBanner(undefined);
+    setUploading(true);
+    try {
+      await authed((token) => removeClubLogo(token));
+      await load();
+    } catch (error) {
+      setBanner(toUserMessage(error, t));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const canOperate = club?.canOperate === true;
   const region = club?.club.regionCode ?? regionForCanton(club?.club.canton ?? '');
 
   return (
     <AppScreen
-      title={club?.club.name ?? t.clubSpace.title}
-      subtitle={placeLine(club) ?? undefined}
+      title={t.clubSpace.configTitle}
+      subtitle={t.clubSpace.configSubtitle}
+      allowStackBack={false}
       onRefresh={() => void load()}
       refreshing={loading}
     >
       {banner ? <FormBanner message={banner} /> : null}
+      {notice ? (
+        <Text fontSize={14} fontWeight="700" color="$brandPitchBright">
+          {notice}
+        </Text>
+      ) : null}
 
       {loading && !club ? (
         <YStack paddingVertical="$6" alignItems="center">
@@ -84,127 +270,218 @@ export default function ClubHome(): ReactNode {
 
       {club ? (
         <>
-          <Card accent={canOperate}>
-            {/* La vue du ciel identifie le terrain d'un coup d'oeil, bien mieux
-                qu'une ligne d'adresse. Absente si le club n'a pas de point. */}
-            {club.aerialUrl ? (
-              <YStack gap="$1" marginBottom="$1">
-                <YStack height={150} borderRadius={14} overflow="hidden">
-                  <Image
-                    source={{ uri: club.aerialUrl }}
-                    style={{ width: '100%', height: 150 }}
-                    resizeMode="cover"
-                    accessibilityLabel={t.clubSpace.pitchLabel}
+          {!canOperate ? <FormBanner message={t.clubSpace.pendingNotice} /> : null}
+
+          <Card>
+            <Text fontSize={12.5} fontWeight="700" letterSpacing={0.6} color="$brandChalkDim">
+              {t.clubSpace.logo.toUpperCase()}
+            </Text>
+            <XStack alignItems="center" gap="$3.5">
+              <LogoThumb url={club.logoUrl} busy={uploading} />
+              <YStack gap="$2" flexShrink={1}>
+                <XStack gap="$3.5" flexWrap="wrap">
+                  <TextAction
+                    label={club.logoUrl ? t.clubSpace.logoChange : t.clubSpace.logoAdd}
+                    disabled={uploading}
+                    onPress={() => void pickLogo()}
                   />
-                </YStack>
-                {/* Mention obligatoire : l'URL est generee avec
-                    `logo=false&attribution=false`, ce que Mapbox n'autorise QUE
-                    si l'attribution figure ailleurs dans l'interface. Sans cette
-                    ligne, l'ecran sort des conditions d'utilisation. */}
-                <Text fontSize={10} color="rgba(169,196,184,0.55)">
-                  {AERIAL_ATTRIBUTION}
+                  {club.logoUrl ? (
+                    <TextAction
+                      label={t.clubSpace.logoRemove}
+                      disabled={uploading}
+                      onPress={() => void dropLogo()}
+                    />
+                  ) : null}
+                </XStack>
+                <Text fontSize={12.5} color="$brandChalkDim">
+                  {t.clubSpace.logoHint}
                 </Text>
               </YStack>
-            ) : null}
-
-            <XStack alignItems="center" justifyContent="space-between" gap="$3">
-              <Text fontSize={13} fontWeight="700" letterSpacing={0.5} color="$brandChalkDim">
-                {t.clubSpace.pitchLabel.toUpperCase()}
-              </Text>
-              <Badge label={status} tone={canOperate ? 'accent' : 'warning'} />
             </XStack>
-            <Text fontSize={15} color="$brandChalk">
-              {club.club.stadiumName ?? club.club.addressLine ?? t.clubSpace.noPitch}
-            </Text>
-            {region ? (
-              <Text fontSize={13} color="$brandChalkDim">
-                {region.toUpperCase()}
-              </Text>
-            ) : null}
           </Card>
 
-          {!canOperate ? (
-            <FormBanner message={t.clubSpace.pendingNotice} />
+          <TextField
+            label={t.clubSpace.name}
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="words"
+          />
+
+          <TextField
+            label={t.clubSpace.description}
+            value={description}
+            onChangeText={setDescription}
+            placeholder={t.clubSpace.descriptionPlaceholder}
+            multiline
+          />
+
+          <TextField
+            label={t.club.website}
+            value={website}
+            onChangeText={setWebsite}
+            placeholder={t.club.websitePlaceholder}
+            keyboardType="url"
+            autoCapitalize="none"
+          />
+
+          <TextField
+            label={t.clubSpace.contactEmail}
+            value={contactEmail}
+            onChangeText={setContactEmail}
+            placeholder="contact@fcsion.ch"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            error={emailError}
+          />
+
+          {/* Publier une adresse email est un choix, pas un défaut. */}
+          <Card onPress={() => setShowContactEmail(!showContactEmail)} accent={showContactEmail}>
+            <XStack alignItems="center" justifyContent="space-between" gap="$3">
+              <Text fontSize={16} fontWeight="700" color="$brandChalk" flexShrink={1}>
+                {t.clubSpace.contactEmailShow}
+              </Text>
+              <Text
+                fontSize={15}
+                fontWeight="800"
+                color={showContactEmail ? '$brandPitchBright' : '$brandChalkDim'}
+              >
+                {showContactEmail ? 'ON' : 'OFF'}
+              </Text>
+            </XStack>
+            <Text fontSize={13.5} color="$brandChalkDim">
+              {showContactEmail ? t.clubSpace.contactEmailShown : t.clubSpace.contactEmailHidden}
+            </Text>
+          </Card>
+
+          {/*
+            Association regionale.
+
+            Elle se DEDUIT du terrain a l'inscription, mais reste corrigeable :
+            quelques clubs sont a cheval sur deux associations, et le canton ne
+            tranche pas pour eux. Le serveur la revalide de toute facon.
+          */}
+          <RegionPicker
+            regions={openRegions}
+            value={regionCode}
+            onChange={setRegionCode}
+          />
+
+          {/* Terrain en lecture, remplaçable à la demande. Canton et commune
+              suivent le point, recalculés serveur. */}
+          {movingPitch ? (
+            <PlacePicker
+              authed={authed}
+              value={pitch}
+              onChange={setPitch}
+              copy={{
+                label: t.club.pitch,
+                placeholder: t.club.pitchPlaceholder,
+                help: t.club.pitchHelp,
+              }}
+            />
           ) : (
-            <>
-              <Card onPress={() => router.push('/club/teams')}>
-                <XStack alignItems="center" justifyContent="space-between" gap="$3">
-                  <Text fontSize={17} fontWeight="700" color="$brandChalk">
-                    {t.clubSpace.teams}
-                  </Text>
-                  <Text fontSize={15} fontWeight="700" color="$brandPitchBright">
-                    {teamCount === undefined
-                      ? '—'
-                      : fill(t.clubSpace.countTeams, { count: String(teamCount) })}
+            <Card>
+              <XStack alignItems="center" justifyContent="space-between" gap="$3">
+                <XStack alignItems="center" gap="$2.5" flexShrink={1}>
+                  <StadiumIcon size={20} />
+                  <Text fontSize={15} color="$brandChalk" flexShrink={1}>
+                    {club.club.stadiumName ?? club.club.addressLine ?? t.clubSpace.noPitch}
                   </Text>
                 </XStack>
-                <Text fontSize={13.5} color="$brandChalkDim">
-                  {t.clubSpace.teamsHint}
-                </Text>
-              </Card>
+                <TextAction label={t.clubSpace.pitchChange} onPress={() => setMovingPitch(true)} />
+              </XStack>
+              <XStack gap="$2" alignItems="center">
+                {club.club.locality ? (
+                  <Text fontSize={13} color="$brandChalkDim">
+                    {club.club.canton
+                      ? `${club.club.locality} (${club.club.canton})`
+                      : club.club.locality}
+                  </Text>
+                ) : null}
+                {region ? <Badge label={region} /> : null}
+              </XStack>
+            </Card>
+          )}
 
-              <Card onPress={() => router.push('/club/coaches')}>
-                <XStack alignItems="center" justifyContent="space-between" gap="$3">
-                  <Text fontSize={17} fontWeight="700" color="$brandChalk">
+          <PrimaryButton label={t.clubSpace.save} loading={busy} onPress={() => void save()} />
+
+          {/* Les entraineurs vivent ici, pas dans la barre du bas : on en ajoute
+              un par saison. La barre est reservee a ce qu'on ouvre tous les
+              jours. */}
+          {canOperate ? (
+            <Card onPress={() => router.push('/club/coaches')}>
+              <XStack alignItems="center" justifyContent="space-between" gap="$3">
+                <XStack alignItems="center" gap="$2.5" flexShrink={1}>
+                  <CoachIcon size={20} />
+                  <Text fontSize={16} fontWeight="700" color="$brandChalk" flexShrink={1}>
                     {t.clubSpace.coaches}
                   </Text>
+                </XStack>
+                <XStack alignItems="center" gap="$2">
                   <Text fontSize={15} fontWeight="700" color="$brandPitchBright">
                     {coachCount === undefined
                       ? '—'
                       : fill(t.clubSpace.countCoaches, { count: String(coachCount) })}
                   </Text>
+                  <ChevronIcon direction="right" />
                 </XStack>
-                <Text fontSize={13.5} color="$brandChalkDim">
-                  {t.clubSpace.coachesHint}
-                </Text>
-              </Card>
-            </>
-          )}
-
-          {club.club.websiteUrl ? (
-            <Card>
-              <Text fontSize={13} fontWeight="700" letterSpacing={0.5} color="$brandChalkDim">
-                {t.clubSpace.website.toUpperCase()}
-              </Text>
-              <Text fontSize={15} color="$brandChalk">
-                {club.club.websiteUrl}
+              </XStack>
+              <Text fontSize={13.5} color="$brandChalkDim">
+                {t.clubSpace.coachesHint}
               </Text>
             </Card>
           ) : null}
         </>
       ) : null}
-
-      <PrimaryButton
-        label={t.common.logout}
-        variant="ghost"
-        onPress={() => {
-          void signOut().then(() => router.replace('/'));
-        }}
-      />
     </AppScreen>
   );
 }
 
-/** Adresse lisible du club, ou `null` s'il n'en a aucune. */
-function placeLine(club: MyClubResponse | null): string | null {
-  if (!club?.club.locality) {
-    return null;
-  }
-  return club.club.canton ? `${club.club.locality} (${club.club.canton})` : club.club.locality;
+/** Vignette carrée du logo, ou un cadre vide qui ne prétend rien. */
+function LogoThumb({ url, busy }: { url: string | null; busy: boolean }): ReactNode {
+  return (
+    <YStack
+      width={76}
+      height={76}
+      borderRadius={18}
+      overflow="hidden"
+      alignItems="center"
+      justifyContent="center"
+      borderWidth={1.5}
+      borderColor="rgba(244,251,247,0.16)"
+      backgroundColor="rgba(7,19,15,0.7)"
+    >
+      {busy ? <ActivityIndicator color="#39FF88" /> : null}
+      {!busy && url ? (
+        <Image source={{ uri: url }} style={{ width: 76, height: 76 }} resizeMode="cover" />
+      ) : null}
+      {!busy && !url ? <StadiumIcon size={30} /> : null}
+    </YStack>
+  );
 }
 
-function statusLabel(
-  status: MyClubResponse['club']['status'],
-  t: ReturnType<typeof useI18n>['t'],
-): string {
-  switch (status) {
-    case 'APPROVED':
-      return t.clubSpace.statusApproved;
-    case 'REJECTED':
-      return t.clubSpace.statusRejected;
-    case 'SUSPENDED':
-      return t.clubSpace.statusSuspended;
-    default:
-      return t.clubSpace.statusPending;
-  }
+/** Action secondaire en texte : évite d'empiler des gros boutons dans une carte. */
+function TextAction({
+  label,
+  onPress,
+  disabled = false,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}): ReactNode {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" disabled={disabled} hitSlop={8}>
+      {({ pressed }) => (
+        <Text
+          fontSize={14.5}
+          fontWeight="700"
+          color="$brandPitchBright"
+          opacity={disabled ? 0.4 : pressed ? 0.6 : 1}
+        >
+          {label}
+        </Text>
+      )}
+    </Pressable>
+  );
 }

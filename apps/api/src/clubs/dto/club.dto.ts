@@ -1,7 +1,9 @@
 import { ClubStatus, Locale } from '@prisma/client';
 import {
+  IsBoolean,
   IsEmail,
   IsEnum,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -85,8 +87,15 @@ export class RequestClubDto {
 }
 
 export class UpdateClubDto {
+  /**
+   * `MinLength(1)` : sans lui, une chaine vide passe la validation et
+   * `dto.name ?? undefined` la garde telle quelle -- le club se retrouvait
+   * **sans nom**. Un champ absent veut dire "ne touche pas", une chaine vide
+   * voudrait dire "effacer", ce qui n'a aucun sens pour un nom.
+   */
   @IsOptional()
   @IsString()
+  @MinLength(1)
   @MaxLength(120)
   name?: string;
 
@@ -103,6 +112,14 @@ export class UpdateClubDto {
   @IsOptional()
   @IsEmail()
   contactEmail?: string;
+
+  /**
+   * Publier ou non l'adresse de contact sur la fiche vue par les joueurs.
+   * Faux par defaut en base : une adresse email ne s expose pas sans un geste.
+   */
+  @IsOptional()
+  @IsBoolean()
+  showContactEmail?: boolean;
 
   @IsOptional()
   @IsString()
@@ -145,4 +162,18 @@ export class SearchClubsQueryDto {
   @IsString()
   @MaxLength(80)
   search?: string;
+}
+
+/** Types acceptes, alignes sur `ALLOWED_CONTENT_TYPES` du service media. */
+export class ClubLogoUploadDto {
+  @IsIn(['image/jpeg', 'image/png', 'image/webp'])
+  contentType!: string;
+}
+
+export class ConfirmClubLogoDto {
+  // La cle vient du billet emis par le serveur. Le service reverifie qu'elle
+  // appartient bien a ce club : cette validation ne fait que borner l'entree.
+  @IsString()
+  @MaxLength(200)
+  key!: string;
 }

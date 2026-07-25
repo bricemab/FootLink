@@ -9,6 +9,7 @@ import { Club, ClubMember, ClubMemberRole, ClubStatus, Prisma, UserRole } from '
 import { regionForCanton } from '@footlink/shared';
 import { MailService } from '../mail/mail.service';
 import { PlacesService } from '../geo/places.service';
+import { MediaService, type UploadTicket } from '../media/media.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequestClubDto, UpdateClubDto } from './dto/club.dto';
 
@@ -52,6 +53,7 @@ export class ClubsService {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly places: PlacesService,
+    private readonly media: MediaService,
   ) {}
 
   /**
@@ -138,7 +140,89 @@ export class ClubsService {
        * localité saisie à la main) ou quand Mapbox n'est pas configuré.
        */
       aerialUrl: this.aerialUrlOf(member.club.lat, member.club.lng),
+      /**
+       * URL de lecture signee du logo, resolue par le serveur.
+       *
+       * `Club.logoKey` porte la CLE et non une URL : le bucket est prive, donc
+       * l'adresse de lecture est signee et perissable. La resoudre ici evite que
+       * chaque ecran ait a le savoir.
+       */
+      logoUrl: await this.media.readUrl(member.club.logoKey),
     };
+  }
+
+  /**
+   * Billet de televersement du logo. Reserve au CLUB_ADMIN de CE club, et
+   * possible avant l'approbation : preparer sa fiche pendant l'attente est
+   * legitime, la publier ne l'est pas.
+   */
+  async createLogoUpload(userId: string, contentType: string): Promise<UploadTicket> {
+    const { club } = await this.assertClubAdminOfMine(userId);
+    return this.media.createClubLogoUpload(club.id, contentType);
+  }
+
+  /**
+   * Rattache un objet televersee au club, apres verification.
+   *
+   * L'ancien logo est supprime APRES la mise a jour : dans l'autre ordre, un
+   * echec d'ecriture laisserait le club avec une cle qui ne pointe plus sur rien.
+   */
+  async confirmLogo(userId: string, key: string) {
+    const { club } = await this.assertClubAdminOfMine(userId);
+    await this.media.confirmClubLogoUpload(club.id, key);
+
+    /*
+     * La cle remplacee est relue DANS la transaction, et non prise sur l'objet
+     * charge plus haut.
+     *
+     * Deux confirmations concurrentes partaient sinon du meme `logoKey` : la
+     * seconde ecrasait la premiere sans supprimer son objet, qui restait
+     * orphelin dans le bucket. Rare (il faut televerser deux logos en meme
+     * temps), mais un objet orphelin ne se retrouve jamais ensuite.
+     */
+    const previous = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.club.findUniqueOrThrow({
+        where: { id: club.id },
+        select: { logoKey: true },
+      });
+      await tx.club.update({
+        where: { id: club.id },
+        data: { logoKey: key, logoUpdatedAt: new Date() },
+      });
+      return current.logoKey;
+    });
+
+    if (previous && previous !== key) {
+      await this.media.delete(previous);
+    }
+    return { logoUrl: await this.media.readUrl(key) };
+  }
+
+  async removeLogo(userId: string): Promise<void> {
+    const { club } = await this.assertClubAdminOfMine(userId);
+    if (!club.logoKey) {
+      return;
+    }
+    await this.prisma.club.update({
+      where: { id: club.id },
+      data: { logoKey: null, logoUpdatedAt: new Date() },
+    });
+    await this.media.delete(club.logoKey);
+  }
+
+  /**
+   * Le club de l'appelant, a condition qu'il en soit CLUB_ADMIN.
+   *
+   * `requireApproved: false` : la configuration de la fiche n'est pas une
+   * publication. Le role vient du `ClubMember` et non du `User`, pour qu'un
+   * joueur qui dirige aussi un club garde ses droits.
+   */
+  private async assertClubAdminOfMine(userId: string): Promise<ClubContext> {
+    const context = await this.getMyClubContext(userId, false);
+    if (context.member.role !== ClubMemberRole.CLUB_ADMIN) {
+      throw new ForbiddenException('Restricted to the club administrator.');
+    }
+    return context;
   }
 
   private aerialUrlOf(lat: Prisma.Decimal | null, lng: Prisma.Decimal | null): string | null {
@@ -166,10 +250,7 @@ export class ClubsService {
   }
 
   async updateMyClub(userId: string, dto: UpdateClubDto) {
-    const { club, member } = await this.getMyClubContext(userId, false);
-    if (member.role !== ClubMemberRole.CLUB_ADMIN) {
-      throw new ForbiddenException('Restricted to the club administrator.');
-    }
+    const { club } = await this.assertClubAdminOfMine(userId);
     await this.assertRegionExists(dto.regionCode);
 
     const pitch = await this.resolvePitch(dto.lat, dto.lng, dto.regionCode);
@@ -183,6 +264,7 @@ export class ClubsService {
         name: dto.name ?? undefined,
         description: dto.description ?? undefined,
         contactEmail: dto.contactEmail?.toLowerCase() ?? undefined,
+        showContactEmail: dto.showContactEmail ?? undefined,
         websiteUrl: normalizeWebsite(dto.websiteUrl) ?? undefined,
         stadiumName: dto.stadiumName ?? undefined,
         addressLine: dto.addressLine ?? undefined,
@@ -227,8 +309,15 @@ export class ClubsService {
 
   // Liste des clubs sélectionnables par un joueur (club actuel). Lien DÉCLARATIF :
   // sélectionner un club ne crée AUCUN ClubMember et aucun droit.
-  listSelectableClubs(search?: string) {
-    return this.prisma.club.findMany({
+  /**
+   * Clubs selectionnables par un joueur (son club actuel). Lien DECLARATIF :
+   * selectionner un club ne cree aucun ClubMember et aucun droit.
+   *
+   * Le logo sort en URL signee. Rendre la cle brute serait inutilisable cote
+   * app, et exposerait un chemin du bucket pour rien.
+   */
+  async listSelectableClubs(search?: string) {
+    const clubs = await this.prisma.club.findMany({
       where: {
         status: ClubStatus.APPROVED,
         ...(search ? { name: { contains: search } } : {}),
@@ -238,12 +327,18 @@ export class ClubsService {
         name: true,
         canton: true,
         locality: true,
-        logoUrl: true,
+        logoKey: true,
         regionCode: true,
       },
       orderBy: { name: 'asc' },
       take: 100,
     });
+    return Promise.all(
+      clubs.map(async ({ logoKey, ...club }) => ({
+        ...club,
+        logoUrl: await this.media.readUrl(logoKey),
+      })),
+    );
   }
 
   listRegions() {

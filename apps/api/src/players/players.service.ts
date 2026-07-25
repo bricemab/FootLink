@@ -22,7 +22,7 @@ export class PlayersService {
       where: { userId },
       include: {
         positions: true,
-        currentClub: { select: { id: true, name: true, logoUrl: true } },
+        currentClub: { select: { id: true, name: true } },
       },
     });
   }
@@ -107,7 +107,7 @@ export class PlayersService {
       },
       include: {
         positions: true,
-        currentClub: { select: { id: true, name: true, logoUrl: true } },
+        currentClub: { select: { id: true, name: true } },
       },
     });
   }
