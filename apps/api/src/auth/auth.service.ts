@@ -273,6 +273,50 @@ export class AuthService {
     return this.tokens.issueTokens(activated);
   }
 
+  /**
+   * Entrée club par Google.
+   *
+   * Encore un endpoint distinct de `/auth/google`, pour la raison inverse de
+   * celle du coach : ici on veut bien **créer** un compte, mais **seulement**
+   * s'il n'en existe aucun. Décision de Brice (25 juillet 2026) : le compte
+   * d'un club est un compte à part, il ne se greffe pas sur un compte
+   * personnel existant. `/auth/google` aurait connecté le compte joueur
+   * existant, puis `requestClub` aurait basculé son `User.role` en CLUB_ADMIN
+   * — un compte joueur transformé en compte club sans que personne ne l'ait
+   * décidé.
+   *
+   * ⚠️ Conséquence acceptée : une adresse déjà inscrite est refusée
+   * définitivement pour un club, y compris si son compte est vide parce que la
+   * personne a abandonné ce parcours en cours de route. Débloquer demande une
+   * suppression en base (aucune UI au MVP). Cf. HANDOFF décision 31.
+   */
+  async googleClubSignIn(dto: GoogleSignInDto): Promise<AuthTokens> {
+    const identity = await this.google.verify(dto.idToken);
+
+    // Les deux clés qui peuvent déjà désigner un compte : l'adresse, et le
+    // compte Google lui-même (si l'adresse Google a changé depuis).
+    const [byEmail, byGoogle] = await Promise.all([
+      this.users.findByEmail(identity.email),
+      this.users.findByGoogleId(identity.googleId),
+    ]);
+    if (byEmail || byGoogle) {
+      throw new ConflictException({
+        code: EMAIL_ALREADY_USED_CODE,
+        message: 'An account with this email already exists.',
+      });
+    }
+
+    // Adresse libre : on crée le compte. Google prouve la maîtrise de la boîte
+    // mail, l'email est donc validé d'emblée.
+    const user = await this.users.create({
+      email: identity.email,
+      googleId: identity.googleId,
+      emailVerifiedAt: new Date(),
+      locale: dto.locale ?? Locale.FR,
+    });
+    return this.tokens.issueTokens(user);
+  }
+
   async verifyEmail(token: string): Promise<void> {
     const userId = await this.consumeToken(TokenType.EMAIL_VERIFY, token);
     await this.users.update(userId, { emailVerifiedAt: new Date() });

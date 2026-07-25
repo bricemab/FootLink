@@ -284,6 +284,17 @@ async function checkApi(secret: string): Promise<void> {
     nowCoach.body?.step,
   );
 
+  // --- Entrée club par Google : refuse toute adresse déjà prise -------------
+  // Même limite que pour le coach : impossible de forger un jeton Google
+  // valide. On vérifie que la route existe, qu'elle est publique et que la
+  // vérification du jeton précède tout le reste. Le refus d'une adresse déjà
+  // inscrite se vérifie sur l'appareil (fait le 25 juillet 2026).
+  const clubRoute = await call<ApiError>('/auth/google/club', {
+    method: 'POST',
+    body: { idToken: 'jeton-invalide' },
+  });
+  check('entrée club Google : jeton invalide -> 401', clubRoute.status === 401, clubRoute.status);
+
   // Une adresse totalement inconnue reste UNKNOWN : rien ne dit qu'un compte
   // existe, puisqu'il n'en existe pas.
   const noAccount = await call<{ step: string }>('/auth/coach-invite/status', {

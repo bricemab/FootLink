@@ -38,7 +38,7 @@ type Step = 'ACCOUNT' | 'CODE' | 'PASSWORD' | 'CLUB' | 'CONTEXT';
 export default function RegisterClub(): ReactNode {
   const router = useRouter();
   const { t, fill, locale } = useI18n();
-  const { signInWithGoogle, adoptSession, phase } = useAuth();
+  const { signInWithGoogleAsClub, adoptSession, signOut, phase } = useAuth();
 
   const [step, setStep] = useState<Step>('ACCOUNT');
   const [openRegions, setOpenRegions] = useState<Region[]>([]);
@@ -54,7 +54,18 @@ export default function RegisterClub(): ReactNode {
   const [locality, setLocality] = useState('');
   const [regionCode, setRegionCode] = useState<string>();
   const [accessToken, setAccessToken] = useState<string>();
-  const [alreadyHasClub, setAlreadyHasClub] = useState(false);
+  /**
+   * Impasse détectée à l'étape « ton club » :
+   * - `HAS_CLUB` : ce compte administre ou entraîne déjà un club ;
+   * - `ALREADY_USED` : la personne est arrivée **déjà connectée**, donc son
+   *   compte préexiste — or le compte d'un club doit naître d'une adresse
+   *   libre (décision de Brice).
+   */
+  const [blocked, setBlocked] = useState<'NONE' | 'HAS_CLUB' | 'ALREADY_USED'>('NONE');
+  // Session déjà ouverte AU MONTAGE : le compte préexiste à ce parcours. Un
+  // compte créé pendant le parcours, lui, est légitime — d'où le `useRef`
+  // figé au montage plutôt qu'une lecture de `phase` à chaud.
+  const preSignedIn = useRef(false);
   const [website, setWebsite] = useState('');
   const [note, setNote] = useState('');
   const [fieldError, setFieldError] = useState<string>();
@@ -66,6 +77,7 @@ export default function RegisterClub(): ReactNode {
   // Déjà connecté en arrivant ici : inutile de redemander une identité.
   useEffect(() => {
     if (phase === 'signedIn' && step === 'ACCOUNT') {
+      preSignedIn.current = true;
       setStep('CLUB');
     }
     // Volontairement au montage : on ne veut pas ramener l'utilisateur en
@@ -123,7 +135,9 @@ export default function RegisterClub(): ReactNode {
       // renseigné : un compte ayant déjà un club se voyait offrir le formulaire
       // de création, et n'apprenait le refus qu'à l'envoi.
       setAccessToken(tokens.accessToken);
-      setAlreadyHasClub(existing !== null);
+      setBlocked(
+        existing !== null ? 'HAS_CLUB' : preSignedIn.current ? 'ALREADY_USED' : 'NONE',
+      );
     })();
     return () => {
       cancelled = true;
@@ -140,9 +154,16 @@ export default function RegisterClub(): ReactNode {
     setBanner(undefined);
     setBusy(true);
     try {
-      await signInWithGoogle();
+      // Endpoint dédié : il ne crée un compte que si l'adresse est libre. Un
+      // compte préexistant est refusé (409) au lieu d'être connecté puis
+      // transformé en compte club par `requestClub`.
+      await signInWithGoogleAsClub(locale);
       setStep('CLUB');
     } catch (error) {
+      if (error instanceof ApiError && error.code === 'EMAIL_ALREADY_USED') {
+        fail(t.club.googleAlreadyUsed);
+        return;
+      }
       if (error instanceof GoogleSignInError) {
         if (error.reason === 'CANCELLED') {
           return;
@@ -439,10 +460,10 @@ export default function RegisterClub(): ReactNode {
         </StepTransition>
       ) : null}
 
-      {step === 'CLUB' && alreadyHasClub ? (
+      {step === 'CLUB' && blocked === 'HAS_CLUB' ? (
         // Impasse annoncée tout de suite, plutôt qu'un formulaire à remplir
         // pour rien : ce compte a déjà un club, l'API refuserait à l'envoi.
-        <StepTransition stepKey="already">
+        <StepTransition stepKey="hasClub">
           <YStack gap="$4">
             <FormBanner message={t.errors.clubAlreadyLinked} />
             <PrimaryButton label={t.club.goHome} onPress={() => router.replace('/')} />
@@ -450,7 +471,33 @@ export default function RegisterClub(): ReactNode {
         </StepTransition>
       ) : null}
 
-      {step === 'CLUB' && !alreadyHasClub ? (
+      {step === 'CLUB' && blocked === 'ALREADY_USED' ? (
+        // Arrivé déjà connecté : le compte préexiste, il ne peut pas devenir le
+        // compte d'un club. La seule issue est une adresse encore libre, donc on
+        // propose de se déconnecter pour repartir.
+        <StepTransition stepKey="alreadyUsed">
+          <YStack gap="$4">
+            <FormBanner message={t.club.googleAlreadyUsed} />
+            <PrimaryButton
+              label={t.club.useAnotherAddress}
+              loading={busy}
+              onPress={() => {
+                setBusy(true);
+                void signOut()
+                  .then(() => router.replace('/register/club'))
+                  .finally(() => setBusy(false));
+              }}
+            />
+            <PrimaryButton
+              label={t.club.goHome}
+              variant="ghost"
+              onPress={() => router.replace('/')}
+            />
+          </YStack>
+        </StepTransition>
+      ) : null}
+
+      {step === 'CLUB' && blocked === 'NONE' ? (
         <StepTransition stepKey="club">
           <YStack gap="$4">
             <TextField

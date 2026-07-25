@@ -63,6 +63,12 @@ export class ResetPasswordDto {
 export class GoogleSignInDto {
   @IsString()
   idToken!: string;
+
+  // Langue de l'appareil, pour que le compte créé reçoive ses emails dans la
+  // bonne langue dès le départ (l'écran d'accueil l'a déjà choisie).
+  @IsOptional()
+  @IsEnum(Locale)
+  locale?: Locale;
 }
 
 // Première étape de l'entrée entraîneur : savoir quoi lui demander ensuite.

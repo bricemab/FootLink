@@ -26,6 +26,8 @@ interface AuthValue {
   signInWithGoogle: () => Promise<void>;
   /** Google côté entraîneur : refusé (403) si aucun club n'a invité l'adresse. */
   signInWithGoogleAsCoach: () => Promise<void>;
+  /** Google côté club : refusé (409) si l'adresse a déjà un compte. */
+  signInWithGoogleAsClub: (locale: AppLocale) => Promise<void>;
   acceptCoachInvite: (email: string, code: string, password: string) => Promise<void>;
   /** Adopte une session émise par un endpoint hors module auth (demande de club). */
   adoptSession: (tokens: AuthTokens) => Promise<void>;
@@ -170,6 +172,25 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     await reload();
   }, [adopt, reload]);
 
+  /**
+   * Entrée club par Google : le serveur ne crée un compte que si l'adresse est
+   * libre. Refus (409) = aucune session créée ; on relâche la session Google
+   * native pour que l'utilisateur puisse en choisir une autre.
+   */
+  const signInWithGoogleAsClub = useCallback(
+    async (locale: AppLocale) => {
+      const idToken = await getGoogleIdToken();
+      try {
+        await adopt(await authApi.googleClubSignIn(idToken, locale));
+      } catch (error) {
+        await googleSignOut().catch(() => undefined);
+        throw error;
+      }
+      await reload();
+    },
+    [adopt, reload],
+  );
+
   const acceptCoachInvite = useCallback(
     async (email: string, code: string, password: string) => {
       await adopt(await authApi.acceptCoachInvite(email, code, password));
@@ -220,6 +241,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       signUp,
       signInWithGoogle,
       signInWithGoogleAsCoach,
+      signInWithGoogleAsClub,
       acceptCoachInvite,
       adoptSession,
       signOut,
@@ -234,6 +256,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       signUp,
       signInWithGoogle,
       signInWithGoogleAsCoach,
+      signInWithGoogleAsClub,
       acceptCoachInvite,
       adoptSession,
       signOut,

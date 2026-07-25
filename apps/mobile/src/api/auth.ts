@@ -47,6 +47,18 @@ export function googleCoachSignIn(idToken: string): Promise<AuthTokens> {
   return apiRequest<AuthTokens>('/auth/google/coach', { method: 'POST', body: { idToken } });
 }
 
+/**
+ * Entrée club par Google. Ne crée un compte que si l'adresse est **libre** : le
+ * compte d'un club ne se greffe pas sur un compte personnel existant. Une
+ * adresse déjà prise reçoit 409 `EMAIL_ALREADY_USED`.
+ */
+export function googleClubSignIn(idToken: string, locale: AppLocale): Promise<AuthTokens> {
+  return apiRequest<AuthTokens>('/auth/google/club', {
+    method: 'POST',
+    body: { idToken, locale },
+  });
+}
+
 /** Inscription par email : on prouve l'adresse avant de créer quoi que ce soit. */
 export function requestSignupCode(email: string, locale: AppLocale): Promise<void> {
   return apiRequest<void>('/auth/signup/request-code', {

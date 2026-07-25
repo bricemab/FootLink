@@ -125,6 +125,9 @@ export const fr = {
     website: 'Site internet (facultatif)',
     websitePlaceholder: 'fcsion.ch',
     goHome: 'Aller à l’accueil',
+    googleAlreadyUsed:
+      'Cette adresse a déjà un compte. Le compte d’un club se crée avec une adresse qui ne sert pas encore.',
+    useAnotherAddress: 'Utiliser une autre adresse',
     note: 'Un mot pour la validation',
     notePlaceholder: 'Ton rôle dans le club, un contact…',
     submit: 'Envoyer la demande',
@@ -289,6 +292,9 @@ export const de: typeof fr = {
     website: 'Website (optional)',
     websitePlaceholder: 'fcsion.ch',
     goHome: 'Zur Startseite',
+    googleAlreadyUsed:
+      'Diese Adresse hat schon ein Konto. Ein Vereinskonto wird mit einer noch unbenutzten Adresse erstellt.',
+    useAnotherAddress: 'Andere Adresse verwenden',
     note: 'Ein Wort zur Prüfung',
     notePlaceholder: 'Deine Rolle im Verein, ein Kontakt…',
     submit: 'Antrag senden',

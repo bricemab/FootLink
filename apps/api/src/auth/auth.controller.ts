@@ -74,6 +74,17 @@ export class AuthController {
     return this.auth.googleCoachSignIn(dto);
   }
 
+  // Entrée club par Google. Distinct de `google` pour la raison inverse du
+  // coach : on crée bien un compte, mais UNIQUEMENT si l'adresse est libre. Le
+  // compte d'un club ne se greffe pas sur un compte personnel existant
+  // (décision de Brice) — une adresse déjà prise reçoit 409 EMAIL_ALREADY_USED.
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('google/club')
+  googleClub(@Body() dto: GoogleSignInDto): Promise<AuthTokens> {
+    return this.auth.googleClubSignIn(dto);
+  }
+
   @Public()
   @HttpCode(HttpStatus.OK)
   @Post('verify-email')
