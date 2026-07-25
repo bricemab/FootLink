@@ -67,6 +67,33 @@ const ACTIVE_FEMALE: readonly CategoryCode[] = [
   'QUATRIEME_LIGUE_F',
 ];
 
+const JUNIOR_CATEGORIES: readonly CategoryCode[] = [
+  'JUNIORS_A',
+  'JUNIORS_B',
+  'JUNIORS_C',
+  'JUNIORS_D',
+  'JUNIORS_E',
+  'JUNIORS_F',
+  'JUNIORS_G',
+];
+
+/**
+ * Catégories qu'un **club** peut engager, pour un genre donné.
+ *
+ * À ne pas confondre avec `getEligibleCategories`, qui répond à une autre
+ * question : ce qu'un **joueur** d'une année de naissance donnée peut jouer.
+ * Ici il n'y a aucune année en jeu — un club choisit ce qu'il engage.
+ *
+ * L'ordre est celui de la lecture : actifs du plus haut au plus bas, puis
+ * juniors du plus âgé au plus jeune, puis seniors.
+ */
+export function categoriesForTeamGender(gender: Gender): CategoryCode[] {
+  const actives = gender === 'FEMALE' ? ACTIVE_FEMALE : ACTIVE_MALE;
+  const seniors: readonly CategoryCode[] =
+    gender === 'FEMALE' ? [] : ['SENIORS_30', 'SENIORS_40', 'SENIORS_50'];
+  return [...actives, ...JUNIOR_CATEGORIES, ...seniors];
+}
+
 // Catégories éligibles pour le matching (raffiné en Phase 6).
 // Un Juniors A et un adulte peuvent jouer chez les actifs ; seniors selon l'âge.
 export function getEligibleCategories(
