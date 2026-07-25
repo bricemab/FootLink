@@ -183,8 +183,11 @@ export default function RegisterCoach(): ReactNode {
       const tokens = await loadTokens();
       const club = tokens ? await getMyClub(tokens.accessToken).catch(() => null) : null;
       if (!club) {
-        await signOut();
+        // Le message d'abord — dès qu'on sait — puis la déconnexion en tâche de
+        // fond. Attendre l'aller-retour du logout avant d'afficher laissait
+        // l'écran muet plusieurs secondes : l'utilisateur croyait à un bug.
         fail(t.coach.googleNotInvited);
+        void signOut();
         return;
       }
       router.replace('/');
