@@ -335,9 +335,22 @@ model Club {
   // personne et fausserait le matching par distance de jusqu'à un kilomètre.
   lat          Decimal?   @db.Decimal(9, 6)
   lng          Decimal?   @db.Decimal(9, 6)
-  logoUrl      String?
+  // La CLÉ de l'objet, pas une URL : le bucket est privé, l'URL de lecture est
+  // signée et donc périssable. Même raison que `User.avatarKey`.
+  logoKey      String?
+  // Quand le logo a changé pour la dernière fois.
+  //
+  // C'est le seul garde-fou de modération au MVP : un club est validé à la main
+  // par le SUPER_ADMIN, mais rien ne l'empêche de changer son logo APRÈS. Cette
+  // date lui permet de repérer en base les logos modifiés depuis l'approbation
+  // (canal de modération du MVP, cf. CLAUDE.md). Ce n'est pas une analyse de
+  // contenu, et ça n'en a pas la prétention.
+  logoUpdatedAt DateTime?
   websiteUrl   String? // site du club, facultatif ; normalisé en https:// à l'écriture
   description  String?    @db.Text
+  // Un club décide s'il expose son adresse de contact aux joueurs. Faux par
+  // défaut : on ne publie pas une adresse email sans un geste explicite.
+  showContactEmail Boolean @default(false)
   verified     Boolean    @default(false) // validation d'identité approfondie (phase ultérieure, distincte du statut)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt

@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, XStack, YStack } from 'tamagui';
 import { useI18n } from '@/i18n';
 import { PitchBackdrop } from '@/ui/pitch-backdrop';
@@ -22,6 +23,7 @@ export function AppScreen({
   subtitle,
   action,
   onBack,
+  allowStackBack = true,
   onRefresh,
   refreshing = false,
   children,
@@ -32,6 +34,14 @@ export function AppScreen({
   action?: ReactNode;
   /** Remplace le retour de navigation. Absent = retour de pile s'il en existe. */
   onBack?: () => void;
+  /**
+   * Faux = aucun retour, meme si la pile en a un.
+   *
+   * A mettre sur un ecran RACINE : un onglet est atteint par la barre du bas, et
+   * la pile garde pourtant un historique -- l'ecran affichait donc un "Retour"
+   * qui ne menait nulle part de sensé.
+   */
+  allowStackBack?: boolean;
   /** Fourni = tirer pour rafraîchir. Une liste distante doit pouvoir être relue. */
   onRefresh?: () => void;
   refreshing?: boolean;
@@ -39,12 +49,24 @@ export function AppScreen({
 }): ReactNode {
   const router = useRouter();
   const { t } = useI18n();
-  const showBack = onBack !== undefined || router.canGoBack();
+  const insets = useSafeAreaInsets();
+  const showBack = onBack !== undefined || (allowStackBack && router.canGoBack());
+
+  /*
+   * Respiration en bas de page.
+   *
+   * La barre d'onglets occupe sa propre place depuis qu'elle ne flotte plus :
+   * il n'y a donc plus rien a compenser, seulement a eviter que le dernier
+   * element ne colle a elle. `insets.bottom` couvre les ecrans sans barre
+   * d'onglets (pile des equipes, des entraineurs), ou la zone de securite
+   * reste, elle, bien reelle.
+   */
+  const bottomInset = insets.bottom + 24;
 
   return (
     <PitchBackdrop>
       <ScrollView
-        contentContainerStyle={{ paddingTop: 8, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingTop: 8, paddingBottom: bottomInset }}
         showsVerticalScrollIndicator={false}
         {...(onRefresh
           ? {

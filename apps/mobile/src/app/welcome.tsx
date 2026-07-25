@@ -1,7 +1,8 @@
 import { useRouter } from 'expo-router';
 import { MotiText, MotiView } from 'moti';
 import type { ReactNode } from 'react';
-import { Text, YStack } from 'tamagui';
+import { Image } from 'react-native';
+import { Text, XStack, YStack } from 'tamagui';
 import { useI18n } from '@/i18n';
 import { LocaleSwitch } from '@/ui/locale-switch';
 import { PitchBackdrop } from '@/ui/pitch-backdrop';
@@ -25,9 +26,21 @@ export default function Welcome(): ReactNode {
           animate={{ opacity: 1, translateY: 0 }}
           transition={{ type: 'timing', duration: 520 }}
         >
-          <Text fontSize={13} fontWeight="700" letterSpacing={3} color="$brandPitchBright">
-            FOOTLINK
-          </Text>
+          {/* Logo + nom sur la meme ligne. Le logo est carre et deja sur fond
+              nuit : pas de cadre ni de fond a lui ajouter, il se pose tel quel.
+              `require` et non une URI : l'image est empaquetee avec l'app, donc
+              elle s'affiche sans reseau et sans attente. */}
+          <XStack alignItems="center" gap="$2.5">
+            <Image
+              source={require('../../assets/images/logo.png')}
+              style={{ width: 34, height: 34 }}
+              resizeMode="contain"
+              accessibilityLabel="FootLink"
+            />
+            <Text fontSize={13} fontWeight="700" letterSpacing={3} color="$brandPitchBright">
+              FOOTLINK
+            </Text>
+          </XStack>
         </MotiView>
 
         <MotiText

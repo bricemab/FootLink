@@ -51,7 +51,7 @@ export default function TeamsList(): ReactNode {
     <AppScreen
       title={t.teams.title}
       subtitle={t.teams.subtitle}
-      onBack={() => router.replace('/club')}
+      allowStackBack={false}
       onRefresh={() => void load()}
       refreshing={loading}
     >

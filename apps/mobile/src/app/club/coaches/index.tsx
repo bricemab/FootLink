@@ -1,6 +1,6 @@
 import { categoryLabel } from '@footlink/shared';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import {
@@ -14,6 +14,7 @@ import { listMyTeams, type Team } from '@/api/teams';
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
 import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
+import { CheckIcon } from '@/ui/icons';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { PrimaryButton } from '@/ui/primary-button';
@@ -38,10 +39,22 @@ export default function CoachesList(): ReactNode {
   const [teams, setTeams] = useState<Team[]>([]);
   const [editing, setEditing] = useState<string>();
   const [removing, setRemoving] = useState<string>();
-  const [notice, setNotice] = useState<string>();
+  /**
+   * Entraineur dont le code part en ce moment, et celui dont le code vient de
+   * partir.
+   *
+   * Un simple message en haut de liste ne disait pas DE QUI il parlait, et il
+   * apparaissait loin du bouton qu'on venait d'appuyer : on ne savait pas si
+   * l'appui avait ete pris en compte. Le retour se joue donc sur la carte
+   * concernee.
+   */
+  const [sending, setSending] = useState<string>();
+  const [sentTo, setSentTo] = useState<string>();
   const [banner, setBanner] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Verrou synchrone contre le double appui : voir `toggleTeam`.
+  const togglingRef = useRef(false);
 
   const load = useCallback(async (): Promise<void> => {
     setBanner(undefined);
@@ -66,7 +79,6 @@ export default function CoachesList(): ReactNode {
 
   const act = async (run: () => Promise<void>): Promise<void> => {
     setBanner(undefined);
-    setNotice(undefined);
     setBusy(true);
     try {
       await run();
@@ -77,23 +89,56 @@ export default function CoachesList(): ReactNode {
     }
   };
 
+  /**
+   * Renvoie un code d'activation.
+   *
+   * La confirmation reste affichee : rien ne la remplace tant que la liste n'est
+   * pas rechargee. Une confirmation qui s'efface d'elle-meme au bout de quelques
+   * secondes laisse un doute a qui a regarde ailleurs.
+   */
   const resend = (coach: Coach): void => {
+    setSentTo(undefined);
+    setSending(coach.clubMemberId);
     void act(async () => {
-      await authed((token) => resendCoachInvite(token, coach.clubMemberId));
-      setNotice(t.coaches.resent);
+      try {
+        await authed((token) => resendCoachInvite(token, coach.clubMemberId));
+        setSentTo(coach.clubMemberId);
+      } finally {
+        setSending(undefined);
+      }
     });
   };
 
+  /**
+   * Ajoute ou retire une equipe.
+   *
+   * `PUT .../teams` **remplace** l'ensemble des assignations, donc la liste
+   * envoyee doit refleter l'etat le plus recent. Le verrou est un `useRef` et non
+   * l'etat `busy` : un second appui dans la meme image de rendu verrait encore
+   * `busy === false`, partirait de la meme liste que le premier, et l'une des
+   * deux bascules serait perdue selon l'ordre des reponses.
+   */
   const toggleTeam = (coach: Coach, teamId: string): void => {
+    if (togglingRef.current) {
+      return;
+    }
+    togglingRef.current = true;
+
     const next = coach.teams.some((team) => team.id === teamId)
       ? coach.teams.filter((team) => team.id !== teamId).map((team) => team.id)
       : [...coach.teams.map((team) => team.id), teamId];
 
     void act(async () => {
-      const updated = await authed((token) => setCoachTeams(token, coach.clubMemberId, next));
-      setCoaches((current) =>
-        current?.map((item) => (item.clubMemberId === updated.clubMemberId ? updated : item)),
-      );
+      try {
+        const updated = await authed((token) => setCoachTeams(token, coach.clubMemberId, next));
+        // La reponse porte l'etat retenu par le serveur : on l'adopte tel quel
+        // plutot que de recopier ce qu'on avait envoye.
+        setCoaches((current) =>
+          current?.map((item) => (item.clubMemberId === updated.clubMemberId ? updated : item)),
+        );
+      } finally {
+        togglingRef.current = false;
+      }
     });
   };
 
@@ -117,11 +162,6 @@ export default function CoachesList(): ReactNode {
       refreshing={loading}
     >
       {banner ? <FormBanner message={banner} /> : null}
-      {notice ? (
-        <Text fontSize={14} color="$brandPitchBright">
-          {notice}
-        </Text>
-      ) : null}
 
       {coaches === undefined && loading ? (
         <YStack paddingVertical="$6" alignItems="center">
@@ -164,9 +204,25 @@ export default function CoachesList(): ReactNode {
                 label={open ? t.teams.cancel : t.coaches.assign}
                 onPress={() => setEditing(open ? undefined : coach.clubMemberId)}
               />
-              {/* Le renvoi n'a de sens que sur un compte pas encore activé. */}
+              {/* Le renvoi n'a de sens que sur un compte pas encore active. */}
               {!coach.hasAccepted ? (
-                <LinkAction label={t.coaches.resend} onPress={() => resend(coach)} />
+                sending === coach.clubMemberId ? (
+                  <XStack alignItems="center" gap="$2">
+                    <ActivityIndicator color="#39FF88" size="small" />
+                    <Text fontSize={14.5} color="$brandChalkDim">
+                      {t.coaches.resending}
+                    </Text>
+                  </XStack>
+                ) : sentTo === coach.clubMemberId ? (
+                  <XStack alignItems="center" gap="$2">
+                    <CheckIcon size={16} />
+                    <Text fontSize={14.5} fontWeight="700" color="$brandPitchBright">
+                      {t.coaches.resent}
+                    </Text>
+                  </XStack>
+                ) : (
+                  <LinkAction label={t.coaches.resend} onPress={() => resend(coach)} />
+                )
               ) : null}
             </XStack>
 

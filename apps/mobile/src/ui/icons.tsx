@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
 import { CaretDownIcon } from 'phosphor-react-native/src/icons/CaretDown';
+import { EyeIcon as PhEye } from 'phosphor-react-native/src/icons/Eye';
 import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
 import { CheckIcon as PhCheck } from 'phosphor-react-native/src/icons/Check';
 import { SoccerBallIcon } from 'phosphor-react-native/src/icons/SoccerBall';
 import { StrategyIcon } from 'phosphor-react-native/src/icons/Strategy';
+import { UsersThreeIcon } from 'phosphor-react-native/src/icons/UsersThree';
 import { WarningIcon as PhWarning } from 'phosphor-react-native/src/icons/Warning';
 import Svg, { Path } from 'react-native-svg';
 
@@ -30,14 +32,53 @@ import Svg, { Path } from 'react-native-svg';
 const ACCENT = '#39FF88';
 const DIM = 'rgba(169,196,184,0.9)';
 
-/** Joueur. */
-export function BallIcon({ size = 28 }: { size?: number }): ReactNode {
-  return <SoccerBallIcon size={size} color={ACCENT} weight="duotone" />;
+/**
+ * Joueur.
+ *
+ * `color` réglable : la barre d'onglets doit pouvoir éteindre l'icône inactive,
+ * sinon les quatre onglets ont l'air actifs en permanence.
+ */
+export function BallIcon({
+  size = 28,
+  color = ACCENT,
+}: {
+  size?: number;
+  color?: string;
+}): ReactNode {
+  return <SoccerBallIcon size={size} color={color} weight="duotone" />;
 }
 
 /** Entraîneur : un tableau tactique, plus parlant qu'un sifflet. */
-export function CoachIcon({ size = 28 }: { size?: number }): ReactNode {
-  return <StrategyIcon size={size} color={ACCENT} weight="duotone" />;
+export function CoachIcon({
+  size = 28,
+  color = ACCENT,
+}: {
+  size?: number;
+  color?: string;
+}): ReactNode {
+  return <StrategyIcon size={size} color={color} weight="duotone" />;
+}
+
+/** Équipes : un groupe, à distinguer du ballon qui désigne un joueur seul. */
+export function TeamsIcon({
+  size = 28,
+  color = ACCENT,
+}: {
+  size?: number;
+  color?: string;
+}): ReactNode {
+  return <UsersThreeIcon size={size} color={color} weight="duotone" />;
+}
+
+/** Aperçu : ce que verront les autres. */
+export function EyeIcon({
+  size = 28,
+  color = ACCENT,
+}: {
+  size?: number;
+  color?: string;
+}): ReactNode {
+  return <PhEye size={size} color={color} weight="duotone" />;
 }
 
 /**

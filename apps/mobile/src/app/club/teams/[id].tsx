@@ -2,7 +2,7 @@ import type { CategoryCode, Gender } from '@footlink/shared';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable } from 'react-native';
-import { Text, YStack } from 'tamagui';
+import { Text, XStack, YStack } from 'tamagui';
 import {
   deleteTeam,
   getTeam,
@@ -14,6 +14,7 @@ import {
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
 import { AppScreen, Card } from '@/ui/app-screen';
+import { ChevronIcon } from '@/ui/icons';
 import { CategoryPicker } from '@/ui/category-picker';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
@@ -168,6 +169,20 @@ export default function TeamDetail(): ReactNode {
           </YStack>
 
           <PrimaryButton label={t.teams.save} loading={busy} onPress={() => void save()} />
+
+          {/* Les annonces appartiennent a l'equipe : on y entre d'ici, et non
+              par un onglet global qui redemanderait « laquelle ? ». */}
+          <Card onPress={() => router.push({ pathname: '/club/listings', params: { teamId: id } })}>
+            <XStack alignItems="center" justifyContent="space-between" gap="$3">
+              <Text fontSize={16} fontWeight="700" color="$brandChalk" flexShrink={1}>
+                {t.teams.listingsTitle}
+              </Text>
+              <ChevronIcon direction="right" />
+            </XStack>
+            <Text fontSize={13.5} color="$brandChalkDim">
+              {t.teams.listingsHint}
+            </Text>
+          </Card>
 
           {/* Zone de suppression, séparée du reste : elle ne doit pas se
               confondre avec l'enregistrement. */}

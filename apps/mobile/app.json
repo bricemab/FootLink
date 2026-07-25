@@ -4,11 +4,10 @@
     "slug": "footlink",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo.png",
     "scheme": "footlink",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "ch.footlink.app",
       "supportsTablet": false,
       "infoPlist": {
@@ -19,9 +18,7 @@
       "package": "ch.footlink.app",
       "adaptiveIcon": {
         "backgroundColor": "#07130F",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/logo-adaptive.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -35,8 +32,8 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#07130F",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "image": "./assets/images/logo.png",
+          "imageWidth": 148
         }
       ],
       "expo-localization",

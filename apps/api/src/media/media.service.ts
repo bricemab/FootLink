@@ -90,13 +90,29 @@ export class MediaService {
     return this.client !== null;
   }
 
+  /** Billet de téléversement pour l'avatar d'une personne. */
+  createAvatarUpload(userId: string, contentType: string): Promise<UploadTicket> {
+    return this.createUpload('avatars', userId, contentType);
+  }
+
+  /** Billet de téléversement pour le logo d'un club. */
+  createClubLogoUpload(clubId: string, contentType: string): Promise<UploadTicket> {
+    return this.createUpload('club-logos', clubId, contentType);
+  }
+
   /**
-   * Billet de téléversement pour l'avatar d'un utilisateur.
+   * Billet de téléversement, pour un propriétaire donné.
    *
-   * La clé est préfixée par l'identifiant du propriétaire : c'est ce qui permet
-   * de vérifier, à la confirmation, que la clé rendue est bien la sienne.
+   * La clé est préfixée par le **type de média** puis par l'identifiant du
+   * propriétaire : c'est ce qui permet de vérifier, à la confirmation, que la clé
+   * rendue est bien la sienne. Un club et une personne ne peuvent donc pas se
+   * marcher dessus, même si leurs identifiants se croisaient.
    */
-  async createAvatarUpload(userId: string, contentType: string): Promise<UploadTicket> {
+  private async createUpload(
+    prefix: string,
+    ownerId: string,
+    contentType: string,
+  ): Promise<UploadTicket> {
     const extension = ALLOWED_CONTENT_TYPES[contentType];
     if (!extension) {
       throw new BadRequestException('Unsupported image type.');
@@ -104,8 +120,8 @@ export class MediaService {
     const client = this.require();
 
     // Suffixe aléatoire : deux téléversements successifs ne s'écrasent pas, et
-    // la clé n'est pas devinable depuis l'identifiant de l'utilisateur.
-    const key = `avatars/${userId}/${Date.now()}-${randomBytes(8).toString('hex')}.${extension}`;
+    // la clé n'est pas devinable depuis l'identifiant du propriétaire.
+    const key = `${prefix}/${ownerId}/${Date.now()}-${randomBytes(8).toString('hex')}.${extension}`;
 
     const uploadUrl = await getSignedUrl(
       client,
@@ -116,16 +132,24 @@ export class MediaService {
     return { uploadUrl, key, expiresIn: UPLOAD_URL_TTL_SECONDS, maxBytes: MAX_BYTES };
   }
 
+  confirmAvatarUpload(userId: string, key: string): Promise<void> {
+    return this.confirmUpload('avatars', userId, key);
+  }
+
+  confirmClubLogoUpload(clubId: string, key: string): Promise<void> {
+    return this.confirmUpload('club-logos', clubId, key);
+  }
+
   /**
    * Valide une clé rendue par le client après téléversement.
    *
-   * On ne croit rien : on vérifie que la clé appartient à cet utilisateur, que
+   * On ne croit rien : on vérifie que la clé appartient à ce propriétaire, que
    * l'objet existe vraiment, que son type est autorisé et que sa taille tient
    * dans la limite. Un objet trop gros est supprimé immédiatement.
    */
-  async confirmAvatarUpload(userId: string, key: string): Promise<void> {
-    if (!key.startsWith(`avatars/${userId}/`)) {
-      // Tentative de rattacher à son profil un objet qui n'est pas le sien.
+  private async confirmUpload(prefix: string, ownerId: string, key: string): Promise<void> {
+    if (!key.startsWith(`${prefix}/${ownerId}/`)) {
+      // Tentative de rattacher un objet qui n'est pas le sien.
       throw new BadRequestException('This upload does not belong to you.');
     }
     const client = this.require();
