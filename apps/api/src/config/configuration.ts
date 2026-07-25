@@ -15,6 +15,18 @@ export interface AppConfiguration {
   google: {
     clientIds: string[]; // audiences acceptées pour la vérif du jeton ID
   };
+  media: {
+    /**
+     * Stockage compatible S3 (Cloudflare R2 au MVP, cf. AGENTS §2 et HANDOFF 32).
+     * Vide = uploads désactivés : l'API répond 503 plutôt que de fabriquer des
+     * URL invalides.
+     */
+    endpoint: string;
+    region: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    bucket: string;
+  };
   mapbox: {
     /**
      * Jeton public Mapbox, utilisé pour la recherche de lieux (Search Box).
@@ -63,6 +75,13 @@ export default (): AppConfiguration => ({
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),
+  },
+  media: {
+    endpoint: process.env.S3_ENDPOINT ?? '',
+    region: process.env.S3_REGION ?? 'auto',
+    accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
+    bucket: process.env.S3_BUCKET ?? '',
   },
   mapbox: {
     token: process.env.MAPBOX_TOKEN ?? '',

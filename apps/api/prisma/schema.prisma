@@ -68,10 +68,14 @@ enum StrongFoot {
 enum Poste {
   GARDIEN
   DEFENSEUR_CENTRAL
+  DEFENSEUR_CENTRAL_DROIT
+  DEFENSEUR_CENTRAL_GAUCHE
   LATERAL_DROIT
   LATERAL_GAUCHE
   MILIEU_DEFENSIF
   MILIEU_CENTRAL
+  MILIEU_DROIT
+  MILIEU_GAUCHE
   MILIEU_OFFENSIF
   AILIER_DROIT
   AILIER_GAUCHE
@@ -167,6 +171,11 @@ model User {
   status          UserStatus @default(ACTIVE)
   locale          Locale     @default(FR)
   pushToken       String? // Expo push token (notifications)
+  // Photo de la PERSONNE (une seule, quel que soit son rôle — cf. HANDOFF 33).
+  // On stocke la CLÉ de l'objet, pas une URL : le bucket est privé et l'URL de
+  // lecture est signée à la demande. Garder la clé permet de changer de mode de
+  // diffusion (URL signée ↔ domaine public) sans migrer les données.
+  avatarKey       String?
   emailVerifiedAt DateTime? // renseigné après validation email (immédiat pour Google)
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt

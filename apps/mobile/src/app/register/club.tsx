@@ -2,13 +2,12 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
-import { checkSignupCode, requestSignupCode, verifySignupCode } from '@/api/auth';
+import { checkSignupCode, requestSignupCode, verifyClubSignupCode } from '@/api/auth';
 import { getMyClub, listRegions, requestClub, type Region } from '@/api/clubs';
 import type { ResolvedPlace } from '@/api/geo';
 import { ApiError } from '@/api/client';
 import { useAuth } from '@/auth/auth-context';
 import { GoogleSignInError } from '@/auth/google-sign-in';
-import { loadTokens } from '@/auth/token-storage';
 import { useI18n } from '@/i18n';
 import { AuthFormShell } from '@/ui/auth-form-shell';
 import { toUserMessage } from '@/ui/error-message';
@@ -38,7 +37,8 @@ type Step = 'ACCOUNT' | 'CODE' | 'PASSWORD' | 'CLUB' | 'CONTEXT';
 export default function RegisterClub(): ReactNode {
   const router = useRouter();
   const { t, fill, locale } = useI18n();
-  const { signInWithGoogleAsClub, adoptSession, signOut, phase } = useAuth();
+  const { signInWithGoogleAsClub, adoptSession, signOut, phase, authed, user, reload } =
+    useAuth();
 
   const [step, setStep] = useState<Step>('ACCOUNT');
   const [openRegions, setOpenRegions] = useState<Region[]>([]);
@@ -53,7 +53,10 @@ export default function RegisterClub(): ReactNode {
   const [placesDown, setPlacesDown] = useState(false);
   const [locality, setLocality] = useState('');
   const [regionCode, setRegionCode] = useState<string>();
-  const [accessToken, setAccessToken] = useState<string>();
+  // Prêt = la vérification « ce compte a-t-il déjà un club ? » est faite. Ce
+  // n'était qu'un effet de bord du jeton stocké ici ; le jeton, lui, se demande
+  // désormais à `authed` au moment de l'appel, pour ne pas en garder un périmé.
+  const [ready, setReady] = useState(false);
   /**
    * Impasse détectée à l'étape « ton club » :
    * - `HAS_CLUB` : ce compte administre ou entraîne déjà un club ;
@@ -77,7 +80,11 @@ export default function RegisterClub(): ReactNode {
   // Déjà connecté en arrivant ici : inutile de redemander une identité.
   useEffect(() => {
     if (phase === 'signedIn' && step === 'ACCOUNT') {
-      preSignedIn.current = true;
+      // Connecté en arrivant ≠ compte étranger à ce parcours. Un `CLUB_ADMIN`
+      // sans club est renvoyé ICI par la garde de routage pour finir SA demande :
+      // son compte est né du chemin club, le déclarer « adresse déjà utilisée »
+      // le laissait sans issue. Les autres rôles, eux, préexistent bien.
+      preSignedIn.current = user?.role !== 'CLUB_ADMIN';
       setStep('CLUB');
     }
     // Volontairement au montage : on ne veut pas ramener l'utilisateur en
@@ -116,25 +123,21 @@ export default function RegisterClub(): ReactNode {
    *    qu'à l'envoi, après avoir tout ressaisi.
    */
   useEffect(() => {
-    if (step !== 'CLUB') {
+    if (step !== 'CLUB' || phase !== 'signedIn') {
       return;
     }
     let cancelled = false;
     void (async () => {
-      const tokens = await loadTokens();
-      if (cancelled || !tokens) {
-        return;
-      }
-      const existing = await getMyClub(tokens.accessToken).catch(() => null);
+      const existing = await authed((token) => getMyClub(token)).catch(() => null);
       if (cancelled) {
         return;
       }
-      // Les deux états sont posés ENSEMBLE, à la fin. Poser `accessToken` avant
+      // Les deux états sont posés ENSEMBLE, à la fin. Poser `ready` avant
       // l'attente changeait les dépendances de cet effet, ce qui déclenchait son
-      // nettoyage, donc `cancelled = true`, donc `alreadyHasClub` n'était JAMAIS
+      // nettoyage, donc `cancelled = true`, donc `blocked` n'était JAMAIS
       // renseigné : un compte ayant déjà un club se voyait offrir le formulaire
       // de création, et n'apprenait le refus qu'à l'envoi.
-      setAccessToken(tokens.accessToken);
+      setReady(true);
       setBlocked(
         existing !== null ? 'HAS_CLUB' : preSignedIn.current ? 'ALREADY_USED' : 'NONE',
       );
@@ -142,12 +145,28 @@ export default function RegisterClub(): ReactNode {
     return () => {
       cancelled = true;
     };
-    // `accessToken` est volontairement HORS des dépendances : cet effet l'écrit,
+    // `ready` est volontairement HORS des dépendances : cet effet l'écrit,
     // l'y remettre le ferait s'annuler lui-même (le bug ci-dessus).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+  }, [step, phase, authed]);
 
   const fail = (message: string): void => setBanner(message);
+
+  /**
+   * Quitte ce parcours vers la garde de routage, **après avoir relu la session**.
+   *
+   * Sans ce rafraîchissement, `clubStatus` reste à `null` en mémoire alors que le
+   * club vient d'être créé : la garde renvoie donc ici, et l'écran annonce « ce
+   * compte est déjà rattaché à un club » juste après un envoi réussi. Le bouton
+   * « aller à l'accueil » de cette impasse tournait même en boucle.
+   *
+   * L'échec de la relecture n'empêche pas de partir : le club existe, et la garde
+   * ramènera ici si besoin — mieux que rester bloqué sur le formulaire.
+   */
+  const leaveToGuard = async (): Promise<void> => {
+    await reload().catch(() => undefined);
+    router.replace('/');
+  };
 
   // --- Étape 1a : Google ---------------------------------------------------
   const withGoogle = async (): Promise<void> => {
@@ -259,7 +278,7 @@ export default function RegisterClub(): ReactNode {
     }
     setBusy(true);
     try {
-      await adoptSession(await verifySignupCode(email, code, password));
+      await adoptSession(await verifyClubSignupCode(email, code, password));
       setStep('CLUB');
     } catch (error) {
       if (error instanceof ApiError && error.code === 'SIGNUP_CODE_LOCKED') {
@@ -298,24 +317,21 @@ export default function RegisterClub(): ReactNode {
     setBanner(undefined);
     setBusy(true);
     try {
-      const tokens = await loadTokens();
-      if (!tokens) {
-        fail(t.errors.unknown);
-        return;
-      }
-      await requestClub(tokens.accessToken, {
-        clubName: clubName.trim(),
-        ...(regionCode ? { regionCode } : {}),
-        // On envoie le point brut ; canton, commune et association sont
-        // recalculés par le serveur à partir de lui.
-        ...(pitch
-          ? { lat: pitch.lat, lng: pitch.lng, stadiumName: pitch.label, addressLine: pitch.label }
-          : {}),
-        ...(!pitch && locality.trim() ? { locality: locality.trim() } : {}),
-        ...(website.trim() ? { websiteUrl: website.trim() } : {}),
-        ...(note.trim() ? { requestNote: note.trim() } : {}),
-      });
-      router.replace('/');
+      await authed((token) =>
+        requestClub(token, {
+          clubName: clubName.trim(),
+          ...(regionCode ? { regionCode } : {}),
+          // On envoie le point brut ; canton, commune et association sont
+          // recalculés par le serveur à partir de lui.
+          ...(pitch
+            ? { lat: pitch.lat, lng: pitch.lng, stadiumName: pitch.label, addressLine: pitch.label }
+            : {}),
+          ...(!pitch && locality.trim() ? { locality: locality.trim() } : {}),
+          ...(website.trim() ? { websiteUrl: website.trim() } : {}),
+          ...(note.trim() ? { requestNote: note.trim() } : {}),
+        }),
+      );
+      await leaveToGuard();
     } catch (error) {
       fail(toUserMessage(error, t));
     } finally {
@@ -466,7 +482,7 @@ export default function RegisterClub(): ReactNode {
         <StepTransition stepKey="hasClub">
           <YStack gap="$4">
             <FormBanner message={t.errors.clubAlreadyLinked} />
-            <PrimaryButton label={t.club.goHome} onPress={() => router.replace('/')} />
+            <PrimaryButton label={t.club.goHome} onPress={() => void leaveToGuard()} />
           </YStack>
         </StepTransition>
       ) : null}
@@ -508,9 +524,9 @@ export default function RegisterClub(): ReactNode {
               autoCapitalize="words"
               error={fieldError}
             />
-            {accessToken ? (
+            {ready ? (
               <PlacePicker
-                accessToken={accessToken}
+                authed={authed}
                 value={pitch}
                 onChange={(place) => {
                   setPitch(place);

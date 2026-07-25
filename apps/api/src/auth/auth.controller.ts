@@ -156,6 +156,18 @@ export class AuthController {
     return this.auth.verifySignupCode(dto);
   }
 
+  /**
+   * Même inscription, côté club : le compte naît `CLUB_ADMIN` au lieu de
+   * `PLAYER`. Endpoint séparé et non un champ de rôle dans le corps — le rôle ne
+   * se déclare pas depuis le client.
+   */
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('signup/verify-code/club')
+  verifyClubSignupCode(@Body() dto: VerifySignupCodeDto): Promise<AuthTokens> {
+    return this.auth.verifyClubSignupCode(dto);
+  }
+
   // Contrôle le code avant de demander un mot de passe. Ne le consomme pas,
   // mais compte les échecs comme `accept` : sinon la force brute serait libre ici.
   @Public()

@@ -5,16 +5,29 @@
 export const POSTES = [
   'GARDIEN',
   'DEFENSEUR_CENTRAL',
+  'DEFENSEUR_CENTRAL_DROIT',
+  'DEFENSEUR_CENTRAL_GAUCHE',
   'LATERAL_DROIT',
   'LATERAL_GAUCHE',
   'MILIEU_DEFENSIF',
   'MILIEU_CENTRAL',
+  'MILIEU_DROIT',
+  'MILIEU_GAUCHE',
   'MILIEU_OFFENSIF',
   'AILIER_DROIT',
   'AILIER_GAUCHE',
   'ATTAQUANT',
 ] as const;
 export type Poste = (typeof POSTES)[number];
+
+/**
+ * Statuts d'un club. Mêmes codes que l'enum Prisma `ClubStatus`.
+ *
+ * Recopiés ici parce que le mobile ne lit pas le schéma : sans ça, l'union était
+ * réécrite à la main dans chaque fichier qui en a besoin, donc divergeait.
+ */
+export const CLUB_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'] as const;
+export type ClubStatus = (typeof CLUB_STATUSES)[number];
 
 export const CATEGORY_CODES = [
   'PREMIERE_LIGUE',

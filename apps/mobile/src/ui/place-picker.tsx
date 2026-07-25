@@ -37,23 +37,45 @@ const MIN_CHARS = 3;
 const PREVIEW_HEIGHT = 190;
 
 interface PlacePickerProps {
-  accessToken: string;
+  /**
+   * Exécute l'appel avec un jeton **valide**, en le renouvelant au besoin
+   * (`authed` du contexte d'auth).
+   *
+   * Reçoit une fonction et non un jeton : un jeton passé en prop est un
+   * instantané, et l'écran d'inscription comme l'onboarding vivent plus
+   * longtemps que sa durée de vie. La recherche répondait alors « indisponible »
+   * pour une simple expiration, ce qui se lisait comme une panne de Mapbox.
+   */
+  authed: <T>(call: (accessToken: string) => Promise<T>) => Promise<T>;
   value: ResolvedPlace | undefined;
   onChange: (place: ResolvedPlace | undefined) => void;
   /** Signalé par le parent quand le terrain manque à la validation. */
   error?: string | undefined;
   /** Prévient le parent que la recherche est HS, pour proposer la saisie manuelle. */
   onUnavailable?: (unavailable: boolean) => void;
+  /**
+   * Libellés du champ. Par défaut ceux du **terrain d'un club**, puisque c'est
+   * l'usage d'origine. L'onboarding joueur les remplace : on y cherche où
+   * habite la personne, pas le stade d'un club — laisser « Terrain du club »
+   * sur cet écran demandait une chose et en promettait une autre.
+   */
+  copy?: { label: string; placeholder: string; help: string };
 }
 
 export function PlacePicker({
-  accessToken,
+  authed,
   value,
   onChange,
   error,
   onUnavailable,
+  copy,
 }: PlacePickerProps): ReactNode {
   const { t } = useI18n();
+  const text = copy ?? {
+    label: t.club.pitch,
+    placeholder: t.club.pitchPlaceholder,
+    help: t.club.pitchHelp,
+  };
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PlaceSuggestion[]>([]);
   const [searching, setSearching] = useState(false);
@@ -84,7 +106,7 @@ export function PlacePicker({
       abortRef.current = controller;
       setSearching(true);
 
-      searchPlaces(accessToken, needle, sessionRef.current, controller.signal)
+      authed((token) => searchPlaces(token, needle, sessionRef.current, controller.signal))
         .then((found) => {
           if (controller.signal.aborted) {
             return;
@@ -114,13 +136,13 @@ export function PlacePicker({
     // `onUnavailable` est une callback du parent, stable en pratique ; la
     // remettre en dépendance relancerait une recherche à chaque rendu.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, value, accessToken]);
+  }, [query, value, authed]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const pick = (suggestion: PlaceSuggestion): void => {
     setResolving(suggestion.id);
-    retrievePlace(accessToken, suggestion.id, sessionRef.current)
+    authed((token) => retrievePlace(token, suggestion.id, sessionRef.current))
       .then((place) => {
         onChange(place);
         setResults([]);
@@ -136,7 +158,7 @@ export function PlacePicker({
   if (value) {
     return (
       <YStack gap="$2">
-        <FieldLabel text={t.club.pitch} />
+        <FieldLabel text={text.label} />
         {/*
           Volontairement SANS animation d'entrée.
 
@@ -271,7 +293,7 @@ export function PlacePicker({
 
   return (
     <YStack gap="$2">
-      <FieldLabel text={t.club.pitch} />
+      <FieldLabel text={text.label} />
 
       <MotiView
         animate={{
@@ -288,7 +310,7 @@ export function PlacePicker({
               setQuery(next);
               setTouched(true);
             }}
-            placeholder={t.club.pitchPlaceholder}
+            placeholder={text.placeholder}
             placeholderTextColor="rgba(169,196,184,0.5)"
             autoCapitalize="words"
             autoCorrect={false}
@@ -305,7 +327,7 @@ export function PlacePicker({
       </MotiView>
 
       <Text fontSize={13} color="$brandChalkDim">
-        {t.club.pitchHelp}
+        {text.help}
       </Text>
 
       {error ? (

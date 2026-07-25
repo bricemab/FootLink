@@ -51,6 +51,29 @@ class EnvironmentVariables {
   @IsString()
   GOOGLE_CLIENT_IDS?: string;
 
+  // --- Stockage média S3 (Cloudflare R2) ---
+  // Optionnels : sans eux, les uploads répondent 503 et le reste de l'app
+  // fonctionne. Ce sont de VRAIS secrets, jamais commités ni logués.
+  @IsOptional()
+  @IsString()
+  S3_ENDPOINT?: string;
+
+  @IsOptional()
+  @IsString()
+  S3_REGION?: string;
+
+  @IsOptional()
+  @IsString()
+  S3_ACCESS_KEY_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  S3_SECRET_ACCESS_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  S3_BUCKET?: string;
+
   // --- Mapbox (recherche de lieux ; sans lui, saisie manuelle) ---
   // Jeton PUBLIC (pk.…), conçu pour être exposé côté client. On le garde
   // néanmoins côté serveur : il n'est pas dans le binaire de l'app, donc le
