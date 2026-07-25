@@ -57,7 +57,14 @@ export function Stepper({
   );
 }
 
-/** Transition entre deux étapes : la sortante glisse à gauche, l'entrante arrive de droite. */
+/**
+ * Transition entre deux étapes : l'entrante arrive de la droite.
+ *
+ * ⚠️ Pas d'`opacity: 0` au départ, volontairement. Une animation qui ne se joue
+ * pas garde ses valeurs de départ : le contenu de l'étape restait alors
+ * totalement invisible (« écran vide »). Un simple glissement ne peut pas faire
+ * disparaître quoi que ce soit.
+ */
 export function StepTransition({
   stepKey,
   children,
@@ -68,8 +75,8 @@ export function StepTransition({
   return (
     <MotiView
       key={stepKey}
-      from={{ opacity: 0, translateX: 28 }}
-      animate={{ opacity: 1, translateX: 0 }}
+      from={{ translateX: 28 }}
+      animate={{ translateX: 0 }}
       transition={{ type: 'timing', duration: 280 }}
     >
       {children}

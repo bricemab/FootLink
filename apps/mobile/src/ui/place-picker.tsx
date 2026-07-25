@@ -329,8 +329,10 @@ export function PlacePicker({
       {results.map((place, index) => (
         <MotiView
           key={place.id}
-          from={{ opacity: 0, translateY: -6 }}
-          animate={{ opacity: 1, translateY: 0 }}
+          // Pas d'`opacity: 0` : une suggestion invisible ferait croire que la
+          // recherche n'a rien trouvé.
+          from={{ translateY: -6 }}
+          animate={{ translateY: 0 }}
           transition={{ type: 'timing', duration: 160, delay: index * 30 }}
         >
           <Pressable

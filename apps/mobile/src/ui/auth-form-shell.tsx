@@ -9,6 +9,14 @@ import { PitchBackdrop } from '@/ui/pitch-backdrop';
 /**
  * Enveloppe commune aux écrans d'authentification : titre animé, retour, et
  * gestion du clavier (sinon le bouton d'envoi passe sous le clavier iOS).
+ *
+ * ⚠️ Les animations d'entrée ci-dessous ne partent **jamais** d'`opacity: 0`.
+ * Une animation qui ne se joue pas laisse ses valeurs de départ en place : avec
+ * `opacity: 0`, le titre ET tout le formulaire devenaient invisibles, ne
+ * laissant que le stepper à l'écran — le fameux « écran vide » de l'étape 2,
+ * intermittent parce qu'il dépend de l'état du thread JS au montage. On glisse
+ * donc uniquement (`translateY`) : si l'animation manque, le contenu est
+ * simplement en place, jamais absent. Même règle que pour la carte du terrain.
  */
 export function AuthFormShell({
   title,
@@ -54,8 +62,8 @@ export function AuthFormShell({
             {header}
 
             <MotiView
-              from={{ opacity: 0, translateY: 18 }}
-              animate={{ opacity: 1, translateY: 0 }}
+              from={{ translateY: 18 }}
+              animate={{ translateY: 0 }}
               transition={{ type: 'timing', duration: 460 }}
             >
               <YStack gap="$2">
@@ -69,8 +77,8 @@ export function AuthFormShell({
             </MotiView>
 
             <MotiView
-              from={{ opacity: 0, translateY: 24 }}
-              animate={{ opacity: 1, translateY: 0 }}
+              from={{ translateY: 24 }}
+              animate={{ translateY: 0 }}
               transition={{ type: 'timing', duration: 460, delay: 120 }}
             >
               <YStack gap="$4">{children}</YStack>

@@ -26,8 +26,10 @@ export function FormBanner({
 
   return (
     <MotiView
-      from={{ opacity: 0, translateY: -8 }}
-      animate={{ opacity: 1, translateY: 0 }}
+      // Pas d'`opacity: 0` : un bandeau d'erreur qui reste invisible parce que
+      // son animation ne s'est pas jouée, c'est une erreur muette.
+      from={{ translateY: -8 }}
+      animate={{ translateY: 0 }}
       transition={{ type: 'timing', duration: 200 }}
     >
       <XStack

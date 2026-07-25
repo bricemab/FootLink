@@ -62,8 +62,10 @@ export function TextField({
           }}
         />
       </MotiView>
+      {/* Pas d'`opacity: 0` : un message d'erreur ne doit pas pouvoir rester
+          invisible si son animation ne se joue pas. */}
       {error ? (
-        <MotiView from={{ opacity: 0, translateY: -4 }} animate={{ opacity: 1, translateY: 0 }}>
+        <MotiView from={{ translateY: -4 }} animate={{ translateY: 0 }}>
           <Text fontSize={13} color="$brandDanger">
             {error}
           </Text>

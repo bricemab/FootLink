@@ -30,8 +30,10 @@ export default function ChooseRole(): ReactNode {
         {roles.map((role, index) => (
           <MotiView
             key={role.href}
-            from={{ opacity: 0, translateY: 16 }}
-            animate={{ opacity: 1, translateY: 0 }}
+            // Pas d'`opacity: 0` : ces cartes sont le seul contenu de l'écran,
+            // une animation qui ne se joue pas le rendrait vide.
+            from={{ translateY: 16 }}
+            animate={{ translateY: 0 }}
             transition={{ type: 'timing', duration: 380, delay: 80 * index }}
           >
             <Pressable

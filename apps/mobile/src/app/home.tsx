@@ -47,8 +47,9 @@ export default function Home(): ReactNode {
     <PitchBackdrop>
       <YStack flex={1} justifyContent="center" gap="$5">
         <MotiView
-          from={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
+          // Pas d'`opacity: 0` sur du contenu : cf. auth-form-shell.
+          from={{ scale: 0.9 }}
+          animate={{ scale: 1 }}
           transition={{ type: 'spring', damping: 15, stiffness: 160 }}
         >
           <YStack gap="$2">
@@ -65,8 +66,8 @@ export default function Home(): ReactNode {
         </MotiView>
 
         <MotiView
-          from={{ opacity: 0, translateY: 18 }}
-          animate={{ opacity: 1, translateY: 0 }}
+          from={{ translateY: 18 }}
+          animate={{ translateY: 0 }}
           transition={{ type: 'timing', duration: 460, delay: 160 }}
         >
           <YStack
