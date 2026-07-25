@@ -40,6 +40,12 @@ export const EMAIL_ALREADY_USED_CODE = 'EMAIL_ALREADY_USED';
  */
 export const ACCOUNT_IS_GOOGLE_CODE = 'ACCOUNT_IS_GOOGLE';
 
+/**
+ * Code stable pour le mobile : ce compte Google n'a aucune invitation de club,
+ * il n'a donc rien à faire dans l'entrée entraîneur.
+ */
+export const COACH_NOT_INVITED_CODE = 'COACH_NOT_INVITED';
+
 // Vue "qui suis-je" : lue depuis la DB (fraîche), jamais depuis le token.
 export interface MeResponse {
   id: string;
@@ -186,6 +192,74 @@ export class AuthService {
       throw new ForbiddenException('Account is not active.');
     }
     return this.tokens.issueTokens(user);
+  }
+
+  /**
+   * Entrée entraîneur par Google.
+   *
+   * Pourquoi un endpoint séparé de `/auth/google` : celui-ci **crée** un compte
+   * quand l'adresse est inconnue, ce qui est juste pour un joueur mais faux
+   * ici. Un entraîneur ne s'inscrit pas — son compte existe déjà, créé par son
+   * club. Passer par `/auth/google` fabriquait donc un compte joueur vide pour
+   * une adresse sans invitation, avant que l'app ne s'en aperçoive et le
+   * déconnecte : un orphelin en base à chaque tentative.
+   *
+   * Ici l'ordre est inversé : on vérifie l'invitation **d'abord**, et on
+   * n'écrit rien si elle manque.
+   *
+   * Révéler l'absence d'invitation ne fuite rien : le jeton Google prouve que
+   * l'appelant possède cette boîte mail, il n'apprend donc qu'une chose sur
+   * lui-même.
+   */
+  async googleCoachSignIn(dto: GoogleSignInDto): Promise<AuthTokens> {
+    const identity = await this.google.verify(dto.idToken);
+
+    // C'est l'ADRESSE qui identifie le compte : c'est elle que le club a saisie
+    // en créant son entraîneur, bien avant qu'un jeton Google n'existe.
+    const user = await this.users.findByEmail(identity.email);
+    const membership = user
+      ? await this.prisma.clubMember.findFirst({ where: { userId: user.id } })
+      : null;
+
+    if (!user || !membership) {
+      throw new ForbiddenException({
+        code: COACH_NOT_INVITED_CODE,
+        message: 'No club invitation exists for this Google account.',
+      });
+    }
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException('Account is not active.');
+    }
+
+    // Ce compte Google est-il déjà rattaché à un AUTRE compte FootLink ? Sans
+    // ce contrôle, l'écriture ci-dessous violerait l'unicité de `googleId` et
+    // partirait en 500.
+    const linkedElsewhere = await this.users.findByGoogleId(identity.googleId);
+    if (linkedElsewhere && linkedElsewhere.id !== user.id) {
+      throw new ForbiddenException({
+        code: COACH_NOT_INVITED_CODE,
+        message: 'This Google account is already linked to another account.',
+      });
+    }
+
+    // Google prouve la maîtrise de la boîte mail : l'email est validé du même
+    // geste, exactement comme le code à 6 chiffres.
+    const activated =
+      user.googleId === identity.googleId && user.emailVerifiedAt !== null
+        ? user
+        : await this.users.update(user.id, {
+            googleId: identity.googleId,
+            emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+          });
+
+    // L'invitation a rempli son office : on la brûle. La laisser vivante
+    // laisserait un code à 6 chiffres utilisable sur un compte déjà activé.
+    await this.prisma.token.updateMany({
+      where: { userId: user.id, type: TokenType.COACH_INVITE, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+
+    return this.tokens.issueTokens(activated);
   }
 
   async verifyEmail(token: string): Promise<void> {

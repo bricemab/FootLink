@@ -37,6 +37,16 @@ export function googleSignIn(idToken: string): Promise<AuthTokens> {
   return apiRequest<AuthTokens>('/auth/google', { method: 'POST', body: { idToken } });
 }
 
+/**
+ * Entrée entraîneur par Google. Endpoint distinct de `googleSignIn`, qui crée
+ * un compte pour une adresse inconnue : un entraîneur, lui, doit déjà avoir été
+ * enregistré par son club. Sans invitation, le serveur répond 403
+ * `COACH_NOT_INVITED` et **n'écrit rien**.
+ */
+export function googleCoachSignIn(idToken: string): Promise<AuthTokens> {
+  return apiRequest<AuthTokens>('/auth/google/coach', { method: 'POST', body: { idToken } });
+}
+
 /** Inscription par email : on prouve l'adresse avant de créer quoi que ce soit. */
 export function requestSignupCode(email: string, locale: AppLocale): Promise<void> {
   return apiRequest<void>('/auth/signup/request-code', {

@@ -62,6 +62,18 @@ export class AuthController {
     return this.auth.googleSignIn(dto);
   }
 
+  // Entrée entraîneur par Google. Distinct de `google` parce que celui-ci CRÉE
+  // un compte pour une adresse inconnue : juste pour un joueur, faux pour un
+  // entraîneur, dont le compte existe déjà (créé par son club). Ici
+  // l'invitation est vérifiée AVANT toute écriture — sans elle, 403
+  // COACH_NOT_INVITED et rien en base.
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('google/coach')
+  googleCoach(@Body() dto: GoogleSignInDto): Promise<AuthTokens> {
+    return this.auth.googleCoachSignIn(dto);
+  }
+
   @Public()
   @HttpCode(HttpStatus.OK)
   @Post('verify-email')

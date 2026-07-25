@@ -3,11 +3,9 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { coachEntryStep, resendCoachInvite, verifyCoachCode } from '@/api/auth';
-import { getMyClub } from '@/api/clubs';
 import { ApiError } from '@/api/client';
 import { useAuth } from '@/auth/auth-context';
 import { GoogleSignInError } from '@/auth/google-sign-in';
-import { loadTokens } from '@/auth/token-storage';
 import { useI18n } from '@/i18n';
 import { AuthFormShell } from '@/ui/auth-form-shell';
 import { toUserMessage } from '@/ui/error-message';
@@ -36,7 +34,7 @@ type Step = 'EMAIL' | 'CODE' | 'SET_PASSWORD' | 'PASSWORD' | 'GOOGLE_ONLY';
 export default function RegisterCoach(): ReactNode {
   const router = useRouter();
   const { t, fill } = useI18n();
-  const { acceptCoachInvite, signIn, signInWithGoogle, signOut } = useAuth();
+  const { acceptCoachInvite, signIn, signInWithGoogleAsCoach } = useAuth();
   const params = useLocalSearchParams<{ email?: string; code?: string }>();
 
   const [step, setStep] = useState<Step>('EMAIL');
@@ -172,26 +170,26 @@ export default function RegisterCoach(): ReactNode {
     }
   };
 
-  // --- Google : raccourci, mais l'adresse doit être celle du club ---------
+  /**
+   * Google : raccourci, mais l'adresse doit être celle que le club a saisie.
+   *
+   * C'est le SERVEUR qui tranche, via un endpoint dédié : il exige une
+   * invitation avant de créer la moindre session. L'app se contentait avant de
+   * se connecter puis d'interroger `/clubs/me` — ce qui laissait derrière elle
+   * un compte joueur vide pour chaque adresse non invitée, et n'affichait le
+   * refus qu'après trois allers-retours réseau.
+   */
   const withGoogle = async (): Promise<void> => {
     setBanner(undefined);
     setBusy(true);
     try {
-      await signInWithGoogle();
-      // Connecté, mais est-ce bien un entraîneur ? Sans club rattaché, c'est
-      // que l'adresse Google n'est pas celle que le club a enregistrée.
-      const tokens = await loadTokens();
-      const club = tokens ? await getMyClub(tokens.accessToken).catch(() => null) : null;
-      if (!club) {
-        // Le message d'abord — dès qu'on sait — puis la déconnexion en tâche de
-        // fond. Attendre l'aller-retour du logout avant d'afficher laissait
-        // l'écran muet plusieurs secondes : l'utilisateur croyait à un bug.
-        fail(t.coach.googleNotInvited);
-        void signOut();
-        return;
-      }
+      await signInWithGoogleAsCoach();
       router.replace('/');
     } catch (error) {
+      if (error instanceof ApiError && error.code === 'COACH_NOT_INVITED') {
+        fail(t.coach.googleNotInvited);
+        return;
+      }
       if (error instanceof GoogleSignInError) {
         if (error.reason === 'CANCELLED') {
           return;

@@ -24,6 +24,8 @@ interface AuthValue {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, locale: AppLocale) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  /** Google côté entraîneur : refusé (403) si aucun club n'a invité l'adresse. */
+  signInWithGoogleAsCoach: () => Promise<void>;
   acceptCoachInvite: (email: string, code: string, password: string) => Promise<void>;
   /** Adopte une session émise par un endpoint hors module auth (demande de club). */
   adoptSession: (tokens: AuthTokens) => Promise<void>;
@@ -150,6 +152,24 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     await reload();
   }, [adopt, reload]);
 
+  /**
+   * Entrée entraîneur par Google : le serveur exige une invitation de club et
+   * n'écrit rien s'il n'en trouve pas. En cas de refus, aucune session n'a été
+   * créée — il n'y a donc rien à déconnecter côté FootLink, seulement la session
+   * Google native à relâcher pour que l'utilisateur puisse choisir une autre
+   * adresse au clic suivant.
+   */
+  const signInWithGoogleAsCoach = useCallback(async () => {
+    const idToken = await getGoogleIdToken();
+    try {
+      await adopt(await authApi.googleCoachSignIn(idToken));
+    } catch (error) {
+      await googleSignOut().catch(() => undefined);
+      throw error;
+    }
+    await reload();
+  }, [adopt, reload]);
+
   const acceptCoachInvite = useCallback(
     async (email: string, code: string, password: string) => {
       await adopt(await authApi.acceptCoachInvite(email, code, password));
@@ -196,6 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       signIn,
       signUp,
       signInWithGoogle,
+      signInWithGoogleAsCoach,
       acceptCoachInvite,
       adoptSession,
       signOut,
@@ -209,6 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       signIn,
       signUp,
       signInWithGoogle,
+      signInWithGoogleAsCoach,
       acceptCoachInvite,
       adoptSession,
       signOut,

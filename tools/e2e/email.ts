@@ -67,6 +67,7 @@ interface ApiError {
   error?: { code?: string };
 }
 
+
 /** La règle elle-même, sans réseau : c'est là que vivent les cas limites. */
 function checkRule(): void {
   const same: [string, string][] = [
@@ -215,6 +216,23 @@ async function checkApi(secret: string): Promise<void> {
     googleLogin.body?.error?.code === 'ACCOUNT_IS_GOOGLE',
     googleLogin.body?.error?.code,
   );
+
+  // --- Entrée entraîneur par Google -----------------------------------------
+  // ⚠️ Couverture partielle, et c'est assumé : forger un jeton Google valide
+  // est impossible (le serveur le fait vérifier par Google). On contrôle donc
+  // seulement que l'endpoint existe, qu'il est public, et que la vérification
+  // du jeton passe AVANT tout le reste.
+  //
+  // Les deux comportements qui comptent — une adresse sans invitation est
+  // refusée SANS RIEN CRÉER, et un entraîneur invité est activé (Google lié,
+  // email validé, invitation brûlée) — se vérifient sur l'appareil avec un vrai
+  // compte Google. Fait le 25 juillet 2026 ; à refaire à la main si ce flux
+  // change.
+  const coachRoute = await call<ApiError>('/auth/google/coach', {
+    method: 'POST',
+    body: { idToken: 'jeton-invalide' },
+  });
+  check('entrée coach Google : jeton invalide -> 401', coachRoute.status === 401, coachRoute.status);
 
   // Une adresse inconnue reste une erreur GÉNÉRIQUE (pas d'énumération).
   const unknown = await call<ApiError>('/auth/login', {
