@@ -1,5 +1,4 @@
 import { useRouter } from 'expo-router';
-import { MotiView } from 'moti';
 import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView } from 'react-native';
 import { Text, YStack } from 'tamagui';
@@ -7,16 +6,15 @@ import { useI18n } from '@/i18n';
 import { PitchBackdrop } from '@/ui/pitch-backdrop';
 
 /**
- * Enveloppe commune aux écrans d'authentification : titre animé, retour, et
- * gestion du clavier (sinon le bouton d'envoi passe sous le clavier iOS).
+ * Enveloppe commune aux écrans d'authentification : titre, retour, et gestion
+ * du clavier (sinon le bouton d'envoi passe sous le clavier iOS).
  *
- * ⚠️ Les animations d'entrée ci-dessous ne partent **jamais** d'`opacity: 0`.
- * Une animation qui ne se joue pas laisse ses valeurs de départ en place : avec
- * `opacity: 0`, le titre ET tout le formulaire devenaient invisibles, ne
- * laissant que le stepper à l'écran — le fameux « écran vide » de l'étape 2,
- * intermittent parce qu'il dépend de l'état du thread JS au montage. On glisse
- * donc uniquement (`translateY`) : si l'animation manque, le contenu est
- * simplement en place, jamais absent. Même règle que pour la carte du terrain.
+ * ⚠️ **Aucune animation d'entrée ici**, et ce n'est pas un oubli. Sur ce stack,
+ * une animation d'entrée ne se joue pas toujours, et ses valeurs de départ
+ * persistent : `opacity: 0` laissait le titre et tout le formulaire invisibles
+ * (« écran vide »), `translateY` les laissait décalés. Toute valeur de départ
+ * différente de l'arrivée peut rester à l'écran — voir le commentaire de
+ * `StepTransition` pour le détail.
  */
 export function AuthFormShell({
   title,
@@ -61,28 +59,16 @@ export function AuthFormShell({
 
             {header}
 
-            <MotiView
-              from={{ translateY: 18 }}
-              animate={{ translateY: 0 }}
-              transition={{ type: 'timing', duration: 460 }}
-            >
-              <YStack gap="$2">
-                <Text fontSize={32} lineHeight={37} fontWeight="800" color="$brandChalk" letterSpacing={-0.6}>
-                  {title}
-                </Text>
-                <Text fontSize={16} lineHeight={22} color="$brandChalkDim">
-                  {subtitle}
-                </Text>
-              </YStack>
-            </MotiView>
+            <YStack gap="$2">
+              <Text fontSize={32} lineHeight={37} fontWeight="800" color="$brandChalk" letterSpacing={-0.6}>
+                {title}
+              </Text>
+              <Text fontSize={16} lineHeight={22} color="$brandChalkDim">
+                {subtitle}
+              </Text>
+            </YStack>
 
-            <MotiView
-              from={{ translateY: 24 }}
-              animate={{ translateY: 0 }}
-              transition={{ type: 'timing', duration: 460, delay: 120 }}
-            >
-              <YStack gap="$4">{children}</YStack>
-            </MotiView>
+            <YStack gap="$4">{children}</YStack>
           </YStack>
         </ScrollView>
       </KeyboardAvoidingView>

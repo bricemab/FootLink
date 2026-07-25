@@ -58,12 +58,19 @@ export function Stepper({
 }
 
 /**
- * Transition entre deux étapes : l'entrante arrive de la droite.
+ * Marque le contenu d'une étape. **Sans animation d'entrée**, volontairement.
  *
- * ⚠️ Pas d'`opacity: 0` au départ, volontairement. Une animation qui ne se joue
- * pas garde ses valeurs de départ : le contenu de l'étape restait alors
- * totalement invisible (« écran vide »). Un simple glissement ne peut pas faire
- * disparaître quoi que ce soit.
+ * Historique, pour ne pas refaire le tour : cette étape glissait depuis la
+ * droite avec un fondu. Sur ce stack (rendu logiciel de l'émulateur), une
+ * animation d'entrée ne se joue pas toujours — et ses valeurs de départ
+ * **persistent** alors :
+ *   - avec `opacity: 0` → contenu invisible, « écran vide » ;
+ *   - avec `translateX: 28` → contenu décalé de 28 px à droite, hors marge.
+ *
+ * Toute valeur de départ différente de l'arrivée peut donc rester à l'écran :
+ * le seul état de départ sûr est l'état final, autrement dit pas d'animation.
+ * On garde le composant pour la lisibilité des écrans (il nomme l'intention) et
+ * la `key`, qui force le remontage propre du contenu d'une étape à l'autre.
  */
 export function StepTransition({
   stepKey,
@@ -72,14 +79,5 @@ export function StepTransition({
   stepKey: string;
   children: ReactNode;
 }): ReactNode {
-  return (
-    <MotiView
-      key={stepKey}
-      from={{ translateX: 28 }}
-      animate={{ translateX: 0 }}
-      transition={{ type: 'timing', duration: 280 }}
-    >
-      {children}
-    </MotiView>
-  );
+  return <YStack key={stepKey}>{children}</YStack>;
 }

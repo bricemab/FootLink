@@ -27,15 +27,13 @@ export default function ChooseRole(): ReactNode {
   return (
     <AuthFormShell title={t.roles.title} subtitle={t.roles.subtitle}>
       <YStack gap="$3">
-        {roles.map((role, index) => (
-          <MotiView
-            key={role.href}
-            // Pas d'`opacity: 0` : ces cartes sont le seul contenu de l'écran,
-            // une animation qui ne se joue pas le rendrait vide.
-            from={{ translateY: 16 }}
-            animate={{ translateY: 0 }}
-            transition={{ type: 'timing', duration: 380, delay: 80 * index }}
-          >
+        {/* Pas d'animation d'entrée en cascade : ses valeurs de départ
+            persistent quand elle ne se joue pas (cf. `StepTransition`). Le
+            retour au toucher, lui, est déclenché par l'utilisateur et reste
+            animé — il part toujours de l'état courant, donc rien ne peut y
+            rester figé. */}
+        {roles.map((role) => (
+          <YStack key={role.href}>
             <Pressable
               onPress={() => router.push(role.href as Href)}
               accessibilityRole="button"
@@ -68,7 +66,7 @@ export default function ChooseRole(): ReactNode {
                 </MotiView>
               )}
             </Pressable>
-          </MotiView>
+          </YStack>
         ))}
       </YStack>
 

@@ -62,14 +62,12 @@ export function TextField({
           }}
         />
       </MotiView>
-      {/* Pas d'`opacity: 0` : un message d'erreur ne doit pas pouvoir rester
-          invisible si son animation ne se joue pas. */}
+      {/* Aucune animation d'entrée : un message d'erreur ne doit ni rester
+          invisible ni rester décalé. Cf. `StepTransition`. */}
       {error ? (
-        <MotiView from={{ translateY: -4 }} animate={{ translateY: 0 }}>
-          <Text fontSize={13} color="$brandDanger">
-            {error}
-          </Text>
-        </MotiView>
+        <Text fontSize={13} color="$brandDanger">
+          {error}
+        </Text>
       ) : null}
     </YStack>
   );

@@ -1,5 +1,4 @@
 import { useRouter } from 'expo-router';
-import { MotiView } from 'moti';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 import { getMyClub, type MyClubResponse } from '@/api/clubs';
@@ -46,13 +45,9 @@ export default function Home(): ReactNode {
   return (
     <PitchBackdrop>
       <YStack flex={1} justifyContent="center" gap="$5">
-        <MotiView
-          // Pas d'`opacity: 0` sur du contenu : cf. auth-form-shell.
-          from={{ scale: 0.9 }}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', damping: 15, stiffness: 160 }}
-        >
-          <YStack gap="$2">
+        {/* Aucune animation d'entrée : ses valeurs de départ persistent quand
+            elle ne se joue pas. Cf. `StepTransition`. */}
+        <YStack gap="$2">
             <Text fontSize={13} fontWeight="700" letterSpacing={3} color="$brandPitchBright">
               FOOTLINK
             </Text>
@@ -62,28 +57,21 @@ export default function Home(): ReactNode {
             <Text fontSize={16} lineHeight={22} color="$brandChalkDim">
               {pendingClub ? t.club.pendingBody : t.home.subtitle}
             </Text>
-          </YStack>
-        </MotiView>
+        </YStack>
 
-        <MotiView
-          from={{ translateY: 18 }}
-          animate={{ translateY: 0 }}
-          transition={{ type: 'timing', duration: 460, delay: 160 }}
+        <YStack
+          gap="$3"
+          padding="$4"
+          borderRadius={20}
+          backgroundColor="rgba(14,36,28,0.75)"
+          borderWidth={1}
+          borderColor="rgba(244,251,247,0.12)"
         >
-          <YStack
-            gap="$3"
-            padding="$4"
-            borderRadius={20}
-            backgroundColor="rgba(14,36,28,0.75)"
-            borderWidth={1}
-            borderColor="rgba(244,251,247,0.12)"
-          >
-            <InfoRow label={t.common.email} value={user?.email ?? '—'} />
-            <InfoRow label={t.home.role} value={user?.role ?? '—'} />
-            <InfoRow label={t.home.status} value={user?.status ?? '—'} />
-            {club ? <InfoRow label={club.club.name} value={club.club.status} /> : null}
-          </YStack>
-        </MotiView>
+          <InfoRow label={t.common.email} value={user?.email ?? '—'} />
+          <InfoRow label={t.home.role} value={user?.role ?? '—'} />
+          <InfoRow label={t.home.status} value={user?.status ?? '—'} />
+          {club ? <InfoRow label={club.club.name} value={club.club.status} /> : null}
+        </YStack>
 
         <PrimaryButton
           label={t.common.logout}

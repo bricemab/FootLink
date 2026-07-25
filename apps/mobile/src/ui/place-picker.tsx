@@ -326,15 +326,10 @@ export function PlacePicker({
         </Text>
       ) : null}
 
-      {results.map((place, index) => (
-        <MotiView
-          key={place.id}
-          // Pas d'`opacity: 0` : une suggestion invisible ferait croire que la
-          // recherche n'a rien trouvé.
-          from={{ translateY: -6 }}
-          animate={{ translateY: 0 }}
-          transition={{ type: 'timing', duration: 160, delay: index * 30 }}
-        >
+      {/* Aucune animation d'entrée : une suggestion invisible ou décalée
+          ferait croire que la recherche n'a rien trouvé. Cf. `StepTransition`. */}
+      {results.map((place) => (
+        <YStack key={place.id}>
           <Pressable
             accessibilityRole="button"
             disabled={resolving !== undefined}
@@ -367,7 +362,7 @@ export function PlacePicker({
               </XStack>
             )}
           </Pressable>
-        </MotiView>
+        </YStack>
       ))}
     </YStack>
   );

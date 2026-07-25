@@ -1,4 +1,3 @@
-import { MotiView } from 'moti';
 import type { ReactNode } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 import { CheckIcon, WarningIcon } from '@/ui/icons';
@@ -24,44 +23,38 @@ export function FormBanner({
 }): ReactNode {
   const c = TONES[tone];
 
+  // Aucune animation d'entrée : un bandeau d'erreur ne doit ni rester invisible
+  // ni rester décalé si l'animation ne se joue pas. Cf. `StepTransition`.
   return (
-    <MotiView
-      // Pas d'`opacity: 0` : un bandeau d'erreur qui reste invisible parce que
-      // son animation ne s'est pas jouée, c'est une erreur muette.
-      from={{ translateY: -8 }}
-      animate={{ translateY: 0 }}
-      transition={{ type: 'timing', duration: 200 }}
+    <XStack
+      alignItems="center"
+      gap="$3"
+      borderRadius={16}
+      paddingVertical="$3"
+      paddingHorizontal="$3.5"
+      backgroundColor={c.bg}
+      borderWidth={1}
+      borderColor={c.border}
     >
-      <XStack
+      {/* Pastille : l'icône y gagne un fond qui la détache du bandeau. */}
+      <YStack
+        width={30}
+        height={30}
+        borderRadius={15}
         alignItems="center"
-        gap="$3"
-        borderRadius={16}
-        paddingVertical="$3"
-        paddingHorizontal="$3.5"
-        backgroundColor={c.bg}
-        borderWidth={1}
-        borderColor={c.border}
+        justifyContent="center"
+        backgroundColor={tone === 'error' ? 'rgba(255,90,95,0.18)' : 'rgba(57,255,136,0.18)'}
       >
-        {/* Pastille : l'icône y gagne un fond qui la détache du bandeau. */}
-        <YStack
-          width={30}
-          height={30}
-          borderRadius={15}
-          alignItems="center"
-          justifyContent="center"
-          backgroundColor={tone === 'error' ? 'rgba(255,90,95,0.18)' : 'rgba(57,255,136,0.18)'}
-        >
-          {tone === 'error' ? (
-            <WarningIcon size={17} color={c.accent} />
-          ) : (
-            <CheckIcon size={16} color={c.accent} />
-          )}
-        </YStack>
+        {tone === 'error' ? (
+          <WarningIcon size={17} color={c.accent} />
+        ) : (
+          <CheckIcon size={16} color={c.accent} />
+        )}
+      </YStack>
 
-        <Text fontSize={14} lineHeight={19} color="$brandChalk" flexShrink={1} fontWeight="500">
-          {message}
-        </Text>
-      </XStack>
-    </MotiView>
+      <Text fontSize={14} lineHeight={19} color="$brandChalk" flexShrink={1} fontWeight="500">
+        {message}
+      </Text>
+    </XStack>
   );
 }
