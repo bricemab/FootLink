@@ -5,11 +5,12 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ClubMemberRole, Locale, TokenType, User, UserRole, UserStatus } from '@prisma/client';
+import { ClubMemberRole, ClubStatus, Locale, TokenType, User, UserRole, UserStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { randomBytes, randomInt } from 'node:crypto';
 import { splitToken } from '../common/utils/token.util';
 import { MailService } from '../mail/mail.service';
+import { MediaService } from '../media/media.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import {
@@ -23,8 +24,8 @@ import {
   VerifyCoachCodeDto,
   VerifySignupCodeDto,
 } from './dto/auth.dto';
-import { GoogleService } from './google.service';
-import { AuthTokens, TokenService } from './token.service';
+import { GoogleIdentity, GoogleService } from './google.service';
+import { AuthTokens, ProfileHints, TokenService } from './token.service';
 
 /**
  * Code stable pour le mobile. L'adresse est comparée sous sa forme normalisée
@@ -57,6 +58,34 @@ export interface MeResponse {
   hasPassword: boolean;
   hasGoogle: boolean;
   createdAt: string;
+  /**
+   * L'app s'en sert pour envoyer un joueur sans profil sur l'onboarding. Lu en
+   * base à chaque appel, comme le reste : le token ne porte pas cette info, qui
+   * change dès la première sauvegarde du profil.
+   */
+  hasPlayerProfile: boolean;
+  /** URL de lecture signée de la photo de la personne. `null` si aucune. */
+  avatarUrl: string | null;
+  /**
+   * Statut du club de la personne, `null` si elle n'en a aucun.
+   *
+   * Sert au routage : un CLUB_ADMIN sans club n'a pas encore envoyé sa demande,
+   * il doit finir le formulaire — pas atterrir sur l'accueil, et surtout pas sur
+   * l'onboarding joueur. Lu en base comme le reste, jamais depuis le token.
+   */
+  clubStatus: ClubStatus | null;
+}
+
+/**
+ * Indices de préremplissage tirés d'une identité Google, ou `undefined` si elle
+ * n'en porte aucun. Rien n'est stocké : ils accompagnent seulement la réponse
+ * d'authentification (cf. `ProfileHints`).
+ */
+function profileHintsFrom(identity: GoogleIdentity): ProfileHints | undefined {
+  if (identity.givenName === null && identity.familyName === null) {
+    return undefined;
+  }
+  return { firstName: identity.givenName, lastName: identity.familyName };
 }
 
 const EMAIL_VERIFY_TTL_HOURS = 24;
@@ -101,6 +130,7 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly mail: MailService,
     private readonly google: GoogleService,
+    private readonly media: MediaService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthTokens> {
@@ -165,6 +195,17 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('User not found.');
     }
+    // Deux lectures de plus, en parallèle : l'app a besoin des deux à chaque
+    // démarrage (routage vers l'onboarding, affichage de l'avatar), et un seul
+    // aller-retour vaut mieux que trois.
+    const [profile, avatarUrl, membership] = await Promise.all([
+      this.prisma.playerProfile.findUnique({ where: { userId }, select: { id: true } }),
+      this.media.readUrl(user.avatarKey),
+      this.prisma.clubMember.findFirst({
+        where: { userId },
+        select: { club: { select: { status: true } } },
+      }),
+    ]);
     return {
       id: user.id,
       email: user.email,
@@ -175,6 +216,9 @@ export class AuthService {
       hasPassword: user.passwordHash !== null,
       hasGoogle: user.googleId !== null,
       createdAt: user.createdAt.toISOString(),
+      hasPlayerProfile: profile !== null,
+      avatarUrl,
+      clubStatus: membership?.club.status ?? null,
     };
   }
 
@@ -198,7 +242,20 @@ export class AuthService {
     if (user.status !== UserStatus.ACTIVE) {
       throw new ForbiddenException('Account is not active.');
     }
-    return this.tokens.issueTokens(user);
+    /*
+     * Indices de préremplissage joints ICI seulement.
+     *
+     * C'est la seule entrée suivie d'un formulaire qui demande le nom de la
+     * personne (l'onboarding joueur). L'entrée entraîneur n'en a pas besoin —
+     * c'est le **club** qui a saisi son identité avant que le compte existe
+     * (`ClubMember.firstName`) — et l'entrée club demande le nom du CLUB, pas
+     * celui de son responsable.
+     */
+    const hints = profileHintsFrom(identity);
+    return {
+      ...(await this.tokens.issueTokens(user)),
+      ...(hints ? { profileHints: hints } : {}),
+    };
   }
 
   /**
@@ -313,6 +370,16 @@ export class AuthService {
       googleId: identity.googleId,
       emailVerifiedAt: new Date(),
       locale: dto.locale ?? Locale.FR,
+      // Rôle posé DÈS la création, et non à l'envoi de la demande de club.
+      //
+      // L'identité vient avant le club : entre les deux, le compte existait en
+      // `PLAYER` sans profil, donc indiscernable d'un joueur — le routage
+      // l'envoyait sur l'onboarding joueur, à qui on demandait son poste.
+      //
+      // Ce rôle n'accorde AUCUN droit à lui seul : toute action de club exige un
+      // `ClubMember` et un club `APPROVED` (cf. `clubs.service`). Il ne sert
+      // qu'à savoir quoi afficher ensuite.
+      role: UserRole.CLUB_ADMIN,
     });
     return this.tokens.issueTokens(user);
   }
@@ -628,12 +695,41 @@ export class AuthService {
    * rend le compte réutilisable. L'email est validé du même geste.
    */
   async verifySignupCode(dto: VerifySignupCodeDto): Promise<AuthTokens> {
+    return this.completeSignup(dto, UserRole.PLAYER);
+  }
+
+  /**
+   * Même chose, pour un compte créé par le parcours **club**.
+   *
+   * Endpoint distinct plutôt qu'un rôle envoyé par le client : c'est le chemin
+   * emprunté qui décide, pas une valeur au choix de l'appelant. Symétrique de
+   * `/auth/google/club`, déjà séparé de `/auth/google` pour la même raison.
+   *
+   * Aucune élévation de privilège possible : `requestSignupCode` refuse une
+   * adresse dont le compte a déjà un mot de passe ou un Google, donc seul un
+   * compte à moitié inscrit — sans données, sans profil — peut arriver ici, et
+   * son détenteur vient de prouver qu'il possède la boîte mail.
+   */
+  async verifyClubSignupCode(dto: VerifySignupCodeDto): Promise<AuthTokens> {
+    return this.completeSignup(dto, UserRole.CLUB_ADMIN);
+  }
+
+  private async completeSignup(dto: VerifySignupCodeDto, role: UserRole): Promise<AuthTokens> {
     const { user, tokenId } = await this.assertSignupCode(dto.email, dto.code);
 
     await this.prisma.token.update({ where: { id: tokenId }, data: { usedAt: new Date() } });
     const updated = await this.users.update(user.id, {
       passwordHash: await argon2.hash(dto.password),
       emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+      /*
+       * Le rôle ne s'écrit que sur un compte encore neutre.
+       *
+       * Un entraîneur créé par son club porte déjà `COACH` et n'a pas de mot de
+       * passe — il peut donc emprunter cette inscription, et écrire `PLAYER`
+       * par-dessus lui retirerait l'accès à ses équipes. Écrire `PLAYER` sur un
+       * compte déjà `PLAYER` est de toute façon sans effet.
+       */
+      ...(user.role === UserRole.PLAYER ? { role } : {}),
     });
     await this.tokens.revokeAllForUser(user.id);
     return this.tokens.issueTokens(updated);

@@ -11,6 +11,7 @@ import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { LinksModule } from './links/links.module';
 import { MailModule } from './mail/mail.module';
+import { MediaModule } from './media/media.module';
 import { AppConfigModule } from './modules/app-config/app-config.module';
 import { PlayersModule } from './players/players.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -32,6 +33,7 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     MailModule,
     AuthModule,
+    MediaModule,
     PlayersModule,
     ClubsModule,
     TeamsModule,

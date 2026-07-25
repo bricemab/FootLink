@@ -130,7 +130,23 @@ export class ClubsService {
       club: member.club,
       membership: { role: member.role, isOwner: member.isOwner },
       canOperate: member.club.status === ClubStatus.APPROVED,
+      /*
+       * Vue satellite du terrain, fabriquée ICI et non côté app.
+       *
+       * L'URL porte le jeton Mapbox : la construire côté client obligerait à lui
+       * livrer ce jeton. `null` quand le club n'a pas de point (repli sur une
+       * localité saisie à la main) ou quand Mapbox n'est pas configuré.
+       */
+      aerialUrl: this.aerialUrlOf(member.club.lat, member.club.lng),
     };
+  }
+
+  private aerialUrlOf(lat: Prisma.Decimal | null, lng: Prisma.Decimal | null): string | null {
+    if (lat === null || lng === null) {
+      return null;
+    }
+    const url = this.places.aerialUrl(lat.toNumber(), lng.toNumber());
+    return url.length > 0 ? url : null;
   }
 
   // Contexte club de l'utilisateur authentifié. requireApproved = garde d'accès

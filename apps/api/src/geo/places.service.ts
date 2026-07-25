@@ -200,15 +200,29 @@ export class PlacesService {
     // Repli gratuit : même session, donc toujours une seule session facturée.
     const merged = needsFallback ? [...(await this.suggest(stripped, session)), ...asTyped] : asTyped;
 
-    const seen = new Set<string>();
-    return merged
-      .filter((item) => (seen.has(item.id) ? false : seen.add(item.id)))
-      // Un lieu nommé est presque toujours ce qu'on cherche ; une rue n'est
-      // qu'un repli. Tri stable, donc l'ordre de Mapbox est conservé à
-      // l'intérieur de chaque groupe.
-      .sort((a, b) => Number(b.kind === 'poi') - Number(a.kind === 'poi'))
-      .slice(0, 6)
-      .map(({ id, label, context }) => ({ id, label, context }));
+    const seenIds = new Set<string>();
+    const seenLabels = new Set<string>();
+    return (
+      merged
+        .filter((item) => (seenIds.has(item.id) ? false : seenIds.add(item.id)))
+        // Un lieu nommé est presque toujours ce qu'on cherche ; une rue n'est
+        // qu'un repli. Tri stable, donc l'ordre de Mapbox est conservé à
+        // l'intérieur de chaque groupe.
+        .sort((a, b) => Number(b.kind === 'poi') - Number(a.kind === 'poi'))
+        /*
+          Dédoublonnage sur ce qui est AFFICHÉ, pas sur l'identifiant.
+          Mapbox donne un `mapbox_id` distinct à la commune, à la localité et au
+          code postal du même nom : « Grimisuat » sortait quatre fois, avec le
+          même contexte « Suisse ». Quatre lignes identiques ne se choisissent
+          pas. Après le tri, donc on garde la mieux classée du groupe.
+        */
+        .filter((item) => {
+          const key = `${fold(item.label)}|${fold(item.context)}`;
+          return seenLabels.has(key) ? false : seenLabels.add(key);
+        })
+        .slice(0, 6)
+        .map(({ id, label, context }) => ({ id, label, context }))
+    );
   }
 
   private async suggest(

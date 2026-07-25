@@ -7,11 +7,28 @@ import { randomBytes } from 'node:crypto';
 import { splitToken } from '../common/utils/token.util';
 import { PrismaService } from '../prisma/prisma.service';
 
+/**
+ * Prénom et nom annoncés par le fournisseur d'identité, pour **préremplir** un
+ * formulaire — jamais pour décider quoi que ce soit.
+ *
+ * Volontairement transportés dans la réponse d'authentification et **non
+ * stockés** : ils ne servent qu'à l'onboarding qui suit immédiatement, et les
+ * garder en base reviendrait à conserver des données personnelles dont le
+ * fonctionnement n'a pas besoin (minimisation, AGENTS §10). Corollaire assumé :
+ * si l'app redémarre avant l'onboarding, les champs sont simplement vides.
+ */
+export interface ProfileHints {
+  firstName: string | null;
+  lastName: string | null;
+}
+
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
   tokenType: 'Bearer';
   expiresIn: number; // durée de vie de l'access token (secondes)
+  /** Présent seulement quand l'entrée par Google en a fourni. */
+  profileHints?: ProfileHints;
 }
 
 type TokenSubject = Pick<User, 'id' | 'role' | 'email'>;

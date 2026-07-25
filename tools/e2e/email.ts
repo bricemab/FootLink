@@ -197,6 +197,65 @@ async function checkApi(secret: string): Promise<void> {
   });
   check('le check ne consomme pas le jeton (verify-code -> 201)', consume.status === 201, consume.status);
 
+  // --- Le chemin emprunté décide du rôle -----------------------------------
+  // Décision : le compte créé par le parcours club naît CLUB_ADMIN, pour que le
+  // routage cesse d'envoyer son créateur sur l'onboarding joueur (on ne demande
+  // ni âge ni poste à quelqu'un qui inscrit un club). Le rôle n'accorde rien à
+  // lui seul : toute action de club exige un ClubMember et un club APPROVED.
+  const clubUserId = `e2eclub${RUN}`;
+  const clubEmail = `clubsignup-${RUN}@${DOMAIN}`;
+  // `Token.tokenHash` est unique : on rehashe le MÊME code plutôt que de
+  // réutiliser l'empreinte. argon2 tire un sel neuf à chaque appel, donc deux
+  // empreintes du même code diffèrent.
+  const clubCodeHash = await argon2.hash(knownCode);
+  sql(
+    `INSERT INTO \`User\` (id,email,role,status,locale,createdAt,updatedAt)
+     VALUES ('${clubUserId}','${clubEmail}','PLAYER','ACTIVE','FR',NOW(),NOW());`,
+  );
+  sql(
+    `INSERT INTO \`Token\` (id,type,userId,tokenHash,attempts,expiresAt,createdAt)
+     VALUES ('tokc${RUN}','EMAIL_VERIFY','${clubUserId}','${clubCodeHash}',0,
+             DATE_ADD(NOW(), INTERVAL 1 HOUR),NOW());`,
+  );
+  const clubSignup = await call<{ accessToken: string }>('/auth/signup/verify-code/club', {
+    method: 'POST',
+    body: { email: clubEmail, code: knownCode, password: 'FootLink2026' },
+  });
+  check('inscription par le chemin club -> 201', clubSignup.status === 201, clubSignup.status);
+  const clubMe = await call<{ role: string; clubStatus: string | null }>('/auth/me', {
+    token: clubSignup.body?.accessToken ?? '',
+  });
+  check('le compte naît CLUB_ADMIN', clubMe.body?.role === 'CLUB_ADMIN', clubMe.body?.role);
+  check(
+    'sans club, clubStatus vaut null (le routage renverra au formulaire)',
+    clubMe.body?.clubStatus === null,
+    clubMe.body?.clubStatus,
+  );
+
+  // Et l'inscription générique ne RÉTROGRADE pas un rôle déjà attribué. Un
+  // entraîneur créé par son club porte COACH et n'a pas de mot de passe : il peut
+  // donc passer par ici, et écrire PLAYER par-dessus lui fermerait ses équipes.
+  const coachUserId = `e2ekeep${RUN}`;
+  const coachEmail = `keeprole-${RUN}@${DOMAIN}`;
+  const coachCodeHash = await argon2.hash(knownCode);
+  sql(
+    `INSERT INTO \`User\` (id,email,role,status,locale,createdAt,updatedAt)
+     VALUES ('${coachUserId}','${coachEmail}','COACH','ACTIVE','FR',NOW(),NOW());`,
+  );
+  sql(
+    `INSERT INTO \`Token\` (id,type,userId,tokenHash,attempts,expiresAt,createdAt)
+     VALUES ('tokk${RUN}','EMAIL_VERIFY','${coachUserId}','${coachCodeHash}',0,
+             DATE_ADD(NOW(), INTERVAL 1 HOUR),NOW());`,
+  );
+  const keepRole = await call<{ accessToken: string }>('/auth/signup/verify-code', {
+    method: 'POST',
+    body: { email: coachEmail, code: knownCode, password: 'FootLink2026' },
+  });
+  const keepMe = await call<{ role: string }>('/auth/me', {
+    token: keepRole.body?.accessToken ?? '',
+  });
+  check('un COACH qui s inscrit reste COACH', keepMe.body?.role === 'COACH', keepMe.body?.role);
+
   // --- Login sur un compte Google : on le dit --------------------------------
   // Compte avec googleId mais SANS mot de passe : se connecter par mot de passe
   // doit renvoyer un code dédié, pas l'erreur générique.
@@ -257,10 +316,21 @@ async function checkApi(secret: string): Promise<void> {
   // Rattaché en CLUB_ADMIN : toujours pas un entraîneur. C'est le cas signalé
   // par Brice — son compte club s'entendait répondre « connecte-toi avec
   // Google » comme s'il était l'entraîneur attendu.
-  const anyClub = `SELECT id FROM \`Club\` LIMIT 1`;
+  // Club créé ICI, et non emprunté à la base.
+  //
+  // Ce bloc lisait `SELECT id FROM Club LIMIT 1` : sur une base vraiment vide, le
+  // sous-select ne rend rien, l'INSERT pose zéro ligne, et les deux contrôles qui
+  // suivent perdent leur sens — celui du CLUB_ADMIN passait **à vide** (aucune
+  // appartenance à trouver) et celui du COACH échouait. Un test qui dépend de
+  // données laissées par une session précédente ne vérifie rien de fiable.
+  const fixtureClubId = `clb${RUN}`;
+  sql(
+    `INSERT INTO \`Club\` (id,name,updatedAt)
+     VALUES ('${fixtureClubId}', '${CLUB_NAME} fixture', NOW());`,
+  );
   sql(
     `INSERT INTO \`ClubMember\` (id,clubId,userId,role,isOwner)
-     SELECT 'cma${RUN}', id, '${plainId}', 'CLUB_ADMIN', 0 FROM (${anyClub}) c;`,
+     VALUES ('cma${RUN}', '${fixtureClubId}', '${plainId}', 'CLUB_ADMIN', 0);`,
   );
   const asAdmin = await call<{ step: string }>('/auth/coach-invite/status', {
     method: 'POST',
