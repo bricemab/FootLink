@@ -17,7 +17,7 @@ import { useI18n } from '@/i18n';
 import { AppScreen, Badge, Card } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
-import { CoachIcon, ChevronIcon, StadiumIcon } from '@/ui/icons';
+import { CoachIcon, ChevronIcon, EyeIcon, StadiumIcon } from '@/ui/icons';
 import { PlacePicker } from '@/ui/place-picker';
 import { RegionPicker } from '@/ui/region-picker';
 import { PrimaryButton } from '@/ui/primary-button';
@@ -431,6 +431,25 @@ export default function ClubConfig(): ReactNode {
               </Text>
             </Card>
           ) : null}
+
+          {/* L'apercu est ici, en DERNIER, et plus dans la barre du bas : c'est
+              une verification qu'on fait juste apres avoir modifie sa fiche,
+              donc au bout de l'ecran qu'on vient de remplir. Ce n'est pas un
+              endroit ou l'on va, et la barre n'a que cinq places. */}
+          <Card onPress={() => router.push('/club/preview')}>
+            <XStack alignItems="center" justifyContent="space-between" gap="$3">
+              <XStack alignItems="center" gap="$2.5" flexShrink={1}>
+                <EyeIcon size={20} />
+                <Text fontSize={16} fontWeight="700" color="$brandChalk" flexShrink={1}>
+                  {t.clubSpace.previewCard}
+                </Text>
+              </XStack>
+              <ChevronIcon direction="right" />
+            </XStack>
+            <Text fontSize={13.5} color="$brandChalkDim">
+              {t.clubSpace.previewHint}
+            </Text>
+          </Card>
         </>
       ) : null}
     </AppScreen>

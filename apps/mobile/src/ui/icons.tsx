@@ -3,6 +3,7 @@ import { CaretDownIcon } from 'phosphor-react-native/src/icons/CaretDown';
 import { EyeIcon as PhEye } from 'phosphor-react-native/src/icons/Eye';
 import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
 import { CheckIcon as PhCheck } from 'phosphor-react-native/src/icons/Check';
+import { MegaphoneIcon as PhMegaphone } from 'phosphor-react-native/src/icons/Megaphone';
 import { SoccerBallIcon } from 'phosphor-react-native/src/icons/SoccerBall';
 import { StrategyIcon } from 'phosphor-react-native/src/icons/Strategy';
 import { UsersThreeIcon } from 'phosphor-react-native/src/icons/UsersThree';
@@ -68,6 +69,22 @@ export function TeamsIcon({
   color?: string;
 }): ReactNode {
   return <UsersThreeIcon size={size} color={color} weight="duotone" />;
+}
+
+/**
+ * Annonces : un porte-voix.
+ *
+ * Pas une feuille ni un dossier : une annonce n'est pas un document qu'on
+ * range, c'est un appel qu'on lance à des joueurs qu'on ne connaît pas encore.
+ */
+export function MegaphoneIcon({
+  size = 28,
+  color = ACCENT,
+}: {
+  size?: number;
+  color?: string;
+}): ReactNode {
+  return <PhMegaphone size={size} color={color} weight="duotone" />;
 }
 
 /** Aperçu : ce que verront les autres. */

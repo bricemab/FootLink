@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useI18n } from '@/i18n';
 import { ClubHeader } from '@/ui/club-header';
 import { GlassSurface, TAB_BAR_HEIGHT } from '@/ui/glass';
-import { EyeIcon, StadiumIcon, TeamsIcon } from '@/ui/icons';
+import { MegaphoneIcon, StadiumIcon, TeamsIcon } from '@/ui/icons';
 
 /**
  * Espace club : un bandeau de contexte en haut, des destinations en bas.
@@ -19,19 +19,27 @@ import { EyeIcon, StadiumIcon, TeamsIcon } from '@/ui/icons';
  * comme cinquième onglet) ferait perdre le contexte dès qu'on en sort.
  *
  * **La barre porte la structure DEFINITIVE, pas celle du moment.** Club,
- * Équipes, Aperçu aujourd'hui ; Joueurs et Messages s'inséreront entre Équipes
- * et Aperçu sans rien déplacer de ce que l'utilisateur aura appris. C'est tout
- * l'intérêt de ne pas remplir la barre avec ce qui existe : on la remplit avec
- * ce qui restera.
+ * Équipes, Annonces aujourd'hui ; Joueurs et Messages s'inséreront après sans
+ * rien déplacer de ce que l'utilisateur aura appris. C'est tout l'intérêt de ne
+ * pas remplir la barre avec ce qui existe : on la remplit avec ce qui restera.
+ * Cinq destinations au maximum — au-delà, les libellés se tronquent et la barre
+ * devient un menu qu'on lit au lieu d'un repère qu'on reconnaît.
  *
- * Deux conséquences de ce choix :
+ * Trois conséquences de ce choix :
  *
  * - **`Entraîneurs` n'est pas un onglet** : on ajoute un entraîneur une fois par
  *   saison. C'est de l'administration, donc ça vit dans l'onglet `Club`, atteint
  *   par un appui depuis sa configuration.
- * - **Les annonces n'en seront pas un non plus** : une annonce appartient à une
- *   **équipe**, elle vivra donc dans le détail de l'équipe. Un onglet `Annonces`
- *   obligerait à redemander « laquelle ? » à chaque fois.
+ * - **`Annonces` en est un**, alors que l'inverse avait été tranché au départ.
+ *   L'argument d'alors — une annonce appartient à une équipe — portait sur la
+ *   **création**, et il tient toujours : le formulaire demande l'équipe. Mais on
+ *   **consulte** ses annonces bien plus souvent qu'on n'en crée, et « ce que mon
+ *   club cherche » est une question de club. Les enfermer dans une équipe
+ *   imposait deux écrans à chaque fois.
+ * - **`Aperçu` n'en est plus un** : c'est une vérification qu'on fait juste
+ *   après avoir modifié sa fiche, pas un endroit où l'on va. Il est devenu une
+ *   carte de l'onglet `Club`, à côté de ce qu'il sert à contrôler — et il libère
+ *   la place pour `Messages`.
  *
  * ⚠️ **Aucun onglet vide** : Joueurs et Messages n'ont pas d'API. Un onglet qui
  * mène au néant est pire que pas d'onglet.
@@ -109,18 +117,18 @@ export default function ClubLayout(): ReactNode {
             tabBarIcon: ({ color }) => <TeamsIcon size={24} color={asColor(color)} />,
           }}
         />
-        {/* Routes atteintes depuis ailleurs : `coaches` depuis l'onglet Club,
-            `listings` depuis une équipe. `href: null` les retire de la barre
-            sans les retirer de la navigation. */}
-        <Tabs.Screen name="coaches" options={{ href: null }} />
-        <Tabs.Screen name="listings" options={{ href: null }} />
         <Tabs.Screen
-          name="preview"
+          name="listings"
           options={{
-            title: t.clubSpace.tabPreview,
-            tabBarIcon: ({ color }) => <EyeIcon size={24} color={asColor(color)} />,
+            title: t.clubSpace.tabListings,
+            tabBarIcon: ({ color }) => <MegaphoneIcon size={24} color={asColor(color)} />,
           }}
         />
+        {/* Routes atteintes depuis l'onglet Club : `coaches` et `preview`.
+            `href: null` les retire de la barre sans les retirer de la
+            navigation. */}
+        <Tabs.Screen name="coaches" options={{ href: null }} />
+        <Tabs.Screen name="preview" options={{ href: null }} />
       </Tabs>
     </View>
   );

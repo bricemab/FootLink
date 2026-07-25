@@ -1,4 +1,5 @@
 import { categoryLabel, regionForCanton } from '@footlink/shared';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Image } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
@@ -29,6 +30,7 @@ import { StadiumIcon } from '@/ui/icons';
  * ne peut pas montrer autre chose que ce qui est enregistré.
  */
 export default function ClubPreview(): ReactNode {
+  const router = useRouter();
   const { t, locale } = useI18n();
   const { authed } = useAuth();
 
@@ -67,7 +69,9 @@ export default function ClubPreview(): ReactNode {
     <AppScreen
       title={t.clubSpace.previewTitle}
       subtitle={t.clubSpace.previewSubtitle}
-      allowStackBack={false}
+      // Atteint depuis la configuration, plus depuis la barre : le retour y
+      // ramène, et il doit exister — un écran sans issue enferme.
+      onBack={() => router.replace('/club')}
       onRefresh={() => void load()}
       refreshing={loading}
     >

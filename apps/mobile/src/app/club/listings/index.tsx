@@ -1,7 +1,7 @@
-import { posteLabel } from '@footlink/shared';
+import { categoryLabel, posteLabel } from '@footlink/shared';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { listMyListings, type Listing } from '@/api/listings';
 import { useAuth } from '@/auth/auth-context';
@@ -13,21 +13,28 @@ import { statusLabel, statusTone } from '@/ui/listing-status';
 import { PrimaryButton } from '@/ui/primary-button';
 
 /**
- * Annonces d'une équipe.
+ * Annonces du club.
  *
- * Elles vivent **dans l'équipe** et non dans un onglet à part : une annonce
- * appartient à une équipe, et un onglet global obligerait à redemander
- * « laquelle ? » à chaque création.
+ * 🔴 **C'est un onglet, et la liste est globale par défaut.** Elle vivait avant
+ * uniquement dans le détail d'une équipe, au motif qu'une annonce appartient à
+ * une équipe. C'était confondre **à quoi une annonce appartient** et **comment
+ * on y accède** : consulter « ce que mon club cherche » est une question de
+ * club, pas d'équipe, et l'y enfermer imposait de traverser deux écrans pour
+ * une chose qu'on regarde souvent.
  *
- * La liste est filtrée par le serveur selon le rôle — un entraîneur ne voit que
- * ses équipes. L'app ne filtre rien.
+ * Le `teamId` reste accepté en paramètre — l'arrivée depuis une équipe filtre
+ * alors la liste, et le dit. Sans lui, tout le club.
+ *
+ * Le filtrage par rôle est fait par le serveur : un entraîneur ne reçoit que
+ * ses équipes assignées. L'app ne filtre rien, elle ne saurait pas le faire de
+ * façon fiable.
  */
-export default function TeamListings(): ReactNode {
+export default function ClubListings(): ReactNode {
   const router = useRouter();
   // `teamId` en paramètre de requête : les annonces vivent dans leur propre
   // pile, pas sous `teams/[id]/` — `[id].tsx` et `[id]/` entreraient en conflit
   // dans expo-router.
-  const { teamId } = useLocalSearchParams<{ teamId: string }>();
+  const { teamId } = useLocalSearchParams<{ teamId?: string }>();
   const { t, fill, locale } = useI18n();
   const { authed } = useAuth();
 
@@ -36,13 +43,10 @@ export default function TeamListings(): ReactNode {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async (): Promise<void> => {
-    if (!teamId) {
-      return;
-    }
     setBanner(undefined);
     setLoading(true);
     try {
-      setListings(await authed((token) => listMyListings(token, { teamId })));
+      setListings(await authed((token) => listMyListings(token, teamId ? { teamId } : {})));
     } catch (error) {
       setBanner(toUserMessage(error, t));
     } finally {
@@ -54,15 +58,41 @@ export default function TeamListings(): ReactNode {
     void load();
   }, [load]);
 
+  const filtered = teamId !== undefined;
+
   return (
     <AppScreen
       title={t.listings.title}
-      subtitle={t.listings.subtitle}
-      onBack={() => router.replace({ pathname: '/club/teams/[id]', params: { id: teamId } })}
+      subtitle={filtered ? t.listings.subtitle : t.listings.allSubtitle}
+      /*
+        Retour seulement quand on vient d'une équipe. En onglet, l'écran est une
+        racine : un « Retour » y renverrait vers l'écran précédent d'une pile
+        que l'utilisateur n'a pas conscience d'avoir empilée.
+      */
+      {...(filtered
+        ? { onBack: () => router.replace({ pathname: '/club/teams/[id]', params: { id: teamId } }) }
+        : { allowStackBack: false })}
       onRefresh={() => void load()}
       refreshing={loading}
     >
       {banner ? <FormBanner message={banner} /> : null}
+
+      {/* Une liste filtrée qui ne le dit pas se lit comme une liste vide. */}
+      {filtered ? (
+        <XStack alignItems="center" justifyContent="space-between" gap="$3" flexWrap="wrap">
+          <Text fontSize={13.5} color="$brandChalkDim">
+            {t.listings.filteredByTeam}
+          </Text>
+          <Pressable
+            onPress={() => router.replace('/club/listings')}
+            accessibilityRole="button"
+          >
+            <Text fontSize={13.5} fontWeight="700" color="$brandPitchBright">
+              {t.listings.showAll}
+            </Text>
+          </Pressable>
+        </XStack>
+      ) : null}
 
       {listings === undefined && loading ? (
         <YStack paddingVertical="$6" alignItems="center">
@@ -71,7 +101,7 @@ export default function TeamListings(): ReactNode {
       ) : null}
 
       {listings !== undefined && listings.length === 0 ? (
-        <EmptyState text={t.listings.empty} />
+        <EmptyState text={filtered ? t.listings.empty : t.listings.allEmpty} />
       ) : null}
 
       {listings?.map((listing) => (
@@ -86,6 +116,15 @@ export default function TeamListings(): ReactNode {
             </Text>
             <Badge label={statusLabel(listing.status, t)} tone={statusTone(listing.status)} />
           </XStack>
+
+          {/*
+            L'équipe, toujours — y compris en liste filtrée. Sans elle, deux
+            annonces « Gardien » de deux équipes seraient indiscernables, et
+            c'est justement le risque qu'ouvre une liste globale.
+          */}
+          <Text fontSize={13.5} fontWeight="700" color="$brandPitchBright">
+            {listing.team.name ?? categoryLabel(listing.team.category, locale)}
+          </Text>
 
           {listing.secondaryPostes.length > 0 ? (
             <Text fontSize={13.5} color="$brandChalkDim">
@@ -110,7 +149,13 @@ export default function TeamListings(): ReactNode {
 
       <PrimaryButton
         label={t.listings.add}
-        onPress={() => router.push({ pathname: '/club/listings/new', params: { teamId } })}
+        onPress={() =>
+          router.push(
+            teamId
+              ? { pathname: '/club/listings/new', params: { teamId } }
+              : '/club/listings/new',
+          )
+        }
       />
     </AppScreen>
   );
