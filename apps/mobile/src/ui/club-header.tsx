@@ -6,7 +6,7 @@ import { getMyClub, type MyClubResponse } from '@/api/clubs';
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
 import { Badge } from '@/ui/app-screen';
-import { GlassSurface } from '@/ui/glass';
+import { GlassSurface, glassSupport } from '@/ui/glass';
 import { StadiumIcon } from '@/ui/icons';
 
 /**
@@ -95,6 +95,7 @@ export function ClubHeader(): ReactNode {
           </YStack>
 
           {!approved ? <Badge label={t.clubSpace.statusPending} tone="warning" /> : null}
+          <GlassProbe />
         </XStack>
       </GlassSurface>
 
@@ -112,5 +113,28 @@ export function ClubHeader(): ReactNode {
       */}
       <YStack height={18} />
     </>
+  );
+}
+
+/**
+ * ⚠️ **Relevé temporaire, à retirer.** Il dit lequel des deux garde-fous du
+ * Liquid Glass refuse, sur l'appareil de Brice — impossible à savoir d'ici, et
+ * deviner aurait coûté plusieurs allers-retours.
+ *
+ * Lecture : `LG` = `isLiquidGlassAvailable()` (l'app adopte le design iOS 26),
+ * `API` = `isGlassEffectAPIAvailable()` (l'API existe vraiment à l'exécution).
+ * `-/-` sur Android, c'est normal : le paquet est iOS seulement.
+ *
+ * Sous `__DEV__` : jamais visible dans un build de production.
+ */
+function GlassProbe(): ReactNode {
+  if (!__DEV__) {
+    return null;
+  }
+  const { liquid, api } = glassSupport();
+  return (
+    <Text fontSize={10} fontWeight="700" color={liquid && api ? '$brandPitchBright' : '#FFC14D'}>
+      {`LG ${liquid ? 'ok' : 'non'} / API ${api ? 'ok' : 'non'}`}
+    </Text>
   );
 }

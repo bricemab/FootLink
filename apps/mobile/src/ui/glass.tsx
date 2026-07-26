@@ -55,8 +55,34 @@ const BORDER = 'rgba(57,255,136,0.16)';
  */
 export const TAB_BAR_HEIGHT = 68;
 
-/** Vrai quand la plateforme rend le matériau natif d'Apple. */
-export const liquidGlass = isLiquidGlassAvailable() && isGlassEffectAPIAvailable();
+/**
+ * Vrai quand la plateforme rend le matériau natif d'Apple.
+ *
+ * 🔴 **Évalué au premier appel, pas au chargement du module.** C'était un
+ * `export const` de premier niveau : les deux fonctions passent par
+ * `requireNativeModule('ExpoGlassEffect')`, donc la capacité était lue une seule
+ * fois au démarrage de l'app — avant que le module natif soit forcément
+ * enregistré — et le résultat restait figé pour toute la session. Un `false`
+ * accidentel a cet instant condamnait le verre jusqu'au prochain lancement.
+ *
+ * Le résultat reste mis en cache après le premier appel : ces valeurs ne
+ * changent pas en cours de session, et le paquet les mémorise déjà de son côté.
+ */
+let glassCache: { liquid: boolean; api: boolean } | undefined;
+
+export function glassSupport(): { liquid: boolean; api: boolean } {
+  if (glassCache === undefined) {
+    // `try` parce que ces fonctions LÈVENT si le module natif est absent — le cas
+    // d'un client de développement construit avant son ajout. Sans ce filet, tout
+    // écran qui importe ce fichier casse.
+    try {
+      glassCache = { liquid: isLiquidGlassAvailable(), api: isGlassEffectAPIAvailable() };
+    } catch {
+      glassCache = { liquid: false, api: false };
+    }
+  }
+  return glassCache;
+}
 
 export function GlassSurface({
   children,
@@ -68,6 +94,9 @@ export function GlassSurface({
   intensity?: number;
   edge?: 'top' | 'bottom' | 'none';
 }): ReactNode {
+  const { liquid, api } = glassSupport();
+  const liquidGlass = liquid && api;
+
   return (
     <View style={styles.container}>
       {/*
