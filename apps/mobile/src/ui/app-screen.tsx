@@ -4,7 +4,7 @@ import { Pressable, RefreshControl, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, XStack, YStack } from 'tamagui';
 import { useI18n } from '@/i18n';
-import { PitchBackdrop } from '@/ui/pitch-backdrop';
+import { PitchBackdrop, useInsideChrome } from '@/ui/pitch-backdrop';
 
 /**
  * Enveloppe des écrans d'application : titre, retour, défilement.
@@ -55,13 +55,16 @@ export function AppScreen({
   /*
    * Respiration en bas de page.
    *
-   * La barre d'onglets occupe sa propre place depuis qu'elle ne flotte plus :
-   * il n'y a donc plus rien a compenser, seulement a eviter que le dernier
-   * element ne colle a elle. `insets.bottom` couvre les ecrans sans barre
-   * d'onglets (pile des equipes, des entraineurs), ou la zone de securite
-   * reste, elle, bien reelle.
+   * 🔴 **`insets.bottom` ne s'ajoute PAS sous une barre d'onglets.** La barre
+   * descend jusqu'au bord de l'ecran et reserve elle-meme la barre de gestes ;
+   * l'ajouter ici la comptait une seconde fois, et creusait un trou de deux
+   * zones de securite entre le dernier bouton et les icones. Il ne reste qu'a
+   * eviter que le contenu ne colle a la barre.
+   *
+   * Hors habillage (l'accueil), la zone de securite est bien reelle et
+   * personne d'autre ne la porte : on la remet.
    */
-  const bottomInset = insets.bottom + 24;
+  const bottomInset = useInsideChrome() ? 16 : insets.bottom + 24;
 
   return (
     <PitchBackdrop>

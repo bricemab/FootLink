@@ -26,18 +26,19 @@ import { StyleSheet, View } from 'react-native';
  * déjà valu un « FootLink isn't responding » (cf. HANDOFF).
  */
 /*
- * Voile du repli, volontairement DENSE.
+ * Voile du repli, volontairement LEGER.
  *
- * Le flou d'Android est bien plus leger que celui d'iOS : a 0.55 on lisait le
- * bouton qui defilait derriere la barre, et les libelles des onglets devenaient
- * illisibles. Une barre de navigation qu'on ne lit pas est un defaut, pas un
- * parti pris esthetique. Le materiau natif d'Apple, lui, gere son propre
- * contraste et n'a pas besoin de ce voile.
+ * Il etait dense (0.45 par-dessus un fond a 0.78) tant que le contenu defilait
+ * derriere la barre : il fallait alors couvrir des cartes claires en mouvement.
+ * Depuis que la barre occupe sa propre place, il n'y a plus que le FOND DE
+ * MARQUE derriere elle — sombre, immobile, et qu'on veut justement voir se
+ * poursuivre sous la barre. Un voile dense le masquerait, c'est-a-dire
+ * exactement ce qu'on cherche a eviter ici.
+ *
+ * Le materiau natif d'Apple gere son propre contraste et n'utilise pas ce voile.
  */
-const TINT = 'rgba(7,19,15,0.45)';
+const TINT = 'rgba(7,19,15,0.18)';
 const BORDER = 'rgba(57,255,136,0.16)';
-/** Fond minimal garanti, meme sans aucun module natif de flou. */
-const BASE = 'rgba(7,19,15,0.78)';
 
 /**
  * Hauteur de la barre d'onglets, hors zone de securite.
@@ -65,19 +66,21 @@ export function GlassSurface({
   return (
     <View style={styles.container}>
       {/*
-        🔴 Fond de base, TOUJOURS pose, sous le materiau.
+        🔴 **Aucun fond opaque ici, et c'est le point de ce composant.**
 
-        Sans lui la barre ne devait sa lisibilite qu'a un module natif : sur un
-        client de developpement construit avant leur ajout, `GlassView` comme
-        `BlurView` ne rendent RIEN, la barre devient totalement transparente et
-        le contenu defile a nu par-dessus les icones. Une barre de navigation ne
-        peut pas dependre d'un module optionnel pour exister.
+        Il y en avait un (`rgba(7,19,15,0.78)`), pose pour garantir la lisibilite
+        meme sans module natif de flou. Il coupait net le halo du fond de marque
+        au bord de la barre et de l'en-tete : deux bandes sombres posees sur le
+        decor. Le fond est desormais peint UNE FOIS a la racine de l'espace club
+        (`BackdropRoot`), et ces surfaces le laissent traverser.
 
-        Assez opaque pour sauver ce cas, assez legere pour que le materiau
-        d'Apple garde sa refraction par-dessus.
+        Ce qui rendait ce fond necessaire a disparu : le contenu ne defile plus
+        derriere la barre depuis qu'elle occupe sa propre place. Derriere ces
+        surfaces il n'y a que le decor, immobile — donc rien a masquer.
+
+        ⚠️ Si la barre redevenait flottante (`position: 'absolute'`), il faudrait
+        le remettre : du contenu clair en mouvement passerait alors dessous.
       */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: BASE }]} />
-
       {liquidGlass ? (
         /*
           `regular` et non `clear` : sur un fond nocturne, le style clair laisse

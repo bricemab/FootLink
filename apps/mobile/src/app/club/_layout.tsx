@@ -4,6 +4,7 @@ import { StyleSheet, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useI18n } from '@/i18n';
 import { ClubHeader } from '@/ui/club-header';
+import { BackdropRoot } from '@/ui/pitch-backdrop';
 import { GlassSurface, TAB_BAR_HEIGHT } from '@/ui/glass';
 import { MegaphoneIcon, StadiumIcon, TeamsIcon } from '@/ui/icons';
 
@@ -65,7 +66,16 @@ export default function ClubLayout(): ReactNode {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.root}>
+    /*
+      Le décor est peint ICI, une seule fois, et il court sur tout l'écran —
+      donc aussi derrière l'en-tête et derrière la barre d'onglets, qui sont
+      translucides. Les halos ne s'arrêtent plus net à leur bord.
+
+      Le contenu, lui, ne passe pas dessous : en-tête et barre occupent leur
+      place dans la mise en page. C'est la combinaison des deux qui est demandée
+      — décor traversant, contenu contenu.
+    */
+    <BackdropRoot>
       <ClubHeader />
       <Tabs
         screenOptions={{
@@ -101,6 +111,13 @@ export default function ClubLayout(): ReactNode {
             </GlassSurface>
           ),
           tabBarLabelStyle: { fontSize: 11.5, fontWeight: '700' },
+          /*
+            Sans ça, rien de ce qui précède ne se voit : le navigateur pose son
+            propre fond opaque (thème de react-navigation) par-dessus le décor,
+            et les halos disparaissent — y compris derrière la barre, qui vit
+            dans ce même conteneur.
+          */
+          sceneStyle: { backgroundColor: 'transparent' },
         }}
       >
         <Tabs.Screen
@@ -130,10 +147,6 @@ export default function ClubLayout(): ReactNode {
         <Tabs.Screen name="coaches" options={{ href: null }} />
         <Tabs.Screen name="preview" options={{ href: null }} />
       </Tabs>
-    </View>
+    </BackdropRoot>
   );
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#07130F' },
-});
