@@ -4,6 +4,23 @@ import { Locale } from '@prisma/client';
 import { createTransport, Transporter } from 'nodemailer';
 import { LinksService } from '../links/links.service';
 
+/**
+ * Échappe les caractères spéciaux HTML avant interpolation dans un CORPS
+ * d'email (audit #1 : un nom de club ou un prénom librement saisi ne doit pas
+ * pouvoir injecter de HTML dans un email brandé FootLink).
+ *
+ * À n'appliquer JAMAIS aux sujets : un sujet est du texte brut, les entités
+ * s'y afficheraient littéralement (`&amp;` au lieu de `&`).
+ */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
@@ -29,11 +46,24 @@ export class MailService {
           host,
           port,
           secure: port === 465,
+          // Hors port 465 (TLS implicite), STARTTLS est EXIGÉ : sans requireTLS,
+          // nodemailer retombe en clair si le serveur ne l'annonce pas
+          // (STARTTLS stripping) — credentials SMTP et jetons en clair (audit #8).
+          requireTLS: port !== 465,
+          tls: { minVersion: 'TLSv1.2' },
           auth: { user, pass: password },
         })
       : createTransport({ jsonTransport: true });
 
     if (!this.enabled) {
+      // Ceinture et bretelles : validateEnv refuse déjà ce cas au boot. Sans ce
+      // garde-fou, une prod sans SMTP journaliserait les jetons en clair (audit #2).
+      if (this.config.get<string>('nodeEnv') === 'production') {
+        throw new Error('SMTP_HOST, SMTP_USER et SMTP_PASSWORD sont obligatoires en production.');
+      }
+      // Le token reste logué en dev/test UNIQUEMENT : les scripts tools/e2e le
+      // relisent dans les logs (format `[email simulé] … | token=…`). En
+      // production, ce chemin est rendu impossible par le fail-fast ci-dessus.
       this.logger.warn('SMTP non configuré : les emails seront logués (jsonTransport).');
     }
   }
@@ -100,11 +130,16 @@ export class MailService {
   ): Promise<void> {
     const link = this.links.buildEmailLink('coach-invite', { email: to, code });
     const isDe = locale === Locale.DE;
-    const greeting = firstName.trim().length > 0 ? `${isDe ? 'Hallo' : 'Salut'} ${firstName}, ` : '';
+    // Données saisies librement (prénom au formulaire, nom de club par le
+    // CLUB_ADMIN) : échappées avant interpolation dans le HTML (audit #1).
+    // Le sujet garde les valeurs brutes : c'est du texte, pas du HTML.
+    const safeFirstName = escapeHtml(firstName);
+    const safeClubName = escapeHtml(clubName);
+    const greeting = firstName.trim().length > 0 ? `${isDe ? 'Hallo' : 'Salut'} ${safeFirstName}, ` : '';
     const subject = isDe ? `Trainerkonto bei ${clubName}` : `Compte entraîneur chez ${clubName}`;
     const intro = isDe
-      ? `${greeting}${clubName} hat dir ein Trainerkonto auf FootLink erstellt.`
-      : `${greeting}${clubName} t'a créé un compte entraîneur sur FootLink.`;
+      ? `${greeting}${safeClubName} hat dir ein Trainerkonto auf FootLink erstellt.`
+      : `${greeting}${safeClubName} t'a créé un compte entraîneur sur FootLink.`;
     const instruction = isDe
       ? 'Wähle in der App « Ich bin Trainer », gib diese E-Mail-Adresse und den folgenden Code ein:'
       : "Dans l'app, choisis « Je suis entraîneur », saisis cette adresse email puis ce code :";
@@ -136,15 +171,18 @@ export class MailService {
     locale: Locale,
   ): Promise<void> {
     const isDe = locale === Locale.DE;
-    const greeting = firstName.trim().length > 0 ? `${isDe ? 'Hallo' : 'Salut'} ${firstName}, ` : '';
+    // Même traitement que sendCoachInviteEmail : HTML échappé, sujet brut (audit #1).
+    const safeFirstName = escapeHtml(firstName);
+    const safeClubName = escapeHtml(clubName);
+    const greeting = firstName.trim().length > 0 ? `${isDe ? 'Hallo' : 'Salut'} ${safeFirstName}, ` : '';
     const subject = isDe ? `Du bist jetzt Trainer bei ${clubName}` : `Tu es entraîneur chez ${clubName}`;
     const intro = isDe
-      ? `${greeting}${clubName} hat dich als Trainer hinzugefügt. Melde dich wie gewohnt in der App an.`
-      : `${greeting}${clubName} t'a ajouté comme entraîneur. Connecte-toi normalement dans l'app.`;
+      ? `${greeting}${safeClubName} hat dich als Trainer hinzugefügt. Melde dich wie gewohnt in der App an.`
+      : `${greeting}${safeClubName} t'a ajouté comme entraîneur. Connecte-toi normalement dans l'app.`;
     const html = `
       <div style="font-family:sans-serif;max-width:480px;margin:auto">
         <h2>FootLink</h2>
-        <p><b>${clubName}</b></p>
+        <p><b>${safeClubName}</b></p>
         <p>${intro}</p>
       </div>`;
     await this.deliver(to, subject, html);
@@ -158,6 +196,9 @@ export class MailService {
     locale: Locale,
   ): Promise<void> {
     const isDe = locale === Locale.DE;
+    // Nom de club saisi par le demandeur : échappé dans le HTML, brut dans le
+    // sujet (texte, pas HTML) — audit #1.
+    const safeClubName = escapeHtml(clubName);
     const subject = approved
       ? isDe
         ? `Verein ${clubName} freigegeben`
@@ -175,7 +216,7 @@ export class MailService {
     const html = `
       <div style="font-family:sans-serif;max-width:480px;margin:auto">
         <h2>FootLink</h2>
-        <p><b>${clubName}</b></p>
+        <p><b>${safeClubName}</b></p>
         <p>${intro}</p>
       </div>`;
     await this.deliver(to, subject, html);

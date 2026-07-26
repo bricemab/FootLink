@@ -129,5 +129,15 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
   if (errors.length > 0) {
     throw new Error(`Invalid environment variables:\n${errors.toString()}`);
   }
+  // En production, SMTP est obligatoire : sans lui, l'API tomberait en mode
+  // « email simulé » et journaliserait les jetons en clair (fail-open, audit #2).
+  if (
+    validated.NODE_ENV === 'production' &&
+    (!validated.SMTP_HOST || !validated.SMTP_USER || !validated.SMTP_PASSWORD)
+  ) {
+    throw new Error(
+      'Invalid environment variables: SMTP_HOST, SMTP_USER et SMTP_PASSWORD sont obligatoires en production.',
+    );
+  }
   return validated;
 }

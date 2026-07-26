@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { Pressable } from 'react-native';
 import { Text, XStack } from 'tamagui';
 import { useAuth } from '@/auth/auth-context';
@@ -15,7 +15,11 @@ import { TextField } from '@/ui/text-field';
  *
  * Deux chemins mènent ici : la garde de routage (compte non validé) et le lien
  * profond de l'email — `footlink://auth/verify-email?token=…` — d'où le
- * `token` en paramètre, consommé automatiquement.
+ * `token` en paramètre. Il ne fait que PRÉ-REMPLIR le champ, jamais soumettre
+ * tout seul : le schéma custom `footlink://` est déclarable par n'importe quelle
+ * app installée (pas d'`android:autoVerify`), donc un lien intercepté ne doit
+ * déclencher aucune action sans appui explicite (audit #5). La migration vers
+ * Android App Links / iOS Universal Links lèvera cette contrainte.
  */
 export default function VerifyEmail(): ReactNode {
   const router = useRouter();
@@ -27,7 +31,6 @@ export default function VerifyEmail(): ReactNode {
   const [banner, setBanner] = useState<string>();
   const [tone, setTone] = useState<'error' | 'success'>('error');
   const [busy, setBusy] = useState(false);
-  const autoSubmitted = useRef(false);
 
   const submit = useCallback(
     async (value: string): Promise<void> => {
@@ -53,14 +56,9 @@ export default function VerifyEmail(): ReactNode {
     [router, t, verifyEmail],
   );
 
-  // Lien profond : on valide sans faire retaper le code.
-  useEffect(() => {
-    if (params.token && !autoSubmitted.current) {
-      autoSubmitted.current = true;
-      void submit(params.token);
-    }
-  }, [params.token, submit]);
-
+  // Lien profond : le token pré-remplit le champ, mais la soumission reste
+  // un geste explicite (bouton ou « envoyer » du clavier) — jamais automatique
+  // à l'ouverture du lien (risque d'interception du schéma `footlink://`).
   const resend = async (): Promise<void> => {
     setBusy(true);
     setBanner(undefined);

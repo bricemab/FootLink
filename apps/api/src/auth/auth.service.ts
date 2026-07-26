@@ -100,6 +100,12 @@ const COACH_INVITE_TTL_HOURS = 24 * 7;
 const NUMERIC_CODE_LENGTH = 6;
 const COACH_CODE_MAX_ATTEMPTS = 5;
 
+// Verrouillage de compte au login (audit #13) : compteur d'échecs PAR COMPTE,
+// en complément du throttle par IP (contournable par credential stuffing
+// distribué). À 10 échecs consécutifs, le compte est verrouillé 15 minutes.
+const LOGIN_MAX_FAILED_ATTEMPTS = 10;
+const LOGIN_LOCKOUT_MINUTES = 15;
+
 /** Codes stables pour le mobile (le texte affiché reste côté app, en FR/DE). */
 export const COACH_INVITE_INVALID_CODE = 'COACH_INVITE_INVALID';
 export const COACH_INVITE_LOCKED_CODE = 'COACH_INVITE_LOCKED';
@@ -173,9 +179,27 @@ export class AuthService {
     if (user.status !== UserStatus.ACTIVE) {
       throw new ForbiddenException('Account is not active.');
     }
+    if (user.loginLockedUntil !== null && user.loginLockedUntil.getTime() > Date.now()) {
+      // Même erreur générique qu'un mauvais mot de passe : annoncer le verrou
+      // confirmerait à un attaquant que le compte existe (et l'état de son attaque).
+      throw new UnauthorizedException('Invalid credentials.');
+    }
     const valid = await argon2.verify(user.passwordHash, dto.password);
     if (!valid) {
+      // Compteur d'échecs par compte : à LOGIN_MAX_FAILED_ATTEMPTS, verrou
+      // temporaire. Sur succès plus bas, remise à zéro.
+      const attempts = user.failedLoginAttempts + 1;
+      await this.users.update(user.id, {
+        failedLoginAttempts: attempts,
+        loginLockedUntil:
+          attempts >= LOGIN_MAX_FAILED_ATTEMPTS
+            ? new Date(Date.now() + LOGIN_LOCKOUT_MINUTES * 60 * 1000)
+            : null,
+      });
       throw new UnauthorizedException('Invalid credentials.');
+    }
+    if (user.failedLoginAttempts > 0 || user.loginLockedUntil !== null) {
+      await this.users.update(user.id, { failedLoginAttempts: 0, loginLockedUntil: null });
     }
     return this.tokens.issueTokens(user);
   }
@@ -485,10 +509,20 @@ export class AuthService {
       });
     }
     if (!(await argon2.verify(invite.tokenHash, rawCode.trim()))) {
-      await this.prisma.token.update({
-        where: { id: invite.id },
+      // Incrément ATOMIQUE borné par la base (audit #11) : le check-then-increment
+      // laissait des requêtes concurrentes passer le contrôle avant le premier
+      // incrément. count === 0 → un essai parallèle vient d'épuiser le compteur,
+      // le code est verrouillé.
+      const { count } = await this.prisma.token.updateMany({
+        where: { id: invite.id, attempts: { lt: COACH_CODE_MAX_ATTEMPTS } },
         data: { attempts: { increment: 1 } },
       });
+      if (count === 0) {
+        throw new BadRequestException({
+          code: COACH_INVITE_LOCKED_CODE,
+          message: 'Too many failed attempts. Ask your club to send a new code.',
+        });
+      }
       throw new BadRequestException({
         code: COACH_INVITE_INVALID_CODE,
         message: 'Invalid email or code.',
@@ -770,10 +804,18 @@ export class AuthService {
       });
     }
     if (!(await argon2.verify(token.tokenHash, rawCode.trim()))) {
-      await this.prisma.token.update({
-        where: { id: token.id },
+      // Même incrément atomique borné que pour le code entraîneur (audit #11) ;
+      // count === 0 → verrouillé entre-temps par un essai concurrent.
+      const { count } = await this.prisma.token.updateMany({
+        where: { id: token.id, attempts: { lt: COACH_CODE_MAX_ATTEMPTS } },
         data: { attempts: { increment: 1 } },
       });
+      if (count === 0) {
+        throw new BadRequestException({
+          code: SIGNUP_CODE_LOCKED,
+          message: 'Too many failed attempts. Request a new code.',
+        });
+      }
       throw new BadRequestException({ code: SIGNUP_CODE_INVALID, message: 'Invalid email or code.' });
     }
 
@@ -818,7 +860,16 @@ export class AuthService {
     ) {
       throw new BadRequestException('Invalid or expired token.');
     }
-    await this.prisma.token.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+    // Consommation ATOMIQUE (audit #11) : deux requêtes concurrentes avec le
+    // même jeton passaient toutes deux le contrôle ci-dessus. count === 0 → le
+    // jeton vient d'être consommé par la requête parallèle, on le refuse ici.
+    const { count } = await this.prisma.token.updateMany({
+      where: { id: record.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+    if (count === 0) {
+      throw new BadRequestException('Invalid or expired token.');
+    }
     return record.userId;
   }
 }

@@ -1,17 +1,18 @@
 import { Locale } from '@prisma/client';
 import { IsEmail, IsEnum, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
-// Au moins une lettre et un chiffre.
+// 10 caractères minimum, avec au moins une lettre et un chiffre (audit #13 :
+// 8 caractères laissaient passer `aaaaaaaa1`).
 export const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).+$/;
 export const PASSWORD_MESSAGE =
-  'Password must contain at least one letter and one digit.';
+  'Password must be at least 10 characters and contain at least one letter and one digit.';
 
 export class RegisterDto {
   @IsEmail()
   email!: string;
 
   @IsString()
-  @MinLength(8)
+  @MinLength(10)
   @MaxLength(128)
   @Matches(PASSWORD_REGEX, { message: PASSWORD_MESSAGE })
   password!: string;
@@ -54,7 +55,7 @@ export class ResetPasswordDto {
   token!: string;
 
   @IsString()
-  @MinLength(8)
+  @MinLength(10)
   @MaxLength(128)
   @Matches(PASSWORD_REGEX, { message: PASSWORD_MESSAGE })
   password!: string;
@@ -96,7 +97,7 @@ export class VerifySignupCodeDto {
   code!: string;
 
   @IsString()
-  @MinLength(8)
+  @MinLength(10)
   @MaxLength(128)
   @Matches(PASSWORD_REGEX, { message: PASSWORD_MESSAGE })
   password!: string;
@@ -116,7 +117,7 @@ export class VerifyCoachCodeDto {
 
 export class AcceptCoachInviteDto extends VerifyCoachCodeDto {
   @IsString()
-  @MinLength(8)
+  @MinLength(10)
   @MaxLength(128)
   @Matches(PASSWORD_REGEX, { message: PASSWORD_MESSAGE })
   password!: string;

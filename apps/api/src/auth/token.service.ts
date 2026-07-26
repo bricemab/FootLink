@@ -76,6 +76,18 @@ export class TokenService {
       include: { user: true },
     });
     if (
+      record &&
+      record.revokedAt !== null &&
+      (await argon2.verify(record.tokenHash, parsed.secret))
+    ) {
+      // Réutilisation d'un token déjà rotaté : le secret présenté VÉRIFIE contre
+      // le hash d'un token révoqué — quelqu'un rejoue un ancien refresh (vol
+      // probable). On révoque toute la famille de jetons de l'utilisateur
+      // (audit #10, « refresh token reuse detection »).
+      await this.revokeAllForUser(record.userId);
+      throw new UnauthorizedException('Invalid or expired refresh token.');
+    }
+    if (
       !record ||
       record.revokedAt !== null ||
       record.expiresAt.getTime() < Date.now() ||

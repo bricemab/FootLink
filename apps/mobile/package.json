@@ -19,7 +19,6 @@
     "expo-blur": "^57.0.2",
     "expo-build-properties": "^57.0.7",
     "expo-constants": "~57.0.7",
-    "expo-dev-client": "~57.0.9",
     "expo-glass-effect": "^57.0.1",
     "expo-image-picker": "^57.0.6",
     "expo-linking": "~57.0.4",
@@ -44,6 +43,7 @@
     "tamagui": "^2.5.1"
   },
   "devDependencies": {
+    "expo-dev-client": "~57.0.9",
     "@types/react": "~19.2.2",
     "typescript": "~6.0.3"
   }

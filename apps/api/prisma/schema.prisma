@@ -177,6 +177,10 @@ model User {
   // diffusion (URL signée ↔ domaine public) sans migrer les données.
   avatarKey       String?
   emailVerifiedAt DateTime? // renseigné après validation email (immédiat pour Google)
+  // Verrouillage anti force brute PAR COMPTE (audit #13) : le throttle par IP
+  // seul est contourné par un credential stuffing distribué.
+  failedLoginAttempts Int       @default(0)
+  loginLockedUntil    DateTime?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
