@@ -35,9 +35,14 @@ import { StyleSheet, View } from 'react-native';
  * poursuivre sous la barre. Un voile dense le masquerait, c'est-a-dire
  * exactement ce qu'on cherche a eviter ici.
  *
+ * ⚠️ Mais pas INVISIBLE non plus : a 0.18 la barre n'avait plus de matiere du
+ * tout, on ne voyait ni verre ni flou — juste des icones posees sur le decor.
+ * 0.30 laisse le halo se lire a travers tout en donnant une surface a la barre.
+ * C'est le compromis, et il se regle a l'oeil sur un vrai appareil.
+ *
  * Le materiau natif d'Apple gere son propre contraste et n'utilise pas ce voile.
  */
-const TINT = 'rgba(7,19,15,0.18)';
+const TINT = 'rgba(7,19,15,0.30)';
 const BORDER = 'rgba(57,255,136,0.16)';
 
 /**

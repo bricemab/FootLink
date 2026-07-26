@@ -47,7 +47,13 @@ export function ClubHeader(): ReactNode {
 
   return (
     <>
-      <GlassSurface edge="bottom" intensity={32}>
+      {/*
+        `edge="none"` : aucun liseré sous le bandeau. Il en portait un, pour
+        « poser » le verre — mais il tranchait une ligne nette en travers du
+        décor, exactement ce qu'on venait de faire disparaître en rendant le
+        bandeau translucide. C'est l'espacement qui sépare, pas un trait.
+      */}
+      <GlassSurface edge="none" intensity={32}>
         <XStack
           alignItems="center"
           gap="$3"

@@ -1,4 +1,4 @@
-import { Tabs } from 'expo-router';
+import { DarkTheme, Tabs, ThemeProvider } from 'expo-router';
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -61,6 +61,29 @@ function asColor(value: ColorValue): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+/**
+ * 🔴 **Le thème de navigation, transparent, et pourquoi `contentStyle` ne
+ * suffisait pas.**
+ *
+ * Sur Android, rendre les piles transparentes via `contentStyle` a suffi. Sur
+ * iOS, non : `react-native-screens` peint le fond de chaque écran **natif**
+ * depuis `colors.background` du thème, et `contentStyle` ne style que la vue de
+ * contenu *à l'intérieur*. Résultat observé par Brice sur son iPhone : le décor
+ * dans l'onglet Club, un fond plat dans Équipes et Annonces — les deux onglets
+ * qui contiennent une pile.
+ *
+ * `ThemeProvider` d'expo-router s'applique **à n'importe quel niveau** : on le
+ * pose donc ici, sur l'espace club uniquement, plutôt qu'à la racine. Le reste
+ * de l'app garde son fond opaque, et aucun écran ne risque le flash blanc.
+ *
+ * Sans danger parce que `BackdropRoot` peint juste dessous : derrière ces écrans
+ * transparents il y a toujours la nuit de terrain, jamais du vide.
+ */
+const TRANSPARENT_THEME = {
+  ...DarkTheme,
+  colors: { ...DarkTheme.colors, background: 'transparent' },
+};
+
 export default function ClubLayout(): ReactNode {
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
@@ -76,77 +99,79 @@ export default function ClubLayout(): ReactNode {
       — décor traversant, contenu contenu.
     */
     <BackdropRoot>
-      <ClubHeader />
-      <Tabs
-        screenOptions={{
-          headerShown: false,
-          tabBarActiveTintColor: ACTIVE,
-          tabBarInactiveTintColor: INACTIVE,
-          /*
-            🔴 La barre **ne flotte pas** (`position` par défaut, pas `absolute`).
+      <ThemeProvider value={TRANSPARENT_THEME}>
+        <ClubHeader />
+        <Tabs
+          screenOptions={{
+            headerShown: false,
+            tabBarActiveTintColor: ACTIVE,
+            tabBarInactiveTintColor: INACTIVE,
+            /*
+              🔴 La barre **ne flotte pas** (`position` par défaut, pas `absolute`).
 
-            En flottant, le contenu défilait derrière son verre : joli à l'arrêt,
-            pénible à l'usage — pendant chaque défilement, cartes et boutons
-            disparaissaient sous les icônes. Brice l'a signalé deux fois, la
-            lisibilité passe devant l'effet.
+              En flottant, le contenu défilait derrière son verre : joli à l'arrêt,
+              pénible à l'usage — pendant chaque défilement, cartes et boutons
+              disparaissaient sous les icônes. Brice l'a signalé deux fois, la
+              lisibilité passe devant l'effet.
 
-            Contrepartie assumée : sur iOS 26 le Liquid Glass ne réfracte plus le
-            contenu qui passe dessous, il ne garde que sa brillance et son
-            liseré. Repasser en flottant tient en une ligne — remettre
-            `position: 'absolute'` ici — si l'arbitrage change.
-          */
-          tabBarStyle: {
-            backgroundColor: 'transparent',
-            borderTopWidth: 0,
-            elevation: 0,
-            height: TAB_BAR_HEIGHT + insets.bottom,
-            paddingTop: 8,
-            // La barre descend jusqu'au bord ; son contenu s'arrete au-dessus de
-            // la barre de gestes.
-            paddingBottom: insets.bottom + 10,
-          },
-          tabBarBackground: () => (
-            <GlassSurface edge="top" intensity={36}>
-              <View style={StyleSheet.absoluteFill} />
-            </GlassSurface>
-          ),
-          tabBarLabelStyle: { fontSize: 11.5, fontWeight: '700' },
-          /*
-            Sans ça, rien de ce qui précède ne se voit : le navigateur pose son
-            propre fond opaque (thème de react-navigation) par-dessus le décor,
-            et les halos disparaissent — y compris derrière la barre, qui vit
-            dans ce même conteneur.
-          */
-          sceneStyle: { backgroundColor: 'transparent' },
-        }}
-      >
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: t.clubSpace.tabClub,
-            tabBarIcon: ({ color }) => <StadiumIcon size={24} color={asColor(color)} />,
+              Contrepartie assumée : sur iOS 26 le Liquid Glass ne réfracte plus le
+              contenu qui passe dessous, il ne garde que sa brillance et son
+              liseré. Repasser en flottant tient en une ligne — remettre
+              `position: 'absolute'` ici — si l'arbitrage change.
+            */
+            tabBarStyle: {
+              backgroundColor: 'transparent',
+              borderTopWidth: 0,
+              elevation: 0,
+              height: TAB_BAR_HEIGHT + insets.bottom,
+              paddingTop: 8,
+              // La barre descend jusqu'au bord ; son contenu s'arrete au-dessus de
+              // la barre de gestes.
+              paddingBottom: insets.bottom + 10,
+            },
+            tabBarBackground: () => (
+              <GlassSurface edge="top" intensity={36}>
+                <View style={StyleSheet.absoluteFill} />
+              </GlassSurface>
+            ),
+            tabBarLabelStyle: { fontSize: 11.5, fontWeight: '700' },
+            /*
+              Sans ça, rien de ce qui précède ne se voit : le navigateur pose son
+              propre fond opaque (thème de react-navigation) par-dessus le décor,
+              et les halos disparaissent — y compris derrière la barre, qui vit
+              dans ce même conteneur.
+            */
+            sceneStyle: { backgroundColor: 'transparent' },
           }}
-        />
-        <Tabs.Screen
-          name="teams"
-          options={{
-            title: t.clubSpace.tabTeams,
-            tabBarIcon: ({ color }) => <TeamsIcon size={24} color={asColor(color)} />,
-          }}
-        />
-        <Tabs.Screen
-          name="listings"
-          options={{
-            title: t.clubSpace.tabListings,
-            tabBarIcon: ({ color }) => <MegaphoneIcon size={24} color={asColor(color)} />,
-          }}
-        />
-        {/* Routes atteintes depuis l'onglet Club : `coaches` et `preview`.
-            `href: null` les retire de la barre sans les retirer de la
-            navigation. */}
-        <Tabs.Screen name="coaches" options={{ href: null }} />
-        <Tabs.Screen name="preview" options={{ href: null }} />
-      </Tabs>
+        >
+          <Tabs.Screen
+            name="index"
+            options={{
+              title: t.clubSpace.tabClub,
+              tabBarIcon: ({ color }) => <StadiumIcon size={24} color={asColor(color)} />,
+            }}
+          />
+          <Tabs.Screen
+            name="teams"
+            options={{
+              title: t.clubSpace.tabTeams,
+              tabBarIcon: ({ color }) => <TeamsIcon size={24} color={asColor(color)} />,
+            }}
+          />
+          <Tabs.Screen
+            name="listings"
+            options={{
+              title: t.clubSpace.tabListings,
+              tabBarIcon: ({ color }) => <MegaphoneIcon size={24} color={asColor(color)} />,
+            }}
+          />
+          {/* Routes atteintes depuis l'onglet Club : `coaches` et `preview`.
+              `href: null` les retire de la barre sans les retirer de la
+              navigation. */}
+          <Tabs.Screen name="coaches" options={{ href: null }} />
+          <Tabs.Screen name="preview" options={{ href: null }} />
+        </Tabs>
+      </ThemeProvider>
     </BackdropRoot>
   );
 }

@@ -39,7 +39,7 @@ import { validateEmail } from '@/ui/validation';
 export default function ClubConfig(): ReactNode {
   const router = useRouter();
   const { t, fill } = useI18n();
-  const { authed } = useAuth();
+  const { authed, signOut } = useAuth();
 
   const [club, setClub] = useState<MyClubResponse | null>(null);
   const [coachCount, setCoachCount] = useState<number>();
@@ -452,6 +452,25 @@ export default function ClubConfig(): ReactNode {
           </Card>
         </>
       ) : null}
+
+      {/*
+        🔴 Deconnexion, et elle est ICI parce qu'elle n'etait NULLE PART.
+
+        Un admin de club atterrit sur `/club` et n'y passe jamais par `/home`,
+        qui portait le seul bouton de deconnexion de l'app : il ne pouvait donc
+        pas quitter sa session. Signale par Brice.
+
+        En dernier, apres tout le reste, et en `ghost` : c'est une sortie, pas une
+        action qu'on propose. Elle reste visible meme quand le club n'est pas
+        encore valide -- c'est justement le cas ou l'on peut vouloir partir.
+      */}
+      <PrimaryButton
+        label={t.common.logout}
+        variant="ghost"
+        onPress={() => {
+          void signOut().then(() => router.replace('/'));
+        }}
+      />
     </AppScreen>
   );
 }
