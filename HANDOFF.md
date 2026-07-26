@@ -58,19 +58,20 @@ Backend d'abord (choix validé), mobile ensuite. Tout ce qui est fait est **comm
 | 2 | Profil joueur + géo (arrondi ~1 km) + helpers saison | ✅ `a4b9c49` |
 | 3 | Demande & validation club + lien club actuel du joueur | ✅ `cfa2f68` |
 | 4 | Équipes & comptes entraîneurs (`CoachTeamAssignment`) + blocage « email non validé » | ✅ |
-| 5 | Annonces (listings) + scheduler d'expiration | ⬜ |
+| 5 | Annonces (listings) + scheduler d'expiration | ✅ `6abcb46` · e2e 26 contrôles |
 | 6 | Feed & matching (poste + catégorie + rayon km) | ⬜ |
 | 7 | Interactions & match (`PlayerInterest`/`ClubInterest` → `Match`) | ⬜ |
 | 8 | Messagerie temps réel (WebSocket, `ConversationRead`) | ⬜ |
 | 9 | Notifications (Expo push + table `Notification`) | ⬜ |
 | 10 | Modération (`Report`, `Block` + filtrage transverse) | ⬜ |
-| 11 | Durcissement (ESLint, tests e2e, Swagger, rate-limit) | ⬜ |
+| 11 | Durcissement (ESLint, tests e2e, Swagger, rate-limit) | 🟨 audit sécurité corrigé (`ba5b2ba`), ESLint et Swagger restants |
 | M0 | **Mobile Expo** : init SDK 57 + Tamagui + i18n + écrans auth animés | ✅ |
 | M0b | **Terrain du club** : autocomplétion Mapbox, canton/commune/association déduits serveur, vue satellite, site web du club | ✅ |
 | M0c | **Médias R2** : URL pré-signées, clé générée serveur, `User.avatarKey` | ✅ |
 | M1 | **Onboarding joueur** : 4 étapes, terrain interactif 14 postes, routage par rôle | ✅ vérifié en base |
 | M2 | **Écrans club** : supervision, équipes (CRUD + alerte de cascade), entraîneurs | ✅ sauf invitation (envoie un email) |
-| M1+ | Mobile : logo du club, onboarding entraîneur, feed, swipe, messagerie | ⬜ |
+| M2b | **Espace club en onglets** : Club · Équipes · Annonces, décor traversant, logo, aperçu joueur | ✅ `5b3e623` |
+| M1+ | Mobile : onboarding entraîneur (jamais joué de bout en bout), feed, swipe, messagerie | ⬜ |
 | iOS | Client de développement installable sur l'iPhone de Brice (ad-hoc, équipe `THHTC74QPQ`) | ✅ build OK |
 
 ### Décision tranchée par Brice (24 juillet 2026)
