@@ -1,3 +1,4 @@
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import type { ReactNode } from 'react';
 import { Image as RNImage } from 'react-native';
 
@@ -9,16 +10,21 @@ import { Image as RNImage } from 'react-native';
  * de retélécharger un logo à chaque écran. Sur des URL signées et courtes, la
  * différence se voit tout de suite.
  *
- * 🔴 **Le repli n'est pas de la prudence décorative.** `expo-image` est un
- * module NATIF : sur un client de développement construit avant son ajout, sa
- * vue n'existe pas. Comme il est rendu dans l'arbre — et non appelé dans un
- * gestionnaire d'évènement, où un `import()` paresseux suffirait — on ne peut
- * pas le charger à la demande. On tente donc le `require` une fois, et on
- * retombe sur l'`Image` de React Native s'il n'est pas là.
+ * 🔴 **Le test porte sur le module NATIF, pas sur le paquet JavaScript.**
  *
- * Concrètement : l'app fonctionne avant ET après la reconstruction, avec le
- * fondu en plus une fois reconstruite. Sans ce repli, tout écran affichant une
- * image tomberait tant que le build n'a pas suivi.
+ * Premiere version : un `require('expo-image')` dans un `try`. Elle ne
+ * protegeait rien. Le paquet JS est bien present dans `node_modules` des
+ * l'installation, donc le `require` REUSSIT — c'est la vue native qui manque
+ * tant que l'app n'a pas ete reconstruite, et l'erreur ne sort qu'au rendu :
+ * « Cannot find native module ExpoImage », ecran casse. Brice l'a pris de
+ * plein fouet.
+ *
+ * `requireOptionalNativeModule` interroge le registre natif et renvoie `null`
+ * quand le module n'y est pas. C'est le seul test qui distingue « paquet
+ * installe » de « binaire embarque dans le build ».
+ *
+ * Concretement : l'app fonctionne avant ET apres la reconstruction, avec le
+ * fondu en plus une fois reconstruite.
  */
 
 interface ExpoImageProps {
@@ -34,8 +40,14 @@ let ExpoImage: ((props: ExpoImageProps) => ReactNode) | null | undefined;
 function resolve(): ((props: ExpoImageProps) => ReactNode) | null {
   if (ExpoImage === undefined) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      ExpoImage = (require('expo-image') as { Image: (props: ExpoImageProps) => ReactNode }).Image;
+      // Le nom est celui du module NATIF (`ExpoImage`), pas celui du paquet npm.
+      if (requireOptionalNativeModule('ExpoImage') === null) {
+        ExpoImage = null;
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        ExpoImage = (require('expo-image') as { Image: (props: ExpoImageProps) => ReactNode })
+          .Image;
+      }
     } catch {
       ExpoImage = null;
     }
