@@ -339,6 +339,11 @@ export const fr = {
     deleteConfirm: 'Oui, tout supprimer',
   },
   coaches: {
+    // Etat de l'envoi de l'invitation. Il est affiche parce que l'email part
+    // APRES la reponse du serveur : sans lui, un echec serait invisible.
+    inviteSending: 'Invitation en cours d’envoi…',
+    inviteSent: 'Invitation envoyée.',
+    inviteFailed: 'L’envoi a échoué. Utilise « Renvoyer le code ».',
     title: 'Entraîneurs',
     subtitle: 'Tu crées leur compte, ils l’activent avec un code reçu par email.',
     empty: 'Aucun entraîneur pour l’instant.',
@@ -699,6 +704,9 @@ export const de: typeof fr = {
     deleteConfirm: 'Ja, alles löschen',
   },
   coaches: {
+    inviteSending: 'Einladung wird gesendet…',
+    inviteSent: 'Einladung gesendet.',
+    inviteFailed: 'Senden fehlgeschlagen. Nutze « Code erneut senden ».',
     title: 'Trainer',
     subtitle: 'Du legst ihr Konto an, sie aktivieren es mit einem Code per E-Mail.',
     empty: 'Noch kein Trainer.',

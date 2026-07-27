@@ -24,6 +24,13 @@ export interface Coach {
   /** Faux = invitation envoyée, compte pas encore activé. */
   hasAccepted: boolean;
   emailVerified: boolean;
+  /**
+   * Null tant que l'email n'est pas parti : l'envoi a lieu APRES la reponse
+   * HTTP, donc la fiche existe avant que l'invitation ait quitte le serveur.
+   */
+  inviteSentAt: string | null;
+  /** Renseigne quand le dernier envoi a echoue — il faut alors reessayer. */
+  inviteFailedAt: string | null;
   teams: { id: string; name: string | null; category: CategoryCode; gender: Gender }[];
   createdAt: string;
 }

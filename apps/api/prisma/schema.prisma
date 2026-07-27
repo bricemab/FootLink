@@ -387,6 +387,15 @@ model ClubMember {
   firstName String?
   lastName  String?
 
+  // Suivi de l'invitation. L'email part APRES la reponse HTTP (un envoi SMTP
+  // prend 30 a 85 s sur certains reseaux, et personne ne doit attendre ca) :
+  // sans ces deux dates, un echec d'envoi serait totalement invisible, ce qui
+  // est exactement le defaut reproche au mode « fail-open » par l'audit (#2).
+  // Volontairement des DATES et non un message d'erreur : le detail SMTP reste
+  // dans les logs serveur, il n'a rien a faire dans une reponse d'API.
+  inviteSentAt   DateTime?
+  inviteFailedAt DateTime?
+
   teamAssignments CoachTeamAssignment[]
 
   @@unique([clubId, userId])

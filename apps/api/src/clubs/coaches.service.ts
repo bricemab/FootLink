@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   Club,
   ClubMember,
@@ -32,6 +26,10 @@ export interface CoachView {
   locale: Locale;
   hasAccepted: boolean;
   emailVerified: boolean;
+  /** Null tant que l'envoi n'a pas abouti — il part apres la reponse HTTP. */
+  inviteSentAt: string | null;
+  /** Renseigne quand le dernier envoi a echoue : le club doit pouvoir reessayer. */
+  inviteFailedAt: string | null;
   teams: { id: string; name: string | null; category: string; gender: string }[];
   createdAt: string;
 }
@@ -53,6 +51,8 @@ export interface PreparedCoach {
 
 @Injectable()
 export class CoachesService {
+  private readonly logger = new Logger(CoachesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly clubs: ClubsService,
@@ -78,7 +78,11 @@ export class CoachesService {
       this.persistCoach(tx, club.id, prepared, teamIds),
     );
 
-    await this.deliverInvite(club, prepared, member.userId);
+    // 🔴 **On n'ATTEND PAS l'email.** Un envoi SMTP prend 30 a 85 s sur le reseau
+    // de Brice (mesure : 84 s pour un message, quel que soit le port ou le
+    // pool). Le tenir dans la requete HTTP faisait fixer un spinner pendant une
+    // minute et demie, et rendait l'endpoint otage de la lenteur du fournisseur.
+    this.deliverInviteInBackground(club, prepared, member.userId, member.id);
     return this.loadView(member.id);
   }
 
@@ -173,14 +177,72 @@ export class CoachesService {
     if (user.passwordHash || user.googleId) {
       throw new BadRequestException('This coach has already activated their account.');
     }
+    // Le jeton est cree TOUT DE SUITE et de facon synchrone : c'est lui qui
+    // invalide le precedent, et le club doit pouvoir compter dessus des que
+    // l'API a repondu. Seul l'envoi part en arriere-plan.
     const code = await this.auth.createCoachInviteCode(user.id);
-    await this.mail.sendCoachInviteEmail(
-      user.email,
-      member.firstName ?? '',
-      club.name,
-      code,
-      user.locale,
+    this.sendInBackground(member.id, () =>
+      this.mail.sendCoachInviteEmail(
+        user.email,
+        member.firstName ?? '',
+        club.name,
+        code,
+        user.locale,
+      ),
     );
+  }
+
+  /**
+   * Invitation envoyee APRES la reponse HTTP, avec son resultat inscrit en base.
+   *
+   * ⚠️ Le jeton d'invitation est cree ICI et non dans la requete : il depend du
+   * chemin (nouveau compte ou compte existant), et `deliverInvite` portait deja
+   * cette logique. Consequence acceptee : entre la reponse et la fin de l'envoi,
+   * le code n'existe pas encore. C'est sans effet visible — personne ne peut
+   * saisir un code qu'il n'a pas encore recu.
+   */
+  private deliverInviteInBackground(
+    club: Club,
+    prepared: PreparedCoach,
+    userId: string,
+    clubMemberId: string,
+  ): void {
+    this.sendInBackground(clubMemberId, () => this.deliverInvite(club, prepared, userId));
+  }
+
+  /**
+   * 🔴 **Le seul endroit ou un echec d'envoi est rattrape.**
+   *
+   * Detacher l'envoi de la requete rend son echec MUET : plus personne ne recoit
+   * de 500, et le club croirait son entraineur invite. C'est le defaut que
+   * l'audit reprochait au repli SMTP (#2), on ne le recree pas ici. L'issue est
+   * donc horodatee en base et remontee dans la fiche de l'entraineur.
+   *
+   * `void` assume : la promesse n'est jamais attendue, et elle ne peut pas
+   * rejeter — tout est capture.
+   */
+  private sendInBackground(clubMemberId: string, send: () => Promise<void>): void {
+    void send()
+      .then(async () => {
+        await this.prisma.clubMember.update({
+          where: { id: clubMemberId },
+          data: { inviteSentAt: new Date(), inviteFailedAt: null },
+        });
+      })
+      .catch(async (error: unknown) => {
+        // Le detail SMTP reste ICI, dans les logs serveur : il peut contenir
+        // l'adresse du relais et des messages de diagnostic, qui n'ont rien a
+        // faire dans une reponse d'API.
+        this.logger.error(
+          `Echec d'envoi de l'invitation (clubMember ${clubMemberId})`,
+          error instanceof Error ? error.stack : undefined,
+        );
+        await this.prisma.clubMember
+          .update({ where: { id: clubMemberId }, data: { inviteFailedAt: new Date() } })
+          // Si meme cette ecriture echoue, il ne reste que le log — mais laisser
+          // rejeter une promesse detachee tuerait le processus.
+          .catch(() => undefined);
+      });
   }
 
   async setCoachTeams(
@@ -279,6 +341,8 @@ export class CoachesService {
     userId: string;
     firstName: string | null;
     lastName: string | null;
+    inviteSentAt: Date | null;
+    inviteFailedAt: Date | null;
     user: {
       email: string;
       locale: Locale;
@@ -298,6 +362,8 @@ export class CoachesService {
       locale: member.user.locale,
       hasAccepted: member.user.passwordHash !== null || member.user.googleId !== null,
       emailVerified: member.user.emailVerifiedAt !== null,
+      inviteSentAt: member.inviteSentAt?.toISOString() ?? null,
+      inviteFailedAt: member.inviteFailedAt?.toISOString() ?? null,
       teams: member.teamAssignments.map((assignment) => assignment.team),
       createdAt: member.user.createdAt.toISOString(),
     };

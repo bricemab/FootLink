@@ -191,6 +191,14 @@ export default function CoachesList(): ReactNode {
               {coach.email}
             </Text>
 
+            {/*
+              Etat de l'envoi. Il est affiche parce que l'email part APRES la
+              reponse du serveur : sans ce retour, un echec serait invisible et
+              le club croirait son entraineur invite. Rien n'est montre une fois
+              le compte active — l'invitation n'a alors plus d'objet.
+            */}
+            {!coach.hasAccepted ? <InviteState coach={coach} /> : null}
+
             <Text fontSize={14} color={coach.teams.length > 0 ? '$brandChalk' : '$brandChalkDim'}>
               {coach.teams.length === 0
                 ? t.coaches.noTeams
@@ -331,5 +339,36 @@ function LinkAction({ label, onPress }: { label: string; onPress: () => void }):
         </Text>
       )}
     </Pressable>
+  );
+}
+
+/**
+ * Ce qu'il est advenu de l'invitation.
+ *
+ * Trois etats, et un seul demande une action : un echec. « En cours d'envoi »
+ * n'est pas un probleme, c'est l'etat normal des premieres secondes — sur
+ * certains reseaux un envoi SMTP prend une minute.
+ */
+function InviteState({ coach }: { coach: Coach }): ReactNode {
+  const { t } = useI18n();
+
+  if (coach.inviteFailedAt !== null) {
+    return (
+      <Text fontSize={13.5} fontWeight="700" color="#FFC14D">
+        {t.coaches.inviteFailed}
+      </Text>
+    );
+  }
+  if (coach.inviteSentAt === null) {
+    return (
+      <Text fontSize={13.5} color="$brandChalkDim">
+        {t.coaches.inviteSending}
+      </Text>
+    );
+  }
+  return (
+    <Text fontSize={13.5} color="$brandChalkDim">
+      {t.coaches.inviteSent}
+    </Text>
   );
 }
