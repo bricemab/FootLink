@@ -65,7 +65,15 @@
           }
         }
       ],
-      "expo-image"
+      "expo-image",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "FootLink utilise ta position pour trouver les clubs proches de chez toi. Elle n’est jamais enregistrée telle quelle : seule ta commune est conservée.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
