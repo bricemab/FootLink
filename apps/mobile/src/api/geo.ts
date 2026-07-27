@@ -28,8 +28,15 @@ export interface ResolvedPlace {
    * Sert à présélectionner ; le serveur la recalcule de toute façon.
    */
   regionCode: string | null;
-  /** Vue satellite prête à afficher, fabriquée par l'API (jeton côté serveur). */
-  aerialUrl: string;
+  /**
+   * Vue satellite prête à afficher, fabriquée par l'API (jeton côté serveur).
+   *
+   * ⚠️ **Absente quand le lieu vient de la position du telephone.** On confirme
+   * volontiers le terrain d'un club par une vue du ciel — c'est meme le meilleur
+   * moyen de verifier qu'on a designe le bon. Afficher la meme vue sur le
+   * DOMICILE d'un joueur serait tout autre chose, et personne ne l'a demandee.
+   */
+  aerialUrl?: string;
 }
 
 /**
@@ -75,5 +82,22 @@ export function retrievePlace(
   return apiRequest<ResolvedPlace>(
     `/geo/places/${encodeURIComponent(id)}?session=${encodeURIComponent(session)}`,
     { accessToken, ...(signal ? { signal } : {}) },
+  );
+}
+
+/**
+ * Commune et canton du point ou se trouve l'utilisateur.
+ *
+ * Aucun jeton de session : cette route interroge swisstopo, qui n'est ni
+ * facture ni sessionnise — contrairement a la recherche Mapbox.
+ */
+export function resolveHere(
+  accessToken: string,
+  lat: number,
+  lng: number,
+): Promise<{ canton: string; locality: string }> {
+  return apiRequest<{ canton: string; locality: string }>(
+    `/geo/here?lat=${lat}&lng=${lng}`,
+    { accessToken },
   );
 }

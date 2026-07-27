@@ -6,6 +6,7 @@ import { Text, XStack, YStack } from 'tamagui';
 import { listMyListings, type Listing } from '@/api/listings';
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
+import { Appear } from '@/ui/appear';
 import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
@@ -114,9 +115,9 @@ export default function ClubListings(): ReactNode {
         <EmptyState text={filtered ? t.listings.empty : t.listings.allEmpty} />
       ) : null}
 
-      {listings?.map((listing) => (
+      {listings?.map((listing, index) => (
+        <Appear key={listing.id} index={index}>
         <Card
-          key={listing.id}
           accent={listing.status === 'ACTIVE'}
           onPress={() => router.push({ pathname: '/club/listings/[id]', params: { id: listing.id } })}
         >
@@ -155,6 +156,7 @@ export default function ClubListings(): ReactNode {
             </Text>
           </XStack>
         </Card>
+        </Appear>
       ))}
 
       <PrimaryButton

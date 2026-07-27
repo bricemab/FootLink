@@ -6,6 +6,7 @@ import { Text, XStack, YStack } from 'tamagui';
 import { listMyTeams, type Team } from '@/api/teams';
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
+import { Appear } from '@/ui/appear';
 import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
@@ -76,8 +77,9 @@ export default function TeamsList(): ReactNode {
 
       {teams !== undefined && teams.length === 0 ? <EmptyState text={t.teams.empty} /> : null}
 
-      {teams?.map((team) => (
-        <Card key={team.id} onPress={() => router.push(`/club/teams/${team.id}`)}>
+      {teams?.map((team, index) => (
+        <Appear key={team.id} index={index}>
+        <Card onPress={() => router.push(`/club/teams/${team.id}`)}>
           <XStack alignItems="center" justifyContent="space-between" gap="$3">
             <Text fontSize={17} fontWeight="700" color="$brandChalk" flexShrink={1}>
               {team.name ?? categoryLabel(team.category, locale)}
@@ -102,6 +104,7 @@ export default function TeamsList(): ReactNode {
               : team.coaches.map((coach) => coachName(coach)).join(' · ')}
           </Text>
         </Card>
+        </Appear>
       ))}
 
       <PrimaryButton label={t.teams.add} onPress={() => router.push('/club/teams/new')} />

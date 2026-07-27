@@ -7,7 +7,8 @@ import { getMyClub, type MyClubResponse } from '@/api/clubs';
 import { listMyTeams, type Team } from '@/api/teams';
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
-import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
+import { Appear } from '@/ui/appear';
+import { AppScreen, Badge, Card, EmptyState, SectionTitle } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { StadiumIcon } from '@/ui/icons';
@@ -102,7 +103,7 @@ export default function ClubPreview(): ReactNode {
 
       {club ? (
         <>
-          <Card accent>
+          <Card variant="hero">
             <XStack alignItems="center" gap="$3.5">
               <YStack
                 width={64}
@@ -172,14 +173,13 @@ export default function ClubPreview(): ReactNode {
             ) : null}
           </Card>
 
-          <Text fontSize={12.5} fontWeight="700" letterSpacing={0.6} color="$brandChalkDim">
-            {t.clubSpace.previewTeamsTitle.toUpperCase()}
-          </Text>
+          <SectionTitle>{t.clubSpace.previewTeamsTitle}</SectionTitle>
 
           {teams.length === 0 ? <EmptyState text={t.clubSpace.previewNoTeams} /> : null}
 
-          {teams.map((team) => (
-            <Card key={team.id}>
+          {teams.map((team, index) => (
+            <Appear key={team.id} index={index}>
+            <Card>
               <Text fontSize={16} fontWeight="700" color="$brandChalk">
                 {team.name ?? categoryLabel(team.category, locale)}
               </Text>
@@ -189,6 +189,7 @@ export default function ClubPreview(): ReactNode {
                 </Text>
               ) : null}
             </Card>
+            </Appear>
           ))}
         </>
       ) : null}

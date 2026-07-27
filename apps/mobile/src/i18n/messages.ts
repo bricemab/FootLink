@@ -125,6 +125,15 @@ export const fr = {
     pitchNoImage: 'Vue aérienne indisponible',
     pitchUnavailable: 'Recherche indisponible. Saisis ta localité à la main.',
     pitchRequired: 'Indique où joue ton club.',
+    // Geolocalisation, cote joueur uniquement.
+    useMyPosition: 'Utiliser ma position',
+    locating: 'Localisation…',
+    locationDenied:
+      'FootLink n’a pas accès à ta position. Autorise-le dans les réglages, ou saisis ta localité.',
+    locationUnavailable:
+      'Position indisponible sur cet appareil. Saisis ta localité à la main.',
+    locationOutside:
+      'Ta position ne semble pas être en Suisse. Saisis ta localité à la main.',
     locality: 'Localité',
     website: 'Site internet (facultatif)',
     websitePlaceholder: 'fcsion.ch',
@@ -536,6 +545,14 @@ export const de: typeof fr = {
     pitchNoImage: 'Luftbild nicht verfügbar',
     pitchUnavailable: 'Suche nicht verfügbar. Gib deinen Ort von Hand ein.',
     pitchRequired: 'Gib an, wo dein Verein spielt.',
+    useMyPosition: 'Meinen Standort verwenden',
+    locating: 'Standort wird ermittelt…',
+    locationDenied:
+      'FootLink hat keinen Zugriff auf deinen Standort. Erlaube es in den Einstellungen oder gib deinen Ort ein.',
+    locationUnavailable:
+      'Standort auf diesem Gerät nicht verfügbar. Gib deinen Ort von Hand ein.',
+    locationOutside:
+      'Dein Standort scheint nicht in der Schweiz zu sein. Gib deinen Ort von Hand ein.',
     locality: 'Ort',
     website: 'Website (optional)',
     websitePlaceholder: 'fcsion.ch',

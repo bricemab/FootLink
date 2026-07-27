@@ -4,13 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Image, Pressable, TextInput } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Text, XStack, YStack } from 'tamagui';
-import {
-  newSearchSession,
-  retrievePlace,
-  searchPlaces,
-  type PlaceSuggestion,
-  type ResolvedPlace,
-} from '@/api/geo';
+import { newSearchSession, resolveHere, retrievePlace, searchPlaces, type PlaceSuggestion, type ResolvedPlace } from '@/api/geo';
 import { useI18n } from '@/i18n';
 import { CheckIcon } from '@/ui/icons';
 
@@ -60,6 +54,16 @@ interface PlacePickerProps {
    * sur cet écran demandait une chose et en promettait une autre.
    */
   copy?: { label: string; placeholder: string; help: string };
+  /**
+   * Propose « Utiliser ma position ».
+   *
+   * ⚠️ **Reserve au JOUEUR, et desactive par defaut.** Pour un club, ce bouton
+   * serait un contresens : on cherche l'emplacement de son TERRAIN, pas l'endroit
+   * ou se tient la personne qui remplit le formulaire — souvent son canape. Pour
+   * un joueur au contraire, sa position EST la reponse, et la lui faire taper a
+   * la main alors que le telephone la connait est une friction gratuite.
+   */
+  allowMyPosition?: boolean;
 }
 
 export function PlacePicker({
@@ -69,6 +73,7 @@ export function PlacePicker({
   error,
   onUnavailable,
   copy,
+  allowMyPosition = false,
 }: PlacePickerProps): ReactNode {
   const { t } = useI18n();
   const text = copy ?? {
@@ -84,6 +89,68 @@ export function PlacePicker({
   const [imageFailed, setImageFailed] = useState(false);
   const [focused, setFocused] = useState(false);
   const [touched, setTouched] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string>();
+
+  /**
+   * Renseigne le lieu depuis la position du telephone.
+   *
+   * 🔴 **`expo-location` est charge A L'APPUI, jamais en haut du module.** C'est
+   * un module natif : un import de premier niveau ferait tomber tout l'ecran sur
+   * un build qui ne le contient pas encore. Ici, seul le bouton echoue — avec un
+   * message.
+   *
+   * `Balanced` et non `Highest` : on cherche une commune, pas un point precis.
+   * La haute precision coute de la batterie et plusieurs secondes d'attente pour
+   * une reponse qu'on va de toute facon arrondir.
+   *
+   * ⚠️ La position brute ne quitte l'appareil que pour cet appel, et c'est la
+   * COMMUNE qui est conservee. Ce que le profil stocke reste arrondi a ~1 km.
+   */
+  const useMyPosition = async (): Promise<void> => {
+    setLocationError(undefined);
+
+    let Location: typeof import('expo-location');
+    try {
+      Location = await import('expo-location');
+    } catch {
+      setLocationError(t.club.locationUnavailable);
+      return;
+    }
+
+    setLocating(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        setLocationError(t.club.locationDenied);
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const { latitude, longitude } = position.coords;
+      const here = await authed((token) => resolveHere(token, latitude, longitude));
+      onChange({
+        // Identifiant local : ce lieu ne vient pas du catalogue Mapbox, il n'a
+        // donc pas d'identifiant de leur cote.
+        id: `here:${latitude},${longitude}`,
+        label: `${here.locality} (${here.canton})`,
+        lat: latitude,
+        lng: longitude,
+        canton: here.canton,
+        locality: here.locality,
+        regionCode: null,
+      });
+      setQuery('');
+      setResults([]);
+    } catch {
+      // Hors de Suisse, ou aucune commune au point : le serveur refuse, et la
+      // saisie manuelle reste ouverte juste en dessous.
+      setLocationError(t.club.locationOutside);
+    } finally {
+      setLocating(false);
+    }
+  };
 
   // Une frappe annule la requête précédente : sans ça, une réponse lente
   // écraserait le résultat d'une saisie plus récente.
@@ -178,7 +245,8 @@ export function PlacePicker({
           {/* Vue du ciel : un terrain de football se reconnaît au premier coup
               d'oeil, ce qui vaut confirmation que le bon point a été choisi —
               bien mieux qu'une ligne de texte. */}
-          <YStack height={PREVIEW_HEIGHT}>
+          <YStack height={value.aerialUrl ? PREVIEW_HEIGHT : undefined}>
+            {value.aerialUrl ? (
             <Image
               source={{ uri: value.aerialUrl }}
               style={{ width: '100%', height: PREVIEW_HEIGHT }}
@@ -187,6 +255,7 @@ export function PlacePicker({
               onError={() => setImageFailed(true)}
               onLoad={() => setImageFailed(false)}
             />
+            ) : null}
 
             {imageFailed ? (
               // Sans cela, un échec de chargement laisse un rectangle noir muet.
@@ -329,6 +398,29 @@ export function PlacePicker({
       <Text fontSize={13} color="$brandChalkDim">
         {text.help}
       </Text>
+
+      {/* Position du telephone : un appui au lieu d'une saisie. Voir
+          `allowMyPosition` — jamais propose pour le terrain d'un club. */}
+      {allowMyPosition ? (
+        <Pressable
+          onPress={() => void useMyPosition()}
+          disabled={locating}
+          accessibilityRole="button"
+        >
+          <XStack alignItems="center" gap="$2">
+            {locating ? <ActivityIndicator color="#39FF88" size="small" /> : null}
+            <Text fontSize={14.5} fontWeight="700" color="$brandPitchBright">
+              {locating ? t.club.locating : t.club.useMyPosition}
+            </Text>
+          </XStack>
+        </Pressable>
+      ) : null}
+
+      {locationError ? (
+        <Text fontSize={13} color="#FFC14D">
+          {locationError}
+        </Text>
+      ) : null}
 
       {error ? (
         <Text fontSize={13} color="$brandDanger">

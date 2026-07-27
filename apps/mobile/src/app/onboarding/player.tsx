@@ -301,6 +301,11 @@ export default function OnboardingPlayer(): ReactNode {
               authed={authed}
               value={place}
               onChange={setPlace}
+              // Un joueur cherche OU IL EST : le telephone le sait deja, le lui
+              // faire taper etait une friction gratuite. Jamais propose au club,
+              // dont on cherche le terrain et non l'endroit ou il remplit le
+              // formulaire.
+              allowMyPosition
               copy={{
                 label: t.onboarding.placeLabel,
                 placeholder: t.onboarding.placePlaceholder,

@@ -13,6 +13,7 @@ import {
 import { listMyTeams, type Team } from '@/api/teams';
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
+import { Appear } from '@/ui/appear';
 import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
 import { SkeletonList } from '@/ui/skeleton';
 import { CheckIcon } from '@/ui/icons';
@@ -217,10 +218,11 @@ export default function CoachesList(): ReactNode {
         <EmptyState text={t.coaches.empty} />
       ) : null}
 
-      {coaches?.map((coach) => {
+      {coaches?.map((coach, index) => {
         const open = editing === coach.clubMemberId;
         return (
-          <Card key={coach.clubMemberId}>
+          <Appear key={coach.clubMemberId} index={index}>
+          <Card>
             <XStack alignItems="center" justifyContent="space-between" gap="$3">
               <Text fontSize={17} fontWeight="700" color="$brandChalk" flexShrink={1}>
                 {displayName(coach)}
@@ -351,6 +353,7 @@ export default function CoachesList(): ReactNode {
               </YStack>
             ) : null}
           </Card>
+          </Appear>
         );
       })}
 

@@ -1,4 +1,5 @@
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsLatitude, IsLongitude, IsString, MaxLength, MinLength } from 'class-validator';
 
 /**
  * Le jeton de session regroupe les frappes d'une même recherche et le choix
@@ -22,3 +23,21 @@ export class SearchPlacesQueryDto extends SessionQuery {
 }
 
 export class RetrievePlaceQueryDto extends SessionQuery {}
+
+/**
+ * Point ou se trouve l'utilisateur, pour en deduire commune et canton.
+ *
+ * ⚠️ **Pas de jeton de session ici, contrairement aux deux autres** : cette
+ * route n'interroge pas Mapbox mais swisstopo, qui n'est ni facture ni
+ * sessionnise. Ajouter une session par mimetisme laisserait croire a un cout
+ * qui n'existe pas.
+ */
+export class ResolveHereQueryDto {
+  @IsLatitude()
+  @Type(() => Number)
+  lat!: number;
+
+  @IsLongitude()
+  @Type(() => Number)
+  lng!: number;
+}
