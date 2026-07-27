@@ -1,3 +1,4 @@
+import { PASSWORD_MIN_LENGTH } from '@footlink/shared';
 import { ApiError } from '@/api/client';
 import type { Messages } from '@/i18n/messages';
 
@@ -43,11 +44,20 @@ export function toUserMessage(error: unknown, t: Messages): string {
       return t.errors.emailTaken;
     case 429:
       return t.errors.tooMany;
-    case 400:
-      // Erreurs de validation (DTO) ou jeton email invalide.
-      return error.detail?.toLowerCase().includes('token')
-        ? t.errors.invalidToken
-        : t.errors.unknown;
+    case 400: {
+      const detail = error.detail?.toLowerCase() ?? '';
+      /*
+       * 🔴 Un refus de mot de passe doit DIRE ce qui ne va pas. Il tombait dans
+       * le repli « Quelque chose s'est mal passe » : l'utilisateur voyait un
+       * echec sans cause ni remede, alors que le serveur avait explique
+       * precisement le probleme. C'est le defaut qui a bloque l'activation d'un
+       * entraineur, et il aurait bloque n'importe quelle inscription.
+       */
+      if (detail.includes('password')) {
+        return t.errors.passwordTooWeak.replace('{min}', String(PASSWORD_MIN_LENGTH));
+      }
+      return detail.includes('token') ? t.errors.invalidToken : t.errors.unknown;
+    }
     default:
       return t.errors.unknown;
   }

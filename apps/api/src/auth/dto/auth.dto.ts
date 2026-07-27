@@ -1,18 +1,20 @@
 import { Locale } from '@prisma/client';
+import { PASSWORD_MIN_LENGTH } from '@footlink/shared';
 import { IsEmail, IsEnum, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
-// 10 caractères minimum, avec au moins une lettre et un chiffre (audit #13 :
-// 8 caractères laissaient passer `aaaaaaaa1`).
+// Longueur minimale : `PASSWORD_MIN_LENGTH` de `packages/shared`, lue aussi par
+// l'app pour son texte d'aide. Deux valeurs separees ont deja diverge une fois
+// (audit #13 : 8 -> 10 cote serveur seulement), et l'utilisateur se retrouvait
+// devant un refus qu'aucun ecran n'expliquait.
 export const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).+$/;
-export const PASSWORD_MESSAGE =
-  'Password must be at least 10 characters and contain at least one letter and one digit.';
+export const PASSWORD_MESSAGE = `Password must be at least ${PASSWORD_MIN_LENGTH} characters and contain at least one letter and one digit.`;
 
 export class RegisterDto {
   @IsEmail()
   email!: string;
 
   @IsString()
-  @MinLength(10)
+  @MinLength(PASSWORD_MIN_LENGTH)
   @MaxLength(128)
   @Matches(PASSWORD_REGEX, { message: PASSWORD_MESSAGE })
   password!: string;
@@ -55,7 +57,7 @@ export class ResetPasswordDto {
   token!: string;
 
   @IsString()
-  @MinLength(10)
+  @MinLength(PASSWORD_MIN_LENGTH)
   @MaxLength(128)
   @Matches(PASSWORD_REGEX, { message: PASSWORD_MESSAGE })
   password!: string;
@@ -97,7 +99,7 @@ export class VerifySignupCodeDto {
   code!: string;
 
   @IsString()
-  @MinLength(10)
+  @MinLength(PASSWORD_MIN_LENGTH)
   @MaxLength(128)
   @Matches(PASSWORD_REGEX, { message: PASSWORD_MESSAGE })
   password!: string;
@@ -117,7 +119,7 @@ export class VerifyCoachCodeDto {
 
 export class AcceptCoachInviteDto extends VerifyCoachCodeDto {
   @IsString()
-  @MinLength(10)
+  @MinLength(PASSWORD_MIN_LENGTH)
   @MaxLength(128)
   @Matches(PASSWORD_REGEX, { message: PASSWORD_MESSAGE })
   password!: string;

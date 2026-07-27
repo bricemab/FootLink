@@ -1,3 +1,4 @@
+import { PASSWORD_MIN_LENGTH } from '@footlink/shared';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable } from 'react-native';
@@ -325,7 +326,7 @@ export default function RegisterCoach(): ReactNode {
               error={fieldError}
             />
             <Text fontSize={13} color="$brandChalkDim">
-              {t.register.passwordHint}
+              {fill(t.register.passwordHint, { min: String(PASSWORD_MIN_LENGTH) })}
             </Text>
           </YStack>
           <TextField

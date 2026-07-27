@@ -48,7 +48,7 @@ export const fr = {
     subtitle: 'Deux minutes, et ton profil est en ligne.',
     submit: 'Créer mon compte',
     hasAccount: 'Déjà inscrit ?',
-    passwordHint: '8 caractères minimum, avec au moins une lettre et un chiffre.',
+    passwordHint: '{min} caractères minimum, avec au moins une lettre et un chiffre.',
   },
   steps: {
     progress: 'Étape {current} sur {total}',
@@ -398,6 +398,8 @@ export const fr = {
     clubAlreadyLinked: 'Ce compte est déjà rattaché à un club.',
     coachInviteRateLimited:
       'Trois invitations ont déjà été envoyées à cette adresse. Réessaie dans 30 minutes.',
+    passwordTooWeak:
+      'Mot de passe trop court : {min} caractères minimum, avec une lettre et un chiffre.',
     emailNotVerified: 'Confirme d’abord ton adresse email.',
     accountNotActive: 'Ce compte n’est pas actif.',
     invalidToken: 'Ce code est invalide ou expiré.',
@@ -405,7 +407,7 @@ export const fr = {
     unknown: 'Quelque chose s’est mal passé.',
     required: 'Ce champ est obligatoire.',
     emailFormat: 'Cette adresse email n’est pas valide.',
-    passwordFormat: '8 caractères minimum, avec une lettre et un chiffre.',
+    passwordFormat: '{min} caractères minimum, avec une lettre et un chiffre.',
     codeFormat: 'Le code fait 6 chiffres.',
     inviteInvalid: 'Email ou code incorrect. Vérifie l’adresse enregistrée par ton club.',
     inviteLocked: 'Trop de tentatives. Demande à ton club de renvoyer un code.',
@@ -456,7 +458,7 @@ export const de: typeof fr = {
     subtitle: 'Zwei Minuten, und dein Profil ist online.',
     submit: 'Konto erstellen',
     hasAccount: 'Bereits registriert?',
-    passwordHint: 'Mindestens 8 Zeichen, mit mindestens einem Buchstaben und einer Ziffer.',
+    passwordHint: 'Mindestens {min} Zeichen, mit mindestens einem Buchstaben und einer Ziffer.',
   },
   steps: {
     progress: 'Schritt {current} von {total}',
@@ -784,6 +786,8 @@ export const de: typeof fr = {
     clubAlreadyLinked: 'Dieses Konto ist bereits einem Verein zugeordnet.',
     coachInviteRateLimited:
       'An diese Adresse wurden bereits drei Einladungen gesendet. Versuche es in 30 Minuten erneut.',
+    passwordTooWeak:
+      'Passwort zu kurz: mindestens {min} Zeichen, mit einem Buchstaben und einer Ziffer.',
     emailNotVerified: 'Bestätige zuerst deine E-Mail-Adresse.',
     accountNotActive: 'Dieses Konto ist nicht aktiv.',
     invalidToken: 'Dieser Code ist ungültig oder abgelaufen.',
@@ -791,7 +795,7 @@ export const de: typeof fr = {
     unknown: 'Da ist etwas schiefgelaufen.',
     required: 'Dieses Feld ist erforderlich.',
     emailFormat: 'Diese E-Mail-Adresse ist ungültig.',
-    passwordFormat: 'Mindestens 8 Zeichen, mit einem Buchstaben und einer Ziffer.',
+    passwordFormat: 'Mindestens {min} Zeichen, mit einem Buchstaben und einer Ziffer.',
     codeFormat: 'Der Code besteht aus 6 Ziffern.',
     inviteInvalid: 'E-Mail oder Code ist falsch. Prüfe die von deinem Verein hinterlegte Adresse.',
     inviteLocked: 'Zu viele Versuche. Bitte deinen Verein, einen neuen Code zu senden.',

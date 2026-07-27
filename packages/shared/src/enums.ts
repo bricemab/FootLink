@@ -85,3 +85,15 @@ export type UserRole = (typeof USER_ROLES)[number];
 
 export const USER_STATUSES = ['ACTIVE', 'SUSPENDED', 'DELETED'] as const;
 export type UserStatus = (typeof USER_STATUSES)[number];
+
+/**
+ * Longueur minimale d'un mot de passe.
+ *
+ * 🔴 **Ici et nulle part ailleurs.** Elle vivait dans le DTO de l'API, et l'aide
+ * affichee dans l'app la recopiait a la main. Quand l'audit l'a portee de 8 a 10,
+ * le DTO a suivi, l'aide non : l'app annoncait « 8 caracteres minimum », le
+ * serveur en exigeait 10, et l'activation d'un entraineur echouait sur
+ * « Quelque chose s'est mal passe ». Les deux cotes lisent desormais la meme
+ * constante.
+ */
+export const PASSWORD_MIN_LENGTH = 10;

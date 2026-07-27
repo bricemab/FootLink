@@ -1,3 +1,4 @@
+import { PASSWORD_MIN_LENGTH } from '@footlink/shared';
 import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Pressable } from 'react-native';
@@ -23,7 +24,7 @@ import { validateEmail, validatePassword } from '@/ui/validation';
  */
 export default function RegisterPlayer(): ReactNode {
   const router = useRouter();
-  const { t, locale } = useI18n();
+  const { t, fill, locale } = useI18n();
   const { signUp } = useAuth();
 
   const labels = [t.steps.email, t.steps.password];
@@ -112,7 +113,7 @@ export default function RegisterPlayer(): ReactNode {
               />
               {fieldError ? null : (
                 <Text fontSize={13} color="$brandChalkDim">
-                  {t.register.passwordHint}
+                  {fill(t.register.passwordHint, { min: String(PASSWORD_MIN_LENGTH) })}
                 </Text>
               )}
             </YStack>
