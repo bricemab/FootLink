@@ -7,6 +7,7 @@ import {
 } from '@footlink/shared';
 import { ClubStatus, Prisma } from '@prisma/client';
 import { GeoService } from '../geo/geo.service';
+import { MediaService } from '../media/media.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertPlayerProfileDto } from './dto/upsert-player-profile.dto';
 
@@ -15,16 +16,32 @@ export class PlayersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly geo: GeoService,
+    private readonly media: MediaService,
   ) {}
 
-  getMyProfile(userId: string) {
-    return this.prisma.playerProfile.findUnique({
+  /**
+   * Profil du joueur connecté, avec l'URL SIGNEE de sa photo.
+   *
+   * La photo vit sur `User.avatarKey` et non sur le profil : elle appartient à
+   * la personne, pas à son rôle de joueur. On ne renvoie jamais la clé de
+   * stockage — seulement une URL de lecture courte, comme pour le logo de club.
+   */
+  async getMyProfile(userId: string) {
+    const profile = await this.prisma.playerProfile.findUnique({
       where: { userId },
       include: {
         positions: true,
         currentClub: { select: { id: true, name: true } },
+        user: { select: { avatarKey: true } },
       },
     });
+    if (!profile) {
+      return null;
+    }
+    // `user` est retiré de la réponse : il ne portait que la clé de stockage,
+    // qui n'a rien à faire côté client.
+    const { user, ...rest } = profile;
+    return { ...rest, avatarUrl: await this.media.readUrl(user.avatarKey) };
   }
 
   async upsertMyProfile(userId: string, dto: UpsertPlayerProfileDto) {

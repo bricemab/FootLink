@@ -1,89 +1,302 @@
+import { categoryLabel, strongFootLabel } from '@footlink/shared';
 import { useRouter } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Image, Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
+import { confirmAvatar, createAvatarUpload, removeAvatar } from '@/api/avatar';
+import { putToStorage } from '@/api/club-logo';
 import { getMyClub, type MyClubResponse } from '@/api/clubs';
+import { getMyPlayerProfile, type PlayerProfileResponse } from '@/api/players';
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
-import { PitchBackdrop } from '@/ui/pitch-backdrop';
+import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
+import { toUserMessage } from '@/ui/error-message';
+import { FormBanner } from '@/ui/form-banner';
+import { BallIcon } from '@/ui/icons';
+import { PitchPositions } from '@/ui/pitch-positions';
 import { PrimaryButton } from '@/ui/primary-button';
+import { SkeletonCard } from '@/ui/skeleton';
 
 /**
- * Écran d'atterrissage du M0 : il prouve que la session tient et que l'API
- * répond. Le profil joueur et le feed viennent aux jalons suivants.
+ * Fiche du joueur — son écran d'accueil.
+ *
+ * 🔴 **Ce que c'était.** Un panneau de diagnostic : email, `PLAYER`, `ACTIVE`,
+ * les valeurs brutes des enums dans un tableau. Un joueur venait de dessiner ses
+ * postes sur un terrain, et atterrissait sur une sortie de débogage. Le club, en
+ * face, avait déjà une configuration, un aperçu et des annonces.
+ *
+ * **Le terrain est la signature de l'app, pas un champ de formulaire.** Il ne
+ * servait qu'à SAISIR des postes pendant l'inscription ; il devient ici la
+ * représentation du joueur. C'est la seule chose que FootLink montre et
+ * qu'aucun concurrent n'a — la réserver à un écran de saisie était du gâchis.
+ *
+ * En lecture seule (`onChange` inerte) : cet écran présente, il ne modifie pas.
+ * La saisie reste dans le parcours d'inscription, qui porte déjà ses règles —
+ * exactement un poste principal, pas de doublon.
  */
 export default function Home(): ReactNode {
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, fill, locale } = useI18n();
   const { user, signOut, authed } = useAuth();
+
+  const [profile, setProfile] = useState<PlayerProfileResponse | null>();
   const [club, setClub] = useState<MyClubResponse | null>(null);
+  const [banner, setBanner] = useState<string>();
+  const [uploading, setUploading] = useState(false);
+
+  const load = useCallback(async (): Promise<void> => {
+    // `authed` et non `loadTokens` : un jeton lu directement est un instantané,
+    // et il expire (décision 35 du HANDOFF).
+    const [mine, myClub] = await Promise.all([
+      authed((token) => getMyPlayerProfile(token)).catch(() => null),
+      authed((token) => getMyClub(token)).catch(() => null),
+    ]);
+    setProfile(mine);
+    setClub(myClub);
+  }, [authed]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  /**
+   * Choix de la photo, puis téléversement direct vers le stockage.
+   *
+   * 🔴 **`expo-image-picker` est chargé ICI, pas en haut du fichier.** C'est un
+   * module natif : un import de premier niveau fait échouer TOUT le module de
+   * route sur un client de développement construit avant son ajout, et
+   * l'application entière tombe. Chargé à l'appui, seul le choix de photo
+   * échoue — avec un message.
+   */
+  const pickPhoto = async (): Promise<void> => {
+    setBanner(undefined);
+
+    let ImagePicker: typeof import('expo-image-picker');
+    try {
+      ImagePicker = await import('expo-image-picker');
+    } catch {
+      setBanner(t.home.photoUnavailable);
+      return;
+    }
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync().catch(() => null);
+    if (!permission) {
+      setBanner(t.home.photoUnavailable);
+      return;
+    }
+    if (!permission.granted) {
+      setBanner(t.home.photoDenied);
+      return;
+    }
+
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      // Carré : la photo s'affiche en pastille ronde, un cadrage libre serait
+      // rogné sans que la personne l'ait choisi.
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+    const asset = picked.canceled ? undefined : picked.assets[0];
+    if (!asset) {
+      return;
+    }
+
+    // Le type MIME annoncé au serveur doit être celui du fichier réellement
+    // envoyé : l'URL pré-signée n'est valable que pour lui.
+    const contentType = asset.mimeType ?? 'image/jpeg';
+    setUploading(true);
+    try {
+      const ticket = await authed((token) => createAvatarUpload(token, contentType));
+      await putToStorage(ticket.uploadUrl, asset.uri, contentType);
+      await authed((token) => confirmAvatar(token, ticket.key));
+      await load();
+    } catch (error) {
+      setBanner(toUserMessage(error, t));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const dropPhoto = async (): Promise<void> => {
+    setBanner(undefined);
+    setUploading(true);
+    try {
+      await authed((token) => removeAvatar(token));
+      await load();
+    } catch (error) {
+      setBanner(toUserMessage(error, t));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // Un responsable de club doit savoir où en est sa demande : sans ça, l'écran
   // ne lui dit rien et il ne peut de toute façon rien faire tant que le club
   // n'est pas validé.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      // `authed` et non `loadTokens` : un jeton lu directement est un instantané,
-      // et il expire (décision 35 du HANDOFF). Ici l'écran est court-vécu, mais
-      // la règle vaut partout — c'est ce genre d'exception qui la fait oublier.
-      const result = await authed((token) => getMyClub(token)).catch(() => null);
-      if (!cancelled) {
-        setClub(result);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [authed]);
-
-  // Un joueur n'a pas de club : `club` reste nul et l'écran garde son contenu
-  // habituel. Le message d'attente ne concerne qu'un club pas encore validé.
   const pendingClub = club?.canOperate === false;
+  const primary = profile?.positions.find((position) => position.isPrimary)?.poste ?? null;
+  const secondary = profile?.positions.filter((position) => !position.isPrimary) ?? [];
 
   return (
-    <PitchBackdrop>
-      <YStack flex={1} justifyContent="center" gap="$5">
-        {/* Aucune animation d'entrée : ses valeurs de départ persistent quand
-            elle ne se joue pas. Cf. `StepTransition`. */}
-        <YStack gap="$2">
-            <Text fontSize={13} fontWeight="700" letterSpacing={3} color="$brandPitchBright">
-              FOOTLINK
-            </Text>
-            <Text fontSize={34} fontWeight="800" color="$brandChalk" letterSpacing={-0.6}>
-              {pendingClub ? t.club.pendingTitle : t.home.title}
-            </Text>
-            <Text fontSize={16} lineHeight={22} color="$brandChalkDim">
-              {pendingClub ? t.club.pendingBody : t.home.subtitle}
-            </Text>
-        </YStack>
+    <AppScreen
+      title={profile ? `${profile.firstName} ${profile.lastName}` : t.home.title}
+      subtitle={pendingClub ? t.club.pendingBody : undefined}
+      allowStackBack={false}
+      onRefresh={() => void load()}
+    >
+      {banner ? <FormBanner message={banner} /> : null}
 
-        <YStack
-          gap="$3"
-          padding="$4"
-          borderRadius={20}
-          backgroundColor="rgba(14,36,28,0.75)"
-          borderWidth={1}
-          borderColor="rgba(244,251,247,0.12)"
-        >
-          <InfoRow label={t.common.email} value={user?.email ?? '—'} />
-          <InfoRow label={t.home.role} value={user?.role ?? '—'} />
-          <InfoRow label={t.home.status} value={user?.status ?? '—'} />
-          {club ? <InfoRow label={club.club.name} value={club.club.status} /> : null}
-        </YStack>
+      {profile === undefined ? <SkeletonCard /> : null}
 
-        <PrimaryButton
-          label={t.common.logout}
-          variant="ghost"
-          onPress={() => {
-            void signOut().then(() => router.replace('/'));
-          }}
-        />
-      </YStack>
-    </PitchBackdrop>
+      {profile === null ? (
+        // Pas de profil joueur : c'est le cas d'un club ou d'un entraîneur qui
+        // passe par ici. On ne lui invente pas une fiche de joueur.
+        <Card>
+          <Text fontSize={15} lineHeight={22} color="$brandChalkDim">
+            {t.home.subtitle}
+          </Text>
+        </Card>
+      ) : null}
+
+      {profile ? (
+        <>
+          {/* Identité : photo et statut de recherche. */}
+          <Card>
+            <XStack gap="$3.5" alignItems="center">
+              <Avatar url={profile.avatarUrl} busy={uploading} />
+              <YStack flexShrink={1} gap="$2">
+                <XStack gap="$2" flexWrap="wrap">
+                  <Badge
+                    label={profile.isSeekingClub ? t.home.seeking : t.home.notSeeking}
+                    tone={profile.isSeekingClub ? 'accent' : 'neutral'}
+                  />
+                  {!profile.isVisible ? <Badge label={t.home.hidden} tone="warning" /> : null}
+                </XStack>
+                <XStack gap="$3" flexWrap="wrap">
+                  <Pressable onPress={() => void pickPhoto()} accessibilityRole="button">
+                    <Text fontSize={14.5} fontWeight="700" color="$brandPitchBright">
+                      {profile.avatarUrl ? t.home.photoChange : t.home.photoAdd}
+                    </Text>
+                  </Pressable>
+                  {profile.avatarUrl ? (
+                    <Pressable onPress={() => void dropPhoto()} accessibilityRole="button">
+                      <Text fontSize={14.5} fontWeight="700" color="$brandChalkDim">
+                        {t.home.photoRemove}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </XStack>
+              </YStack>
+            </XStack>
+
+            {/* Un profil masqué est invisible des clubs : le dire, sinon le
+                joueur attend des propositions qui ne viendront jamais. */}
+            {!profile.isVisible ? (
+              <Text fontSize={13.5} lineHeight={20} color="#FFC14D">
+                {t.home.hiddenHint}
+              </Text>
+            ) : null}
+          </Card>
+
+          {/* 🔴 Le terrain, en grand. C'est la fiche du joueur. */}
+          <YStack gap="$2">
+            <Text fontSize={13} fontWeight="700" letterSpacing={0.6} color="$brandChalkDim">
+              {t.home.yourPitch.toUpperCase()}
+            </Text>
+            <PitchPositions
+              value={{ primary, secondary: secondary.map((position) => position.poste) }}
+              // Écran de présentation : le choix des postes appartient au
+              // parcours d'inscription, qui porte ses règles de validation.
+              onChange={() => undefined}
+            />
+          </YStack>
+
+          {/* Ce que le terrain ne dit PAS. Le poste principal n'y figure donc
+              pas : `PitchPositions` l'annonce deja sous le dessin, et le
+              repeter juste en dessous donnait la meme ligne deux fois. */}
+          <Card>
+            <Row
+              label={t.home.season}
+              value={
+                profile.currentCategory
+                  ? categoryLabel(profile.currentCategory, locale)
+                  : String(profile.birthYear)
+              }
+            />
+            <Row
+              label={t.home.currentClub}
+              value={profile.currentClub?.name ?? profile.currentClubName ?? t.home.noClub}
+            />
+            {profile.strongFoot ? (
+              <Row label={t.home.foot} value={strongFootLabel(profile.strongFoot, locale)} />
+            ) : null}
+            {profile.heightCm ? (
+              <Row
+                label={t.home.height}
+                value={fill(t.home.heightValue, { cm: String(profile.heightCm) })}
+              />
+            ) : null}
+          </Card>
+
+          {profile.bio ? (
+            <Card>
+              <Text fontSize={14.5} lineHeight={21} color="$brandChalk">
+                {profile.bio}
+              </Text>
+            </Card>
+          ) : null}
+
+          {/*
+            Ce qui vient. Un écran qui s'arrête sur une fiche laisse croire que
+            l'app est finie ; dire ce qui manque vaut mieux que le taire.
+          */}
+          <EmptyState text={`${t.home.feedSoon} — ${t.home.feedSoonHint}`} />
+        </>
+      ) : null}
+
+      <PrimaryButton
+        label={t.common.logout}
+        variant="ghost"
+        onPress={() => {
+          void signOut().then(() => router.replace('/'));
+        }}
+      />
+
+      {/* L'adresse reste visible : c'est elle qui identifie le compte, et un
+          joueur qui en a deux doit pouvoir savoir laquelle il utilise. */}
+      <Text fontSize={12.5} color="$brandChalkDim" textAlign="center">
+        {user?.email ?? '—'}
+      </Text>
+    </AppScreen>
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }): ReactNode {
+/** Pastille ronde. Un ballon plutôt qu'une silhouette générique inventée. */
+function Avatar({ url, busy }: { url: string | null; busy: boolean }): ReactNode {
+  return (
+    <YStack
+      width={72}
+      height={72}
+      borderRadius={36}
+      overflow="hidden"
+      alignItems="center"
+      justifyContent="center"
+      backgroundColor="rgba(7,19,15,0.75)"
+      borderWidth={1.5}
+      borderColor={url ? 'rgba(57,255,136,0.35)' : 'rgba(244,251,247,0.14)'}
+      opacity={busy ? 0.5 : 1}
+    >
+      {url ? (
+        <Image source={{ uri: url }} style={{ width: 72, height: 72 }} resizeMode="cover" />
+      ) : (
+        <BallIcon size={28} />
+      )}
+    </YStack>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }): ReactNode {
   return (
     <XStack justifyContent="space-between" alignItems="center" gap="$3">
       <Text fontSize={13} fontWeight="600" letterSpacing={0.4} color="$brandChalkDim">

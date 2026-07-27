@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import Svg, { Circle, Line, Rect } from 'react-native-svg';
 import type { ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -196,19 +197,81 @@ export function Badge({
   );
 }
 
-/** Message d'absence de contenu. Une liste vide sans explication inquiète. */
-export function EmptyState({ text }: { text: string }): ReactNode {
+/**
+ * Absence de contenu.
+ *
+ * 🔴 **Un état vide doit inviter, pas constater.** C'était une simple boîte de
+ * texte : le lecteur apprenait qu'il n'y avait rien, et l'écran s'arrêtait là.
+ * Un dessin donne une forme à ce qui manque, et `action` offre le geste qui
+ * remplit le vide — sans quoi la seule issue est le retour arrière.
+ *
+ * Le terrain vide n'est pas décoratif : c'est le motif de l'app, et il dit
+ * « ici viendront des joueurs » mieux qu'une phrase.
+ */
+export function EmptyState({
+  text,
+  action,
+}: {
+  text: string;
+  /** Le geste qui remplit ce vide. Absent quand l'écran n'en propose aucun. */
+  action?: ReactNode;
+}): ReactNode {
   return (
     <YStack
-      padding="$4"
+      padding="$5"
+      gap="$3.5"
       borderRadius={18}
       borderWidth={1}
       borderColor="rgba(244,251,247,0.10)"
       backgroundColor="rgba(12,30,23,0.55)"
+      alignItems="center"
     >
-      <Text fontSize={14.5} lineHeight={21} color="$brandChalkDim">
+      <EmptyPitch />
+      <Text fontSize={14.5} lineHeight={21} color="$brandChalkDim" textAlign="center">
         {text}
       </Text>
+      {action}
     </YStack>
+  );
+}
+
+/**
+ * Un demi-terrain vide, au trait.
+ *
+ * Volontairement le MÊME tracé que `PitchPositions` — surface, point de
+ * réparation, rond central — pour que l'absence et la présence parlent la même
+ * langue. Un dessin générique aurait fait illustration plaquée.
+ */
+function EmptyPitch(): ReactNode {
+  return (
+    <Svg width={86} height={64} viewBox="0 0 86 64" fill="none" opacity={0.55}>
+      <Rect
+        x={1}
+        y={1}
+        width={84}
+        height={62}
+        rx={6}
+        stroke="rgba(57,255,136,0.30)"
+        strokeWidth={1.5}
+      />
+      <Line x1={1} y1={32} x2={85} y2={32} stroke="rgba(244,251,247,0.20)" strokeWidth={1.2} />
+      <Circle cx={43} cy={32} r={9} stroke="rgba(244,251,247,0.20)" strokeWidth={1.2} />
+      <Rect
+        x={26}
+        y={1}
+        width={34}
+        height={13}
+        stroke="rgba(244,251,247,0.20)"
+        strokeWidth={1.2}
+      />
+      <Rect
+        x={26}
+        y={50}
+        width={34}
+        height={13}
+        stroke="rgba(244,251,247,0.20)"
+        strokeWidth={1.2}
+      />
+    </Svg>
   );
 }

@@ -1,7 +1,7 @@
 import { categoryLabel, posteLabel } from '@footlink/shared';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable } from 'react-native';
+import { Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { listMyListings, type Listing } from '@/api/listings';
 import { useAuth } from '@/auth/auth-context';
@@ -10,6 +10,7 @@ import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { statusLabel, statusTone } from '@/ui/listing-status';
+import { SkeletonList } from '@/ui/skeleton';
 import { PrimaryButton } from '@/ui/primary-button';
 
 /**
@@ -94,11 +95,9 @@ export default function ClubListings(): ReactNode {
         </XStack>
       ) : null}
 
-      {listings === undefined && loading ? (
-        <YStack paddingVertical="$6" alignItems="center">
-          <ActivityIndicator color="#39FF88" />
-        </YStack>
-      ) : null}
+      {/* Silhouettes plutot qu'une roue : l'ecran se dessine deja, et le
+          remplacement par les vraies cartes ne fait pas sauter la page. */}
+      {listings === undefined && loading ? <SkeletonList count={2} /> : null}
 
       {listings !== undefined && listings.length === 0 ? (
         <EmptyState text={filtered ? t.listings.empty : t.listings.allEmpty} />

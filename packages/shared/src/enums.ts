@@ -59,6 +59,24 @@ export type AppLocale = (typeof LOCALES)[number];
 export const STRONG_FEET = ['DROIT', 'GAUCHE', 'AMBIDEXTRE'] as const;
 export type StrongFoot = (typeof STRONG_FEET)[number];
 
+/**
+ * Libelle du pied fort.
+ *
+ * Il n'en existait aucun, et l'ecran du joueur s'appretait a afficher `DROIT` —
+ * le code de l'enum, en majuscules. Les codes sont pour la base, jamais pour
+ * l'ecran : c'est la meme regle que `posteLabel` et `categoryLabel`.
+ */
+const STRONG_FOOT_LABELS: Record<StrongFoot, { fr: string; de: string }> = {
+  DROIT: { fr: 'Droit', de: 'Rechts' },
+  GAUCHE: { fr: 'Gauche', de: 'Links' },
+  AMBIDEXTRE: { fr: 'Ambidextre', de: 'Beidfüssig' },
+};
+
+export function strongFootLabel(foot: StrongFoot, locale: AppLocale): string {
+  const label = STRONG_FOOT_LABELS[foot];
+  return locale === 'DE' ? label.de : label.fr;
+}
+
 export const GENDERS = ['MALE', 'FEMALE'] as const;
 export type Gender = (typeof GENDERS)[number];
 

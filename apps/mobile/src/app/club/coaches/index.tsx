@@ -14,6 +14,7 @@ import { listMyTeams, type Team } from '@/api/teams';
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
 import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
+import { SkeletonList } from '@/ui/skeleton';
 import { CheckIcon } from '@/ui/icons';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
@@ -198,11 +199,8 @@ export default function CoachesList(): ReactNode {
     >
       {banner ? <FormBanner message={banner} /> : null}
 
-      {coaches === undefined && loading ? (
-        <YStack paddingVertical="$6" alignItems="center">
-          <ActivityIndicator color="#39FF88" />
-        </YStack>
-      ) : null}
+      {/* Silhouettes : voir `Skeleton`. */}
+      {coaches === undefined && loading ? <SkeletonList count={2} /> : null}
 
       {coaches !== undefined && coaches.length === 0 ? (
         <EmptyState text={t.coaches.empty} />

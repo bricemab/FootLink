@@ -44,6 +44,22 @@ export interface PlayerProfileResponse {
   canton: string | null;
   locality: string | null;
   positions: { poste: Poste; isPrimary: boolean }[];
+  /*
+   * Le serveur renvoyait DEJA tout ce qui suit : c'est ce type qui etait trop
+   * etroit, et l'ecran d'accueil se rabattait donc sur l'email et le role brut
+   * faute de savoir qu'il avait mieux sous la main.
+   */
+  heightCm: number | null;
+  strongFoot: StrongFoot | null;
+  bio: string | null;
+  currentCategory: CategoryCode | null;
+  currentClubName: string | null;
+  currentClub: { id: string; name: string } | null;
+  hideCurrentClub: boolean;
+  isSeekingClub: boolean;
+  isVisible: boolean;
+  /** URL de lecture SIGNEE et courte. Jamais la cle de stockage. */
+  avatarUrl: string | null;
 }
 
 /**
