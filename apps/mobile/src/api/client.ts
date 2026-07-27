@@ -59,6 +59,7 @@ export type ApiErrorCode =
   | 'SIGNUP_CODE_INVALID'
   | 'SIGNUP_CODE_LOCKED'
   | 'TEAM_DELETION_CONFIRMATION_REQUIRED'
+  | 'COACH_INVITE_RATE_LIMITED'
   | 'NETWORK'
   | 'UNKNOWN';
 
@@ -74,6 +75,7 @@ const KNOWN_CODES: readonly string[] = [
   'SIGNUP_CODE_INVALID',
   'SIGNUP_CODE_LOCKED',
   'TEAM_DELETION_CONFIRMATION_REQUIRED',
+  'COACH_INVITE_RATE_LIMITED',
 ];
 
 export class ApiError extends Error {

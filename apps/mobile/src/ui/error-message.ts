@@ -28,6 +28,11 @@ export function toUserMessage(error: unknown, t: Messages): string {
   if (error.code === 'CLUB_ALREADY_LINKED') {
     return t.errors.clubAlreadyLinked;
   }
+  // Plafond d'invitations PAR ENTRAINEUR — a distinguer du 429 generique, qui
+  // vient du rate-limit par IP et ne dit pas la meme chose a l'utilisateur.
+  if (error.code === 'COACH_INVITE_RATE_LIMITED') {
+    return t.errors.coachInviteRateLimited;
+  }
   switch (error.status) {
     case 401:
       return t.errors.invalidCredentials;

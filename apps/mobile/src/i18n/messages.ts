@@ -374,6 +374,8 @@ export const fr = {
     emailTaken: 'Un compte existe déjà avec cet email.',
     accountIsGoogle: 'Ce compte utilise la connexion Google. Continue avec Google.',
     clubAlreadyLinked: 'Ce compte est déjà rattaché à un club.',
+    coachInviteRateLimited:
+      'Trois invitations ont déjà été envoyées à cette adresse. Réessaie dans 30 minutes.',
     emailNotVerified: 'Confirme d’abord ton adresse email.',
     accountNotActive: 'Ce compte n’est pas actif.',
     invalidToken: 'Ce code est invalide ou expiré.',
@@ -737,6 +739,8 @@ export const de: typeof fr = {
     emailTaken: 'Mit dieser E-Mail existiert bereits ein Konto.',
     accountIsGoogle: 'Dieses Konto nutzt die Google-Anmeldung. Mach mit Google weiter.',
     clubAlreadyLinked: 'Dieses Konto ist bereits einem Verein zugeordnet.',
+    coachInviteRateLimited:
+      'An diese Adresse wurden bereits drei Einladungen gesendet. Versuche es in 30 Minuten erneut.',
     emailNotVerified: 'Bestätige zuerst deine E-Mail-Adresse.',
     accountNotActive: 'Dieses Konto ist nicht aktiv.',
     invalidToken: 'Dieser Code ist ungültig oder abgelaufen.',

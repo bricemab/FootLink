@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   Club,
   ClubMember,
@@ -8,6 +8,7 @@ import {
   User,
   UserRole,
 } from '@prisma/client';
+import { TokenType } from '@prisma/client';
 import { normalizeEmail } from '@footlink/shared';
 import { AuthService } from '../auth/auth.service';
 import { MailService } from '../mail/mail.service';
@@ -48,6 +49,23 @@ export interface PreparedCoach {
   /** Un compte sans mot de passe ET sans Google ne peut pas se connecter. */
   needsInvite: boolean;
 }
+
+/**
+ * Plafond d'invitations pour UN entraineur.
+ *
+ * Compte **tous** les emails d'invitation partis vers cette adresse dans la
+ * fenetre, creation du compte comprise : l'objectif est de ne pas inonder une
+ * boite, pas de compter des clics. Un club qui cree un entraineur peut donc lui
+ * renvoyer un code deux fois de suite, puis doit attendre.
+ *
+ * ⚠️ C'est une limite **par entraineur**, distincte du rate-limit par IP du
+ * `ThrottlerGuard`. Les deux sont necessaires : le throttle protege le serveur,
+ * celui-ci protege le destinataire — un club avec vingt entraineurs passerait
+ * sous le throttle tout en spammant une seule adresse.
+ */
+export const COACH_INVITE_WINDOW_MINUTES = 30;
+export const COACH_INVITE_MAX_PER_WINDOW = 3;
+export const COACH_INVITE_RATE_LIMITED = 'COACH_INVITE_RATE_LIMITED';
 
 @Injectable()
 export class CoachesService {
@@ -177,6 +195,25 @@ export class CoachesService {
     if (user.passwordHash || user.googleId) {
       throw new BadRequestException('This coach has already activated their account.');
     }
+    /*
+     * Plafond d'envois AVANT de creer quoi que ce soit : emettre le jeton puis
+     * refuser l'envoi invaliderait le code precedent sans en delivrer de
+     * nouveau, et l'entraineur se retrouverait avec un code mort.
+     */
+    const since = new Date(Date.now() - COACH_INVITE_WINDOW_MINUTES * 60 * 1000);
+    const recent = await this.prisma.token.count({
+      where: { userId: user.id, type: TokenType.COACH_INVITE, createdAt: { gte: since } },
+    });
+    if (recent >= COACH_INVITE_MAX_PER_WINDOW) {
+      throw new HttpException(
+        {
+          code: COACH_INVITE_RATE_LIMITED,
+          message: `Too many invitations sent. Try again in ${COACH_INVITE_WINDOW_MINUTES} minutes.`,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     // Le jeton est cree TOUT DE SUITE et de facon synchrone : c'est lui qui
     // invalide le precedent, et le club doit pouvoir compter dessus des que
     // l'API a repondu. Seul l'envoi part en arriere-plan.

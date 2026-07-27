@@ -30,6 +30,14 @@ import { PrimaryButton } from '@/ui/primary-button';
  * ⚠️ `setCoachTeams` **remplace** l'ensemble des assignations : l'écran envoie
  * donc l'état complet voulu, jamais un ajout.
  */
+/**
+ * Duree d'affichage de « nouveau code envoye » avant que le bouton revienne.
+ *
+ * Assez pour etre lu, assez court pour ne pas bloquer un second renvoi
+ * legitime — l'email precedent a pu se perdre.
+ */
+const CONFIRMATION_MS = 3000;
+
 export default function CoachesList(): ReactNode {
   const router = useRouter();
   const { t, locale } = useI18n();
@@ -55,6 +63,17 @@ export default function CoachesList(): ReactNode {
   const [loading, setLoading] = useState(true);
   // Verrou synchrone contre le double appui : voir `toggleTeam`.
   const togglingRef = useRef(false);
+  const confirmationTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Le minuteur ne doit pas survivre a l'ecran.
+  useEffect(
+    () => () => {
+      if (confirmationTimer.current !== undefined) {
+        clearTimeout(confirmationTimer.current);
+      }
+    },
+    [],
+  );
 
   const load = useCallback(async (): Promise<void> => {
     setBanner(undefined);
@@ -96,13 +115,29 @@ export default function CoachesList(): ReactNode {
    * pas rechargee. Une confirmation qui s'efface d'elle-meme au bout de quelques
    * secondes laisse un doute a qui a regarde ailleurs.
    */
+  /**
+   * Renvoi du code.
+   *
+   * La confirmation s'efface d'elle-meme apres CONFIRMATION_MS et le bouton
+   * revient : une coche qui reste indefiniment laisse croire que l'action est
+   * terminee pour de bon, alors qu'un renvoi peut legitimement etre repete.
+   *
+   * ⚠️ Le minuteur est garde dans un `ref` et annule avant d'en armer un autre :
+   * deux renvois rapproches laisseraient sinon le premier minuteur effacer la
+   * confirmation du second. Il est aussi annule au demontage — sans quoi il
+   * appellerait `setState` sur un ecran qui n'existe plus.
+   */
   const resend = (coach: Coach): void => {
     setSentTo(undefined);
+    if (confirmationTimer.current !== undefined) {
+      clearTimeout(confirmationTimer.current);
+    }
     setSending(coach.clubMemberId);
     void act(async () => {
       try {
         await authed((token) => resendCoachInvite(token, coach.clubMemberId));
         setSentTo(coach.clubMemberId);
+        confirmationTimer.current = setTimeout(() => setSentTo(undefined), CONFIRMATION_MS);
       } finally {
         setSending(undefined);
       }
