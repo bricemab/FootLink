@@ -52,6 +52,36 @@ export class MailService {
           requireTLS: port !== 465,
           tls: { minVersion: 'TLSv1.2' },
           auth: { user, pass: password },
+          /*
+           * 🔴 **Connexion mutualisee, et ce n'est pas de l'optimisation
+           * gratuite.** Gmail retarde volontairement l'ACCEPTATION DU MOT DE
+           * PASSE quand un compte se met a envoyer par SMTP : mesure au
+           * chronometre, commande par commande, le 27 juillet —
+           *
+           *     banniere 71 ms · EHLO 31 ms · AUTH 26 ms
+           *     mot de passe 5664 ms   <-- ici
+           *     MAIL FROM 26 ms · RCPT TO 22 ms
+           *
+           * Tout le protocole repond en ~25 ms, seule l'authentification est
+           * freinee. Sans pool, ces 5,6 s se paient A CHAQUE message ; avec, une
+           * seule fois pour toute la vie de la connexion.
+           *
+           * `maxConnections: 1` : ouvrir plusieurs sessions en parallele sur un
+           * compte deja freine, c'est demander a l'etre davantage.
+           */
+          pool: true,
+          maxConnections: 1,
+          maxMessages: 100,
+          /*
+           * Delais BORNES. Sans eux, une session qui pend retient une tache de
+           * fond indefiniment et personne ne l'apprend jamais — la promesse
+           * n'etant plus attendue par personne depuis le decouplage. Larges,
+           * parce qu'un envoi reel a deja pris 85 s sur ce reseau : trop courts,
+           * ils feraient echouer des envois qui aboutissaient.
+           */
+          connectionTimeout: 30_000,
+          greetingTimeout: 30_000,
+          socketTimeout: 180_000,
         })
       : createTransport({ jsonTransport: true });
 
