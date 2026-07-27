@@ -10,6 +10,7 @@ import { useI18n } from '@/i18n';
 import { AppScreen, EmptyState } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
+import { hapticError, hapticSuccess } from '@/ui/haptics';
 import { CheckIcon } from '@/ui/icons';
 import { ListingForm, toPostes } from '@/ui/listing-form';
 import type { PitchSelection } from '@/ui/pitch-positions';
@@ -93,11 +94,13 @@ export default function NewListing(): ReactNode {
           publish,
         }),
       );
+      hapticSuccess();
       // `replace` : revenir sur ce formulaire après création n'aurait aucun sens.
       router.replace(
         fromParams ? { pathname: '/club/listings', params: { teamId } } : '/club/listings',
       );
     } catch (error) {
+      hapticError();
       setBanner(toUserMessage(error, t));
     } finally {
       setBusy(false);

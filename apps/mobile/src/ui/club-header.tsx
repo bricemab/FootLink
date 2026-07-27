@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, XStack, YStack } from 'tamagui';
 import { getMyClub, type MyClubResponse } from '@/api/clubs';
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
+import { AppImage } from '@/ui/app-image';
 import { Badge } from '@/ui/app-screen';
 import { GlassSurface, glassSupport } from '@/ui/glass';
 import { StadiumIcon } from '@/ui/icons';
@@ -75,11 +75,7 @@ export function ClubHeader(): ReactNode {
             borderColor="rgba(244,251,247,0.14)"
           >
             {club.logoUrl ? (
-              <Image
-                source={{ uri: club.logoUrl }}
-                style={{ width: 38, height: 38 }}
-                resizeMode="cover"
-              />
+              <AppImage uri={club.logoUrl} size={38} />
             ) : (
               <StadiumIcon size={20} />
             )}

@@ -1,7 +1,7 @@
 import { categoryLabel, strongFootLabel } from '@footlink/shared';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Image, Pressable } from 'react-native';
+import { Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { confirmAvatar, createAvatarUpload, removeAvatar } from '@/api/avatar';
 import { putToStorage } from '@/api/club-logo';
@@ -9,6 +9,7 @@ import { getMyClub, type MyClubResponse } from '@/api/clubs';
 import { getMyPlayerProfile, type PlayerProfileResponse } from '@/api/players';
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
+import { AppImage } from '@/ui/app-image';
 import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
@@ -209,6 +210,7 @@ export default function Home(): ReactNode {
               // Écran de présentation : le choix des postes appartient au
               // parcours d'inscription, qui porte ses règles de validation.
               onChange={() => undefined}
+              readOnly
             />
           </YStack>
 
@@ -288,7 +290,7 @@ function Avatar({ url, busy }: { url: string | null; busy: boolean }): ReactNode
       opacity={busy ? 0.5 : 1}
     >
       {url ? (
-        <Image source={{ uri: url }} style={{ width: 72, height: 72 }} resizeMode="cover" />
+        <AppImage uri={url} size={72} />
       ) : (
         <BallIcon size={28} />
       )}

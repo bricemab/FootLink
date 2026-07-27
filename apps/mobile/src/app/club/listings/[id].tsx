@@ -16,6 +16,7 @@ import { useI18n } from '@/i18n';
 import { AppScreen, Badge, Card } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
+import { hapticError, hapticSuccess } from '@/ui/haptics';
 import { ListingForm, toPostes } from '@/ui/listing-form';
 import { statusLabel, statusTone } from '@/ui/listing-status';
 import type { PitchSelection } from '@/ui/pitch-positions';
@@ -107,8 +108,11 @@ export default function ListingDetail(): ReactNode {
     setBusy(true);
     try {
       await authed((token) => updateListing(token, id, { status }));
+      // Publier ou clore engage : ca doit se sentir, pas seulement s'afficher.
+      hapticSuccess();
       await load();
     } catch (error) {
+      hapticError();
       setBanner(toUserMessage(error, t));
     } finally {
       setBusy(false);

@@ -5,6 +5,7 @@ import { LayoutChangeEvent, Pressable } from 'react-native';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
 import { Text, XStack, YStack } from 'tamagui';
 import { useI18n } from '@/i18n';
+import { hapticTap } from '@/ui/haptics';
 
 /**
  * Choix des postes sur un demi-terrain.
@@ -49,6 +50,7 @@ export function PitchPositions({
   onChange,
   maxSecondary = 3,
   labels,
+  readOnly = false,
 }: {
   value: PitchSelection;
   onChange: (next: PitchSelection) => void;
@@ -59,6 +61,15 @@ export function PitchPositions({
    * sens different — d'ou un libelle injecte plutot que code en dur.
    */
   labels?: { primary: string; secondary: string };
+  /**
+   * Vrai = le terrain PRESENTE au lieu de saisir.
+   *
+   * Sans ca, les pastilles restaient pressables sur la fiche du joueur : elles
+   * repondaient au toucher, declenchaient un retour haptique, et ne changeaient
+   * rien. Un element qui a l'air actionnable et ne fait rien est un defaut, pas
+   * une neutralite — il fait douter de tout le reste de l'ecran.
+   */
+  readOnly?: boolean;
 }): ReactNode {
   const { t, locale } = useI18n();
   const [width, setWidth] = useState(0);
@@ -73,6 +84,8 @@ export function PitchPositions({
    * tape, on voit, on retape.
    */
   const cycle = (poste: Poste): void => {
+    // Un poste qui s'allume est un geste franchi, pas un simple appui.
+    hapticTap();
     if (value.primary === poste) {
       // Le principal devient secondaire, s'il reste de la place.
       const secondary =
@@ -160,11 +173,14 @@ export function PitchPositions({
               return (
                 <Pressable
                   key={poste}
-                  onPress={() => cycle(poste)}
-                  accessibilityRole="button"
+                  onPress={readOnly ? undefined : () => cycle(poste)}
+                  // En presentation, la pastille est une IMAGE : pas de role de
+                  // bouton annonce aux lecteurs d'ecran, pas de zone de touche
+                  // elargie autour de quelque chose d'inerte.
+                  accessibilityRole={readOnly ? 'image' : 'button'}
                   accessibilityLabel={posteLabel(poste, locale)}
-                  accessibilityState={{ selected: state !== 'none' }}
-                  hitSlop={8}
+                  accessibilityState={readOnly ? undefined : { selected: state !== 'none' }}
+                  {...(readOnly ? {} : { hitSlop: 8 })}
                   style={{
                     position: 'absolute',
                     left: (width * meta.x) / 100 - size / 2,
