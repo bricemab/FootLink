@@ -3,12 +3,19 @@ import { MotiText, MotiView } from 'moti';
 import type { ReactNode } from 'react';
 import { Image } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
+import { useSignedInRedirect } from '@/auth/signed-in-guard';
 import { useI18n } from '@/i18n';
 import { LocaleSwitch } from '@/ui/locale-switch';
 import { PitchBackdrop } from '@/ui/pitch-backdrop';
 import { PrimaryButton } from '@/ui/primary-button';
 
 export default function Welcome(): ReactNode {
+  // Deja connecte : cet ecran n'a plus d'objet. Voir `useSignedInRedirect`.
+  const signedIn = useSignedInRedirect();
+  if (signedIn) {
+    return signedIn;
+  }
+
   const router = useRouter();
   const { t } = useI18n();
 

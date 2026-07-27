@@ -1,5 +1,5 @@
 import { categoryLabel } from '@footlink/shared';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
@@ -93,9 +93,20 @@ export default function CoachesList(): ReactNode {
     }
   }, [authed, t]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  /*
+   * 🔴 `useFocusEffect` et non `useEffect` : l'ecran se relit A CHAQUE RETOUR.
+   *
+   * Avec `useEffect`, la lecture n'avait lieu qu'au montage. Un ecran qu'on
+   * quitte reste monte dans la pile : en revenant apres avoir cree une annonce,
+   * on retrouvait la liste d'AVANT — « 0 annonce » alors qu'on venait d'en
+   * creer une. Le contenu ne se reparait qu'en tirant pour rafraichir, ce que
+   * personne ne fait pour verifier une action qu'il vient d'accomplir.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   const act = async (run: () => Promise<void>): Promise<void> => {
     setBanner(undefined);

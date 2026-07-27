@@ -3,6 +3,7 @@ import { MotiView } from 'moti';
 import type { ReactNode } from 'react';
 import { Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
+import { useSignedInRedirect } from '@/auth/signed-in-guard';
 import { useI18n } from '@/i18n';
 import { AuthFormShell } from '@/ui/auth-form-shell';
 import { BallIcon, ChevronIcon, CoachIcon, StadiumIcon } from '@/ui/icons';
@@ -15,6 +16,12 @@ import { BallIcon, ChevronIcon, CoachIcon, StadiumIcon } from '@/ui/icons';
  * compte existe déjà, créé par son club, il ne fait que l'activer.
  */
 export default function ChooseRole(): ReactNode {
+  // Deja connecte : cet ecran n'a plus d'objet. Voir `useSignedInRedirect`.
+  const signedIn = useSignedInRedirect();
+  if (signedIn) {
+    return signedIn;
+  }
+
   const router = useRouter();
   const { t } = useI18n();
 

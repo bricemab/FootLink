@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { Pressable } from 'react-native';
 import { Text, XStack } from 'tamagui';
 import { useAuth } from '@/auth/auth-context';
+import { useSignedInRedirect } from '@/auth/signed-in-guard';
 import { useI18n } from '@/i18n';
 import { AuthFormShell } from '@/ui/auth-form-shell';
 import { toUserMessage } from '@/ui/error-message';
@@ -13,6 +14,12 @@ import { TextField } from '@/ui/text-field';
 import { validateEmail } from '@/ui/validation';
 
 export default function Login(): ReactNode {
+  // Deja connecte : cet ecran n'a plus d'objet. Voir `useSignedInRedirect`.
+  const signedIn = useSignedInRedirect();
+  if (signedIn) {
+    return signedIn;
+  }
+
   const router = useRouter();
   const { t } = useI18n();
   const { signIn } = useAuth();

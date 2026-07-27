@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { useAuth } from '@/auth/auth-context';
+import { useSignedInRedirect } from '@/auth/signed-in-guard';
 import { useI18n } from '@/i18n';
 import { AuthFormShell } from '@/ui/auth-form-shell';
 import { toUserMessage } from '@/ui/error-message';
@@ -23,6 +24,12 @@ import { validateEmail, validatePassword } from '@/ui/validation';
  * les deux étapes, il reste donc proposé dès la première.
  */
 export default function RegisterPlayer(): ReactNode {
+  // Deja connecte : cet ecran n'a plus d'objet. Voir `useSignedInRedirect`.
+  const signedIn = useSignedInRedirect();
+  if (signedIn) {
+    return signedIn;
+  }
+
   const router = useRouter();
   const { t, fill, locale } = useI18n();
   const { signUp } = useAuth();

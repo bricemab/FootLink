@@ -84,6 +84,56 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   }, []);
 
   /**
+   * 🔴 **Rotation UNIQUE, partagée par tous les appels concurrents.**
+   *
+   * Sans ce verrou, deux requêtes qui prennent un 401 en même temps appellent
+   * toutes les deux `refresh` avec le MÊME jeton. La première le rotate ; la
+   * seconde rejoue un jeton désormais révoqué — et depuis le correctif #10 de
+   * l'audit, rejouer un jeton rotaté **révoque toute la famille**. Resultat :
+   * l'utilisateur est deconnecte de force, sans rien avoir fait de mal.
+   *
+   * Ce n'est pas theorique : `home.tsx` demande le profil et le club en
+   * parallele (`Promise.all`), ce qui est exactement le cas qui declenche la
+   * course.
+   *
+   * Tous les appelants attendent donc la meme promesse. `finally` la libere
+   * qu'elle reussisse ou non — la garder apres un echec condamnerait la session
+   * jusqu'au redemarrage.
+   */
+  // `StoredTokens` et non `AuthTokens` : seuls les deux jetons comptent ici, et
+  // c'est le seul type que les deux branches ont en commun (celle qui rotate
+  // renvoie la reponse de l'API, celle qui ne rotate pas ce qui est en memoire).
+  const rotation = useRef<Promise<StoredTokens> | null>(null);
+
+  const rotateOnce = useCallback(
+    async (usedRefreshToken: string): Promise<StoredTokens> => {
+      /*
+       * Le jeton a peut-etre DEJA ete rotate pendant qu'on attendait : dans ce
+       * cas il n'y a rien a renouveler, on repart de ce qui est en memoire.
+       * Sans ce controle, un appel en file rejouerait l'ancien jeton et
+       * declencherait precisement la revocation qu'on cherche a eviter.
+       */
+      const fresh = tokens.current;
+      if (fresh && fresh.refreshToken !== usedRefreshToken) {
+        return fresh;
+      }
+      if (!rotation.current) {
+        rotation.current = authApi
+          .refresh(usedRefreshToken)
+          .then(async (rotated) => {
+            await adopt(rotated);
+            return rotated;
+          })
+          .finally(() => {
+            rotation.current = null;
+          });
+      }
+      return rotation.current;
+    },
+    [adopt],
+  );
+
+  /**
    * Exécute un appel authentifié. Sur 401, tente une rotation du refresh token
    * puis rejoue une seule fois : au-delà, la session est réellement morte.
    */
@@ -99,12 +149,11 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         if (!(error instanceof ApiError) || error.status !== 401) {
           throw error;
         }
-        const rotated = await authApi.refresh(current.refreshToken);
-        await adopt(rotated);
+        const rotated = await rotateOnce(current.refreshToken);
         return call(rotated.accessToken);
       }
     },
-    [adopt],
+    [rotateOnce],
   );
 
   const reload = useCallback(async () => {
