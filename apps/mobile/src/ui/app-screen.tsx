@@ -121,25 +121,63 @@ export function AppScreen({
   );
 }
 
-/** Carte de contenu, reprise partout dans les écrans club. */
+/**
+ * Carte de contenu.
+ *
+ * 🔴 **Une carte doit vouloir dire quelque chose.** Tout était enfermé dans le
+ * même rectangle — bordure, rayon et fond identiques pour une liste, un bloc
+ * d'informations et un bouton. Empilés, ces cadres se neutralisent : rien ne
+ * ressort, et l'œil ne sait plus par où commencer. Brice l'a dit : « des carrés
+ * sous des carrés ».
+ *
+ * Trois registres désormais, et un seul cadre visible :
+ *
+ * - `card` — un ELEMENT, souvent tapable. Il mérite son cadre.
+ * - `hero` — l'élément principal de l'écran. Halo vert et liseré accentué : il
+ *   n'y en a qu'UN par écran, sinon plus rien n'est principal.
+ * - `plain` — de l'information. Pas de cadre du tout : c'est l'espacement et la
+ *   typographie qui regroupent, pas une boîte de plus.
+ */
 export function Card({
   children,
   onPress,
   accent = false,
+  variant = 'card',
 }: {
   children: ReactNode;
   onPress?: () => void;
   /** Vrai = liseré vert, pour l'élément qui porte l'action principale. */
   accent?: boolean;
+  variant?: 'card' | 'hero' | 'plain';
 }): ReactNode {
-  const body = (
+  const hero = variant === 'hero';
+  const plain = variant === 'plain';
+
+  const body = plain ? (
+    <YStack gap="$2.5" paddingVertical="$1">
+      {children}
+    </YStack>
+  ) : (
     <YStack
       gap="$2.5"
-      padding="$4"
-      borderRadius={18}
-      backgroundColor="rgba(12,30,23,0.88)"
+      padding={hero ? '$4.5' : '$4'}
+      borderRadius={hero ? 24 : 18}
+      backgroundColor={hero ? 'rgba(16,44,33,0.92)' : 'rgba(12,30,23,0.88)'}
       borderWidth={1.5}
-      borderColor={accent ? 'rgba(57,255,136,0.35)' : 'rgba(244,251,247,0.12)'}
+      borderColor={
+        hero || accent ? 'rgba(57,255,136,0.38)' : 'rgba(244,251,247,0.12)'
+      }
+      {...(hero
+        ? {
+            // Halo porté : c'est ce qui detache l'element principal du fond au
+            // lieu de le poser dessus comme les autres.
+            shadowColor: '#39FF88',
+            shadowOpacity: 0.18,
+            shadowRadius: 22,
+            shadowOffset: { width: 0, height: 8 },
+            elevation: 6,
+          }
+        : {})}
     >
       {children}
     </YStack>
@@ -148,11 +186,40 @@ export function Card({
   if (!onPress) {
     return body;
   }
-  // Le retour au toucher part de l'état courant, donc rien ne peut rester figé.
+  /*
+   * Retour au toucher : opacite ET echelle. Il part de l'etat courant, donc
+   * rien ne peut rester fige — contrairement a une animation d'entree (cf.
+   * `Appear`). 0.97 se sent sous le doigt sans deplacer ce qui l'entoure.
+   */
   return (
     <Pressable onPress={onPress} accessibilityRole="button">
-      {({ pressed }) => <YStack opacity={pressed ? 0.72 : 1}>{body}</YStack>}
+      {({ pressed }) => (
+        <YStack opacity={pressed ? 0.8 : 1} scale={pressed ? 0.97 : 1}>
+          {body}
+        </YStack>
+      )}
     </Pressable>
+  );
+}
+
+/**
+ * Titre de section, hors de toute boîte.
+ *
+ * C'est lui qui remplace un cadre quand il ne s'agit que de regrouper : un
+ * intitulé et de l'espace suffisent à dire « ces lignes vont ensemble », sans
+ * ajouter un rectangle de plus à l'empilement.
+ */
+export function SectionTitle({ children }: { children: string }): ReactNode {
+  return (
+    <Text
+      fontSize={12.5}
+      fontWeight="700"
+      letterSpacing={1}
+      color="$brandChalkDim"
+      marginTop="$2"
+    >
+      {children.toUpperCase()}
+    </Text>
   );
 }
 

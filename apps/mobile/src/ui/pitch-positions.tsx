@@ -192,11 +192,39 @@ export function PitchPositions({
                   }}
                 >
                   <MotiView
+                    /*
+                     * 🔴 L'entree en cascade N'EXISTE QU'EN PRESENTATION.
+                     *
+                     * C'est le moment qui doit marquer : les postes du joueur
+                     * s'allument l'un apres l'autre, le principal en dernier.
+                     * Pendant la SAISIE, ce serait une gene — on tape vite, et
+                     * une pastille qui grossit sous le doigt brouille le retour
+                     * immediat de l'appui.
+                     *
+                     * ⚠️ L'etat de depart est INOFFENSIF s'il reste bloque (le
+                     * rendu logiciel ne joue pas toujours les entrees, cf.
+                     * `Appear`) : une pastille a 0.7 est simplement plus petite,
+                     * jamais invisible ni deplacee.
+                     */
+                    {...(readOnly && state !== 'none'
+                      ? { from: { scale: 0.7, opacity: 0.5 } }
+                      : {})}
                     animate={{
                       scale: state === 'primary' ? 1 : state === 'secondary' ? 0.92 : 0.84,
                       opacity: state === 'none' ? 0.55 : 1,
                     }}
-                    transition={{ type: 'timing', duration: 140 }}
+                    transition={
+                      readOnly && state !== 'none'
+                        ? {
+                            type: 'spring',
+                            damping: 12,
+                            stiffness: 180,
+                            // Le principal ferme la marche : c'est lui qu'on
+                            // doit retenir.
+                            delay: 160 + (state === 'primary' ? 220 : 0),
+                          }
+                        : { type: 'timing', duration: 140 }
+                    }
                     style={{
                       width: size,
                       height: size,

@@ -1,4 +1,4 @@
-import { categoryLabel, strongFootLabel } from '@footlink/shared';
+import { categoryLabel, posteLabel, strongFootLabel } from '@footlink/shared';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Pressable } from 'react-native';
@@ -10,7 +10,8 @@ import { getMyPlayerProfile, type PlayerProfileResponse } from '@/api/players';
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
 import { AppImage } from '@/ui/app-image';
-import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
+import { Appear } from '@/ui/appear';
+import { AppScreen, Badge, Card, EmptyState, SectionTitle } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { BallIcon } from '@/ui/icons';
@@ -153,7 +154,24 @@ export default function Home(): ReactNode {
   return (
     <AppScreen
       title={profile ? `${profile.firstName} ${profile.lastName}` : t.home.title}
-      subtitle={pendingClub ? t.club.pendingBody : undefined}
+      /*
+       * Le poste et la ligue sous le nom : c'est ce qui identifie un joueur de
+       * football, bien avant son email. Un nom seul ne dit rien — « Gardien,
+       * 4e ligue » dit tout ce qu'un club veut savoir en premier.
+       */
+      subtitle={
+        pendingClub
+          ? t.club.pendingBody
+          : profile && primary
+            ? [
+                posteLabel(primary, locale),
+                profile.currentCategory ? categoryLabel(profile.currentCategory, locale) : null,
+                profile.locality,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : undefined
+      }
       allowStackBack={false}
       onRefresh={() => void load()}
     >
@@ -173,8 +191,9 @@ export default function Home(): ReactNode {
 
       {profile ? (
         <>
-          {/* Identité : photo et statut de recherche. */}
-          <Card>
+          {/* Identité en HERO : un seul element principal par ecran. */}
+          <Appear index={0}>
+          <Card variant="hero">
             <XStack gap="$3.5" alignItems="center">
               <Avatar url={profile.avatarUrl} busy={uploading} />
               <YStack flexShrink={1} gap="$2">
@@ -210,12 +229,12 @@ export default function Home(): ReactNode {
               </Text>
             ) : null}
           </Card>
+          </Appear>
 
           {/* 🔴 Le terrain, en grand. C'est la fiche du joueur. */}
+          <Appear index={1}>
           <YStack gap="$2">
-            <Text fontSize={13} fontWeight="700" letterSpacing={0.6} color="$brandChalkDim">
-              {t.home.yourPitch.toUpperCase()}
-            </Text>
+            <SectionTitle>{t.home.yourPitch}</SectionTitle>
             <PitchPositions
               value={{ primary, secondary: secondary.map((position) => position.poste) }}
               // Écran de présentation : le choix des postes appartient au
@@ -224,19 +243,14 @@ export default function Home(): ReactNode {
               readOnly
             />
           </YStack>
+          </Appear>
 
           {/* Ce que le terrain ne dit PAS. Le poste principal n'y figure donc
               pas : `PitchPositions` l'annonce deja sous le dessin, et le
               repeter juste en dessous donnait la meme ligne deux fois. */}
-          <Card>
-            <Row
-              label={t.home.season}
-              value={
-                profile.currentCategory
-                  ? categoryLabel(profile.currentCategory, locale)
-                  : String(profile.birthYear)
-              }
-            />
+          <Appear index={2}>
+          <Card variant="plain">
+            {/* La ligue est deja dans le sous-titre : on ne la repete pas. */}
             <Row
               label={t.home.currentClub}
               value={profile.currentClub?.name ?? profile.currentClubName ?? t.home.noClub}
@@ -251,20 +265,25 @@ export default function Home(): ReactNode {
               />
             ) : null}
           </Card>
+          </Appear>
 
           {profile.bio ? (
-            <Card>
+            <Appear index={3}>
+            <Card variant="plain">
               <Text fontSize={14.5} lineHeight={21} color="$brandChalk">
                 {profile.bio}
               </Text>
             </Card>
+            </Appear>
           ) : null}
 
           {/*
             Ce qui vient. Un écran qui s'arrête sur une fiche laisse croire que
             l'app est finie ; dire ce qui manque vaut mieux que le taire.
           */}
-          <EmptyState text={`${t.home.feedSoon} — ${t.home.feedSoonHint}`} />
+          <Appear index={4}>
+            <EmptyState text={`${t.home.feedSoon} — ${t.home.feedSoonHint}`} />
+          </Appear>
         </>
       ) : null}
 
