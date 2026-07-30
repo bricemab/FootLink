@@ -7,6 +7,7 @@ import { updateMyLocale } from '@/api/users';
 import { useAuth } from '@/auth/auth-context';
 import { loadTokens } from '@/auth/token-storage';
 import { AVAILABLE_LOCALES, useI18n } from '@/i18n';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Sélecteur de langue.
@@ -64,9 +65,8 @@ export function LocaleSwitch(): ReactNode {
               style={{ borderRadius: 11, paddingHorizontal: 14, paddingVertical: 7 }}
             >
               <Text
-                fontSize={13}
+                {...TYPE.meta}
                 fontWeight="700"
-                letterSpacing={0.6}
                 color={active ? '$brandNight' : '$brandChalkDim'}
               >
                 {option}

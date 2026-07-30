@@ -17,6 +17,7 @@ import { Stepper } from '@/ui/stepper';
 import { TextField } from '@/ui/text-field';
 import { useStepper } from '@/ui/use-stepper';
 import { validateEmail, validatePassword } from '@/ui/validation';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Entrée de l'entraîneur, en plusieurs étapes.
@@ -51,13 +52,10 @@ export default function RegisterCoach(): ReactNode {
   // Dernier code déjà vérifié automatiquement : garde contre la re-soumission.
   const autoChecked = useRef<string>('');
 
-  const fail = useCallback(
-    (message: string) => {
-      setTone('error');
-      setBanner(message);
-    },
-    [],
-  );
+  const fail = useCallback((message: string) => {
+    setTone('error');
+    setBanner(message);
+  }, []);
 
   // --- Étape 1 : l'email décide de la suite -------------------------------
   const submitEmail = useCallback(
@@ -271,11 +269,11 @@ export default function RegisterCoach(): ReactNode {
           {/* Une adresse déjà prise, ou un compte qui n'est pas entraîneur,
               n'a qu'une issue : la connexion normale. Autant la proposer. */}
           <XStack justifyContent="center" gap="$2">
-            <Text fontSize={15} color="$brandChalkDim">
+            <Text {...TYPE.body} color="$brandChalkDim">
               {t.register.hasAccount}
             </Text>
             <Pressable onPress={() => router.replace('/login')} accessibilityRole="button">
-              <Text fontSize={15} fontWeight="700" color="$brandPitchBright">
+              <Text {...TYPE.body} fontWeight="700" color="$brandPitchBright">
                 {t.login.submit}
               </Text>
             </Pressable>
@@ -325,7 +323,7 @@ export default function RegisterCoach(): ReactNode {
               autoComplete="new-password"
               error={fieldError}
             />
-            <Text fontSize={13} color="$brandChalkDim">
+            <Text {...TYPE.meta} color="$brandChalkDim">
               {fill(t.register.passwordHint, { min: String(PASSWORD_MIN_LENGTH) })}
             </Text>
           </YStack>
@@ -371,7 +369,7 @@ export default function RegisterCoach(): ReactNode {
       {step !== 'EMAIL' ? (
         <XStack justifyContent="center">
           <Pressable onPress={backToEmail} accessibilityRole="button">
-            <Text fontSize={15} color="$brandChalkDim">
+            <Text {...TYPE.body} color="$brandChalkDim">
               {t.coach.changeEmail}
             </Text>
           </Pressable>

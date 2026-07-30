@@ -7,6 +7,7 @@ import { useI18n } from '@/i18n';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { GoogleButton } from '@/ui/google-button';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Bloc « ou continuer avec Google », partagé par la connexion et l'inscription.
@@ -53,7 +54,7 @@ export function GoogleAuthSection(): ReactNode {
     <>
       <XStack alignItems="center" gap="$3">
         <Separator flex={1} borderColor="rgba(244,251,247,0.18)" />
-        <Text fontSize={13} color="$brandChalkDim">
+        <Text {...TYPE.meta} color="$brandChalkDim">
           {t.google.separator}
         </Text>
         <Separator flex={1} borderColor="rgba(244,251,247,0.18)" />

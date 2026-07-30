@@ -8,6 +8,7 @@ import { useI18n } from '@/i18n';
 import { LocaleSwitch } from '@/ui/locale-switch';
 import { PitchBackdrop } from '@/ui/pitch-backdrop';
 import { PrimaryButton } from '@/ui/primary-button';
+import { TYPE } from '@/ui/type-scale';
 
 export default function Welcome(): ReactNode {
   // Deja connecte : cet ecran n'a plus d'objet. Voir `useSignedInRedirect`.
@@ -44,7 +45,7 @@ export default function Welcome(): ReactNode {
               resizeMode="contain"
               accessibilityLabel="FootLink"
             />
-            <Text fontSize={13} fontWeight="700" letterSpacing={3} color="$brandPitchBright">
+            <Text {...TYPE.meta} fontWeight="700" color="$brandPitchBright">
               FOOTLINK
             </Text>
           </XStack>
@@ -70,7 +71,7 @@ export default function Welcome(): ReactNode {
           animate={{ opacity: 1 }}
           transition={{ type: 'timing', duration: 620, delay: 280 }}
         >
-          <Text fontSize={16} lineHeight={23} color="$brandChalkDim">
+          <Text {...TYPE.heading} color="$brandChalkDim">
             {t.welcome.subtitle}
           </Text>
         </MotiView>

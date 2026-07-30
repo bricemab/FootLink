@@ -13,6 +13,7 @@ import { FormBanner } from '@/ui/form-banner';
 import { BallIcon } from '@/ui/icons';
 import { PitchPositions } from '@/ui/pitch-positions';
 import { SkeletonCard } from '@/ui/skeleton';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * La fiche d'un joueur, vue par un club.
@@ -62,9 +63,7 @@ export default function PlayerProfileForClub(): ReactNode {
   );
 
   const seasonStartYear =
-    new Date().getUTCMonth() >= 7
-      ? new Date().getUTCFullYear()
-      : new Date().getUTCFullYear() - 1;
+    new Date().getUTCMonth() >= 7 ? new Date().getUTCFullYear() : new Date().getUTCFullYear() - 1;
 
   const primary = player?.postes.find((position) => position.isPrimary)?.poste ?? null;
   const secondary = player?.postes.filter((position) => !position.isPrimary) ?? [];
@@ -132,7 +131,7 @@ export default function PlayerProfileForClub(): ReactNode {
                     ) : null}
                   </XStack>
                   {player.currentClubName ? (
-                    <Text fontSize={14.5} color="$brandChalk" flexShrink={1}>
+                    <Text {...TYPE.body} color="$brandChalk" flexShrink={1}>
                       {player.currentClubName}
                     </Text>
                   ) : null}
@@ -175,7 +174,7 @@ export default function PlayerProfileForClub(): ReactNode {
           {player.bio ? (
             <Appear index={3}>
               <Card variant="plain">
-                <Text fontSize={14.5} lineHeight={21} color="$brandChalk">
+                <Text {...TYPE.body} color="$brandChalk">
                   {player.bio}
                 </Text>
               </Card>
@@ -190,10 +189,10 @@ export default function PlayerProfileForClub(): ReactNode {
 function Row({ label, value }: { label: string; value: string }): ReactNode {
   return (
     <XStack justifyContent="space-between" alignItems="center" gap="$3">
-      <Text fontSize={13} fontWeight="600" letterSpacing={0.4} color="$brandChalkDim">
+      <Text {...TYPE.meta} color="$brandChalkDim">
         {label.toUpperCase()}
       </Text>
-      <Text fontSize={15} fontWeight="600" color="$brandChalk" flexShrink={1} textAlign="right">
+      <Text {...TYPE.body} color="$brandChalk" flexShrink={1} textAlign="right">
         {value}
       </Text>
     </XStack>

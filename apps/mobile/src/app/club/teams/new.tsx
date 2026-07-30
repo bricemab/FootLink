@@ -13,6 +13,7 @@ import { GenderChoice } from '@/ui/gender-choice';
 import { PrimaryButton } from '@/ui/primary-button';
 import { TextField } from '@/ui/text-field';
 import { validateEmail } from '@/ui/validation';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Création d'une équipe, avec son entraîneur en option.
@@ -122,21 +123,25 @@ export default function NewTeam(): ReactNode {
           placeholder={t.teams.namePlaceholder}
           autoCapitalize="words"
         />
-        <Text fontSize={13} color="$brandChalkDim">
+        <Text {...TYPE.meta} color="$brandChalkDim">
           {t.teams.nameHint}
         </Text>
       </YStack>
 
       <Card onPress={() => setWithCoach(!withCoach)} accent={withCoach}>
         <XStack alignItems="center" justifyContent="space-between" gap="$3">
-          <Text fontSize={16} fontWeight="700" color="$brandChalk" flexShrink={1}>
+          <Text {...TYPE.heading} color="$brandChalk" flexShrink={1}>
             {t.teams.withCoach}
           </Text>
-          <Text fontSize={15} fontWeight="800" color={withCoach ? '$brandPitchBright' : '$brandChalkDim'}>
+          <Text
+            {...TYPE.body}
+            fontWeight="800"
+            color={withCoach ? '$brandPitchBright' : '$brandChalkDim'}
+          >
             {withCoach ? 'ON' : 'OFF'}
           </Text>
         </XStack>
-        <Text fontSize={13.5} color="$brandChalkDim">
+        <Text {...TYPE.meta} color="$brandChalkDim">
           {t.teams.withCoachHint}
         </Text>
       </Card>

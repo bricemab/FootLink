@@ -144,19 +144,14 @@ export function SwipeDeck<T>({
 
       // La vélocité compte autant que la distance : un geste vif et court est
       // une décision aussi nette qu'un geste long et lent.
-      const decided =
-        Math.abs(x.value) > DECISION_THRESHOLD || Math.abs(event.velocityX) > 900;
+      const decided = Math.abs(x.value) > DECISION_THRESHOLD || Math.abs(event.velocityX) > 900;
       if (decided) {
         const direction: SwipeDirection = x.value > 0 ? 'right' : 'left';
         // La carte sort de l'écran AVANT que la liste change : sans ça, elle
         // disparaîtrait d'un coup et le geste n'aurait pas de fin visible.
-        x.value = withTiming(
-          Math.sign(x.value) * SCREEN_WIDTH * 1.5,
-          { duration: 220 },
-          () => {
-            runOnJS(decide)(direction);
-          },
-        );
+        x.value = withTiming(Math.sign(x.value) * SCREEN_WIDTH * 1.5, { duration: 220 }, () => {
+          runOnJS(decide)(direction);
+        });
         return;
       }
       // Geste annulé : retour élastique, avec l'élan qu'on lui a donné.
@@ -345,4 +340,3 @@ function Verdict({
     </XStack>
   );
 }
-

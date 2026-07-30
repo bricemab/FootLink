@@ -7,6 +7,7 @@ import { useSignedInRedirect } from '@/auth/signed-in-guard';
 import { useI18n } from '@/i18n';
 import { AuthFormShell } from '@/ui/auth-form-shell';
 import { BallIcon, ChevronIcon, CoachIcon, StadiumIcon } from '@/ui/icons';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Choix du rôle à l'inscription.
@@ -41,10 +42,7 @@ export default function ChooseRole(): ReactNode {
             rester figé. */}
         {roles.map((role) => (
           <YStack key={role.href}>
-            <Pressable
-              onPress={() => router.push(role.href as Href)}
-              accessibilityRole="button"
-            >
+            <Pressable onPress={() => router.push(role.href as Href)} accessibilityRole="button">
               {({ pressed }) => (
                 <MotiView
                   animate={{ scale: pressed ? 0.975 : 1 }}
@@ -61,10 +59,10 @@ export default function ChooseRole(): ReactNode {
                   >
                     <role.Icon />
                     <YStack flex={1} gap="$1">
-                      <Text fontSize={17} fontWeight="700" color="$brandChalk">
+                      <Text {...TYPE.heading} color="$brandChalk">
                         {role.label}
                       </Text>
-                      <Text fontSize={14} lineHeight={19} color="$brandChalkDim">
+                      <Text {...TYPE.body} color="$brandChalkDim">
                         {role.hint}
                       </Text>
                     </YStack>
@@ -78,11 +76,11 @@ export default function ChooseRole(): ReactNode {
       </YStack>
 
       <XStack justifyContent="center" gap="$2">
-        <Text fontSize={15} color="$brandChalkDim">
+        <Text {...TYPE.body} color="$brandChalkDim">
           {t.register.hasAccount}
         </Text>
         <Pressable onPress={() => router.replace('/login')} accessibilityRole="button">
-          <Text fontSize={15} fontWeight="700" color="$brandPitchBright">
+          <Text {...TYPE.body} fontWeight="700" color="$brandPitchBright">
             {t.login.submit}
           </Text>
         </Pressable>

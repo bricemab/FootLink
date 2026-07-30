@@ -12,6 +12,7 @@ import { AppScreen, Badge, Card, EmptyState, SectionTitle } from '@/ui/app-scree
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { StadiumIcon } from '@/ui/icons';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * La fiche du club telle qu'un joueur la verra.
@@ -127,12 +128,12 @@ export default function ClubPreview(): ReactNode {
                 )}
               </YStack>
               <YStack gap="$1" flexShrink={1}>
-                <Text fontSize={22} fontWeight="800" color="$brandChalk" flexShrink={1}>
+                <Text {...TYPE.subtitle} color="$brandChalk" flexShrink={1}>
                   {club.club.name}
                 </Text>
                 <XStack gap="$2" alignItems="center" flexWrap="wrap">
                   {place ? (
-                    <Text fontSize={14} color="$brandChalkDim">
+                    <Text {...TYPE.body} color="$brandChalkDim">
                       {place}
                     </Text>
                   ) : null}
@@ -141,25 +142,21 @@ export default function ClubPreview(): ReactNode {
               </YStack>
             </XStack>
 
-            <Text
-              fontSize={14.5}
-              lineHeight={21}
-              color={club.club.description ? '$brandChalk' : '$brandChalkDim'}
-            >
+            <Text {...TYPE.body} color={club.club.description ? '$brandChalk' : '$brandChalkDim'}>
               {club.club.description ?? t.clubSpace.previewNoDescription}
             </Text>
 
             {club.club.stadiumName ? (
               <XStack alignItems="center" gap="$2.5">
                 <StadiumIcon size={18} />
-                <Text fontSize={14} color="$brandChalkDim" flexShrink={1}>
+                <Text {...TYPE.body} color="$brandChalkDim" flexShrink={1}>
                   {club.club.stadiumName}
                 </Text>
               </XStack>
             ) : null}
 
             {club.club.websiteUrl ? (
-              <Text fontSize={14} color="$brandPitchBright">
+              <Text {...TYPE.body} color="$brandPitchBright">
                 {club.club.websiteUrl}
               </Text>
             ) : null}
@@ -167,7 +164,7 @@ export default function ClubPreview(): ReactNode {
             {/* Le masquage se vérifie ICI : rien ne s'affiche si le club n'a pas
                 choisi d'exposer son adresse. */}
             {club.club.showContactEmail && club.club.contactEmail ? (
-              <Text fontSize={14} color="$brandChalk">
+              <Text {...TYPE.body} color="$brandChalk">
                 {club.club.contactEmail}
               </Text>
             ) : null}
@@ -179,16 +176,16 @@ export default function ClubPreview(): ReactNode {
 
           {teams.map((team, index) => (
             <Appear key={team.id} index={index}>
-            <Card>
-              <Text fontSize={16} fontWeight="700" color="$brandChalk">
-                {team.name ?? categoryLabel(team.category, locale)}
-              </Text>
-              {team.name ? (
-                <Text fontSize={13.5} color="$brandChalkDim">
-                  {categoryLabel(team.category, locale)}
+              <Card>
+                <Text {...TYPE.heading} color="$brandChalk">
+                  {team.name ?? categoryLabel(team.category, locale)}
                 </Text>
-              ) : null}
-            </Card>
+                {team.name ? (
+                  <Text {...TYPE.meta} color="$brandChalkDim">
+                    {categoryLabel(team.category, locale)}
+                  </Text>
+                ) : null}
+              </Card>
             </Appear>
           ))}
         </>

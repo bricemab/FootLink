@@ -79,11 +79,5 @@ export function AppImage({
       />
     );
   }
-  return (
-    <RNImage
-      source={{ uri }}
-      style={{ width: size, height: size }}
-      resizeMode={contentFit}
-    />
-  );
+  return <RNImage source={{ uri }} style={{ width: size, height: size }} resizeMode={contentFit} />;
 }

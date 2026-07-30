@@ -84,35 +84,35 @@ export function AppScreen({
 
   const head = (
     <>
-          {/* Une icone, pas « ← » : le rendu d'un glyphe change d'un appareil et
+      {/* Une icone, pas « ← » : le rendu d'un glyphe change d'un appareil et
               d'une version d'OS a l'autre, c'est la regle du projet. */}
-          {showBack ? (
-            <Pressable onPress={onBack ?? (() => router.back())} accessibilityRole="button">
-              <XStack alignItems="center" gap="$1.5">
-                <ChevronIcon direction="left" size={18} color="rgba(169,196,184,0.9)" />
-                <Text fontSize={15} color="$brandChalkDim">
-                  {t.common.back}
-                </Text>
-              </XStack>
-            </Pressable>
-          ) : null}
+      {showBack ? (
+        <Pressable onPress={onBack ?? (() => router.back())} accessibilityRole="button">
+          <XStack alignItems="center" gap="$1.5">
+            <ChevronIcon direction="left" size={18} color="rgba(169,196,184,0.9)" />
+            <Text {...TYPE.body} color="$brandChalkDim">
+              {t.common.back}
+            </Text>
+          </XStack>
+        </Pressable>
+      ) : null}
 
-          <XStack alignItems="flex-start" justifyContent="space-between" gap="$3">
-            <YStack gap="$1.5" flexShrink={1}>
-              {/* L'echelle vient de `type-scale`, jamais de valeurs posees ici :
+      <XStack alignItems="flex-start" justifyContent="space-between" gap="$3">
+        <YStack gap="$1.5" flexShrink={1}>
+          {/* L'echelle vient de `type-scale`, jamais de valeurs posees ici :
                   c'est ce qui garantit qu'un titre a la meme presence d'un
                   ecran a l'autre. */}
-              <Text {...TYPE.title} color="$brandChalk">
-                {title}
-              </Text>
-              {subtitle ? (
-                <Text {...TYPE.body} color="$brandChalkDim">
-                  {subtitle}
-                </Text>
-              ) : null}
-            </YStack>
-            {action}
-          </XStack>
+          <Text {...TYPE.title} color="$brandChalk">
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text {...TYPE.body} color="$brandChalkDim">
+              {subtitle}
+            </Text>
+          ) : null}
+        </YStack>
+        {action}
+      </XStack>
     </>
   );
 
@@ -205,9 +205,7 @@ export function Card({
       borderRadius={hero ? 24 : 18}
       backgroundColor={hero ? 'rgba(16,44,33,0.92)' : 'rgba(12,30,23,0.88)'}
       borderWidth={1.5}
-      borderColor={
-        hero || accent ? 'rgba(57,255,136,0.38)' : 'rgba(244,251,247,0.12)'
-      }
+      borderColor={hero || accent ? 'rgba(57,255,136,0.38)' : 'rgba(244,251,247,0.12)'}
       {...(hero
         ? {
             // Halo porté : c'est ce qui detache l'element principal du fond au
@@ -292,7 +290,7 @@ export function Badge({
       borderWidth={1}
       borderColor={tones.border}
     >
-      <Text fontSize={11.5} fontWeight="700" letterSpacing={0.5} color={tones.fg}>
+      <Text {...TYPE.label} color={tones.fg}>
         {label.toUpperCase()}
       </Text>
     </XStack>
@@ -329,7 +327,7 @@ export function EmptyState({
       alignItems="center"
     >
       <EmptyPitch />
-      <Text fontSize={14.5} lineHeight={21} color="$brandChalkDim" textAlign="center">
+      <Text {...TYPE.body} color="$brandChalkDim" textAlign="center">
         {text}
       </Text>
       {action}
@@ -358,14 +356,7 @@ function EmptyPitch(): ReactNode {
       />
       <Line x1={1} y1={32} x2={85} y2={32} stroke="rgba(244,251,247,0.20)" strokeWidth={1.2} />
       <Circle cx={43} cy={32} r={9} stroke="rgba(244,251,247,0.20)" strokeWidth={1.2} />
-      <Rect
-        x={26}
-        y={1}
-        width={34}
-        height={13}
-        stroke="rgba(244,251,247,0.20)"
-        strokeWidth={1.2}
-      />
+      <Rect x={26} y={1} width={34} height={13} stroke="rgba(244,251,247,0.20)" strokeWidth={1.2} />
       <Rect
         x={26}
         y={50}

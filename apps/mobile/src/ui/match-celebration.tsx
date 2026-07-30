@@ -6,6 +6,7 @@ import { useI18n } from '@/i18n';
 import { hapticSuccess } from '@/ui/haptics';
 import { BallIcon, StadiumIcon } from '@/ui/icons';
 import { PrimaryButton } from '@/ui/primary-button';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Le moment où les deux se sont choisis.
@@ -108,34 +109,16 @@ export function MatchCelebration({
             transition={{ type: 'spring', damping: 13, stiffness: 160, delay: 520 }}
           >
             <YStack alignItems="center" gap="$2">
-              <Text
-                fontSize={34}
-                lineHeight={38}
-                fontWeight="900"
-                letterSpacing={-0.8}
-                color="$brandPitchBright"
-                textAlign="center"
-              >
+              <Text {...TYPE.display} color="$brandPitchBright" textAlign="center">
                 {t.match.title}
               </Text>
-              <Text
-                fontSize={19}
-                fontWeight="700"
-                color="$brandChalk"
-                textAlign="center"
-              >
+              <Text {...TYPE.heading} color="$brandChalk" textAlign="center">
                 {clubName}
               </Text>
-              <Text fontSize={15} color="$brandChalkDim" textAlign="center">
+              <Text {...TYPE.body} color="$brandChalkDim" textAlign="center">
                 {subtitle}
               </Text>
-              <Text
-                fontSize={14.5}
-                lineHeight={21}
-                color="$brandChalkDim"
-                textAlign="center"
-                marginTop="$2"
-              >
+              <Text {...TYPE.body} color="$brandChalkDim" textAlign="center" marginTop="$2">
                 {t.match.body}
               </Text>
             </YStack>

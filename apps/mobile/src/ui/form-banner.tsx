@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 import { CheckIcon, WarningIcon } from '@/ui/icons';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Bandeau de retour (erreur ou succès) sous un formulaire.
@@ -52,7 +53,7 @@ export function FormBanner({
         )}
       </YStack>
 
-      <Text fontSize={14} lineHeight={19} color="$brandChalk" flexShrink={1} fontWeight="500">
+      <Text {...TYPE.body} color="$brandChalk" flexShrink={1} fontWeight="500">
         {message}
       </Text>
     </XStack>

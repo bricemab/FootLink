@@ -25,6 +25,7 @@ import { PrimaryButton } from '@/ui/primary-button';
 import { Stepper, StepTransition } from '@/ui/stepper';
 import { TextField } from '@/ui/text-field';
 import { useStepper } from '@/ui/use-stepper';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Onboarding du profil joueur.
@@ -270,7 +271,7 @@ export default function OnboardingPlayer(): ReactNode {
                 borderWidth={1}
                 borderColor="rgba(57,255,136,0.28)"
               >
-                <Text fontSize={14} color="$brandChalk" flexShrink={1}>
+                <Text {...TYPE.body} color="$brandChalk" flexShrink={1}>
                   {settledCategory
                     ? fill(t.onboarding.categoryComputed, {
                         category: categoryLabel(settledCategory, locale),
@@ -356,7 +357,11 @@ export default function OnboardingPlayer(): ReactNode {
               />
             </YStack>
 
-            <PrimaryButton label={t.onboarding.finish} loading={busy} onPress={() => void submit()} />
+            <PrimaryButton
+              label={t.onboarding.finish}
+              loading={busy}
+              onPress={() => void submit()}
+            />
           </YStack>
         </StepTransition>
       ) : null}
@@ -368,16 +373,10 @@ export default function OnboardingPlayer(): ReactNode {
 function RecapRow({ label, value }: { label: string; value: string }): ReactNode {
   return (
     <XStack justifyContent="space-between" alignItems="flex-start" gap="$3">
-      <Text
-        fontSize={12.5}
-        fontWeight="700"
-        letterSpacing={0.4}
-        color="$brandChalkDim"
-        flexShrink={0}
-      >
+      <Text {...TYPE.label} color="$brandChalkDim" flexShrink={0}>
         {label.toUpperCase()}
       </Text>
-      <Text fontSize={15} fontWeight="600" color="$brandChalk" flexShrink={1} textAlign="right">
+      <Text {...TYPE.body} color="$brandChalk" flexShrink={1} textAlign="right">
         {value}
       </Text>
     </XStack>

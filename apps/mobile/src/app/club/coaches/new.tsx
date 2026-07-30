@@ -13,6 +13,7 @@ import { FormBanner } from '@/ui/form-banner';
 import { PrimaryButton } from '@/ui/primary-button';
 import { TextField } from '@/ui/text-field';
 import { validateEmail } from '@/ui/validation';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Création d'un compte entraîneur.
@@ -54,9 +55,7 @@ export default function NewCoach(): ReactNode {
 
   const toggle = (teamId: string): void =>
     setSelected((current) =>
-      current.includes(teamId)
-        ? current.filter((id) => id !== teamId)
-        : [...current, teamId],
+      current.includes(teamId) ? current.filter((id) => id !== teamId) : [...current, teamId],
     );
 
   const submit = async (): Promise<void> => {
@@ -121,15 +120,15 @@ export default function NewCoach(): ReactNode {
       />
 
       <YStack gap="$2">
-        <Text fontSize={12.5} fontWeight="700" letterSpacing={0.6} color="$brandChalkDim">
+        <Text {...TYPE.label} color="$brandChalkDim">
           {t.coaches.teamsLabel.toUpperCase()}
         </Text>
-        <Text fontSize={13} color="$brandChalkDim">
+        <Text {...TYPE.meta} color="$brandChalkDim">
           {t.coaches.teamsHint}
         </Text>
 
         {teams.length === 0 ? (
-          <Text fontSize={13.5} color="$brandChalkDim">
+          <Text {...TYPE.meta} color="$brandChalkDim">
             {t.teams.empty}
           </Text>
         ) : null}
@@ -154,11 +153,11 @@ export default function NewCoach(): ReactNode {
                 borderColor={active ? '#39FF88' : 'rgba(244,251,247,0.14)'}
                 backgroundColor="rgba(14,36,28,0.7)"
               >
-                <Text fontSize={15} color="$brandChalk" flexShrink={1}>
+                <Text {...TYPE.body} color="$brandChalk" flexShrink={1}>
                   {team.name ?? categoryLabel(team.category, locale)}
                 </Text>
                 <Text
-                  fontSize={13}
+                  {...TYPE.meta}
                   fontWeight="800"
                   color={active ? '$brandPitchBright' : '$brandChalkDim'}
                 >

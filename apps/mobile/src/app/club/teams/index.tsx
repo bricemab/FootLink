@@ -11,6 +11,7 @@ import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { PrimaryButton } from '@/ui/primary-button';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Équipes du club.
@@ -79,31 +80,31 @@ export default function TeamsList(): ReactNode {
 
       {teams?.map((team, index) => (
         <Appear key={team.id} index={index}>
-        <Card onPress={() => router.push(`/club/teams/${team.id}`)}>
-          <XStack alignItems="center" justifyContent="space-between" gap="$3">
-            <Text fontSize={17} fontWeight="700" color="$brandChalk" flexShrink={1}>
-              {team.name ?? categoryLabel(team.category, locale)}
-            </Text>
-            <Badge
-              label={fill(t.teams.listings, { count: String(team.listingCount) })}
-              tone={team.listingCount > 0 ? 'accent' : 'neutral'}
-            />
-          </XStack>
+          <Card onPress={() => router.push(`/club/teams/${team.id}`)}>
+            <XStack alignItems="center" justifyContent="space-between" gap="$3">
+              <Text {...TYPE.heading} color="$brandChalk" flexShrink={1}>
+                {team.name ?? categoryLabel(team.category, locale)}
+              </Text>
+              <Badge
+                label={fill(t.teams.listings, { count: String(team.listingCount) })}
+                tone={team.listingCount > 0 ? 'accent' : 'neutral'}
+              />
+            </XStack>
 
-          {/* Le nom libre ne remplace pas la catégorie : c'est elle qui décide
+            {/* Le nom libre ne remplace pas la catégorie : c'est elle qui décide
               qui pourra postuler, donc elle reste toujours visible. */}
-          {team.name ? (
-            <Text fontSize={13.5} color="$brandChalkDim">
-              {categoryLabel(team.category, locale)}
-            </Text>
-          ) : null}
+            {team.name ? (
+              <Text {...TYPE.meta} color="$brandChalkDim">
+                {categoryLabel(team.category, locale)}
+              </Text>
+            ) : null}
 
-          <Text fontSize={14} color={team.coaches.length > 0 ? '$brandChalk' : '$brandChalkDim'}>
-            {team.coaches.length === 0
-              ? t.teams.noCoach
-              : team.coaches.map((coach) => coachName(coach)).join(' · ')}
-          </Text>
-        </Card>
+            <Text {...TYPE.body} color={team.coaches.length > 0 ? '$brandChalk' : '$brandChalkDim'}>
+              {team.coaches.length === 0
+                ? t.teams.noCoach
+                : team.coaches.map((coach) => coachName(coach)).join(' · ')}
+            </Text>
+          </Card>
         </Appear>
       ))}
 

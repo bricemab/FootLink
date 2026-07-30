@@ -15,6 +15,7 @@ import { Stepper, StepTransition } from '@/ui/stepper';
 import { TextField } from '@/ui/text-field';
 import { useStepper } from '@/ui/use-stepper';
 import { validateEmail, validatePassword } from '@/ui/validation';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Inscription joueur, en deux étapes.
@@ -119,7 +120,7 @@ export default function RegisterPlayer(): ReactNode {
                 onSubmitEditing={() => void submit()}
               />
               {fieldError ? null : (
-                <Text fontSize={13} color="$brandChalkDim">
+                <Text {...TYPE.meta} color="$brandChalkDim">
                   {fill(t.register.passwordHint, { min: String(PASSWORD_MIN_LENGTH) })}
                 </Text>
               )}
@@ -130,11 +131,11 @@ export default function RegisterPlayer(): ReactNode {
       )}
 
       <XStack justifyContent="center" gap="$2">
-        <Text fontSize={15} color="$brandChalkDim">
+        <Text {...TYPE.body} color="$brandChalkDim">
           {t.register.hasAccount}
         </Text>
         <Pressable onPress={() => router.replace('/login')} accessibilityRole="button">
-          <Text fontSize={15} fontWeight="700" color="$brandPitchBright">
+          <Text {...TYPE.body} fontWeight="700" color="$brandPitchBright">
             {t.login.submit}
           </Text>
         </Pressable>

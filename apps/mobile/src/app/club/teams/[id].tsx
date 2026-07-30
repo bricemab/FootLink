@@ -21,6 +21,7 @@ import { FormBanner } from '@/ui/form-banner';
 import { GenderChoice } from '@/ui/gender-choice';
 import { PrimaryButton } from '@/ui/primary-button';
 import { TextField } from '@/ui/text-field';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Édition d'une équipe, et sa suppression.
@@ -157,7 +158,9 @@ export default function TeamDetail(): ReactNode {
 
       {team ? (
         <>
-          <GenderChoice label={t.teams.gender} value={gender}
+          <GenderChoice
+            label={t.teams.gender}
+            value={gender}
             onChange={(next) => {
               setGender(next);
               setCategory(undefined);
@@ -174,7 +177,7 @@ export default function TeamDetail(): ReactNode {
               placeholder={t.teams.namePlaceholder}
               autoCapitalize="words"
             />
-            <Text fontSize={13} color="$brandChalkDim">
+            <Text {...TYPE.meta} color="$brandChalkDim">
               {t.teams.nameHint}
             </Text>
           </YStack>
@@ -185,12 +188,12 @@ export default function TeamDetail(): ReactNode {
               par un onglet global qui redemanderait « laquelle ? ». */}
           <Card onPress={() => router.push({ pathname: '/club/listings', params: { teamId: id } })}>
             <XStack alignItems="center" justifyContent="space-between" gap="$3">
-              <Text fontSize={16} fontWeight="700" color="$brandChalk" flexShrink={1}>
+              <Text {...TYPE.heading} color="$brandChalk" flexShrink={1}>
                 {t.teams.listingsTitle}
               </Text>
               <ChevronIcon direction="right" />
             </XStack>
-            <Text fontSize={13.5} color="$brandChalkDim">
+            <Text {...TYPE.meta} color="$brandChalkDim">
               {t.teams.listingsHint}
             </Text>
           </Card>
@@ -206,10 +209,10 @@ export default function TeamDetail(): ReactNode {
             />
           ) : (
             <Card>
-              <Text fontSize={17} fontWeight="800" color="$brandChalk">
+              <Text {...TYPE.heading} color="$brandChalk">
                 {t.teams.deleteTitle}
               </Text>
-              <Text fontSize={14.5} lineHeight={21} color="$brandChalkDim">
+              <Text {...TYPE.body} color="$brandChalkDim">
                 {impact.isEmpty
                   ? t.teams.deleteEmpty
                   : fill(t.teams.deleteImpact, {
@@ -226,7 +229,7 @@ export default function TeamDetail(): ReactNode {
                 onPress={() => void confirmDelete()}
               />
               <Pressable onPress={() => setImpact(undefined)} accessibilityRole="button">
-                <Text fontSize={15} fontWeight="700" color="$brandChalkDim" textAlign="center">
+                <Text {...TYPE.body} fontWeight="700" color="$brandChalkDim" textAlign="center">
                   {t.teams.cancel}
                 </Text>
               </Pressable>

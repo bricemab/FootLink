@@ -15,6 +15,7 @@ import { CheckIcon } from '@/ui/icons';
 import { ListingForm, toPostes } from '@/ui/listing-form';
 import type { PitchSelection } from '@/ui/pitch-positions';
 import { PrimaryButton } from '@/ui/primary-button';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Création d'une annonce.
@@ -87,9 +88,7 @@ export default function NewListing(): ReactNode {
         createListing(token, {
           teamId,
           posteRecherche: postes.posteRecherche,
-          ...(postes.secondaryPostes.length > 0
-            ? { secondaryPostes: postes.secondaryPostes }
-            : {}),
+          ...(postes.secondaryPostes.length > 0 ? { secondaryPostes: postes.secondaryPostes } : {}),
           ...(description.trim().length > 0 ? { description: description.trim() } : {}),
           publish,
         }),
@@ -117,7 +116,9 @@ export default function NewListing(): ReactNode {
       subtitle={t.listings.newSubtitle}
       onBack={() =>
         router.replace(
-          fromParams ? { pathname: '/club/listings', params: { teamId: fromParams } } : '/club/listings',
+          fromParams
+            ? { pathname: '/club/listings', params: { teamId: fromParams } }
+            : '/club/listings',
         )
       }
     >
@@ -135,7 +136,7 @@ export default function NewListing(): ReactNode {
 
       {chooseTeam ? (
         <YStack gap="$2">
-          <Text fontSize={13} fontWeight="600" color="$brandChalkDim" letterSpacing={0.4}>
+          <Text {...TYPE.meta} color="$brandChalkDim">
             {t.listings.teamChoose.toUpperCase()}
           </Text>
           {teams?.map((team) => {
@@ -159,11 +160,11 @@ export default function NewListing(): ReactNode {
                   backgroundColor="rgba(14,36,28,0.7)"
                 >
                   <YStack flexShrink={1} gap="$0.5">
-                    <Text fontSize={15} color="$brandChalk" flexShrink={1}>
+                    <Text {...TYPE.body} color="$brandChalk" flexShrink={1}>
                       {team.name ?? categoryLabel(team.category, locale)}
                     </Text>
                     {team.name ? (
-                      <Text fontSize={12.5} color="$brandChalkDim">
+                      <Text {...TYPE.label} color="$brandChalkDim">
                         {categoryLabel(team.category, locale)}
                       </Text>
                     ) : null}

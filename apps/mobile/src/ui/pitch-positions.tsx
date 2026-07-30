@@ -6,6 +6,7 @@ import Svg, { Circle, Line, Rect } from 'react-native-svg';
 import { Text, XStack, YStack } from 'tamagui';
 import { useI18n } from '@/i18n';
 import { hapticTap } from '@/ui/haptics';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Choix des postes sur un demi-terrain.
@@ -92,8 +93,7 @@ export function PitchPositions({
   const [width, setWidth] = useState(0);
   const height = width * RATIO;
 
-  const measure = (event: LayoutChangeEvent): void =>
-    setWidth(event.nativeEvent.layout.width);
+  const measure = (event: LayoutChangeEvent): void => setWidth(event.nativeEvent.layout.width);
 
   /**
    * Un appui fait tourner le poste entre trois états : rien → principal →
@@ -276,27 +276,31 @@ export function PitchPositions({
       {/* Ce que l'appui vient de produire, en mots — une pastille verte ne dit
           pas si le poste est principal ou secondaire. */}
       {showSummary ? (
-      <YStack gap="$2">
-        <XStack alignItems="center" gap="$2" flexWrap="wrap">
-          <Text fontSize={12.5} fontWeight="700" letterSpacing={0.6} color="$brandChalkDim">
-            {(labels?.primary ?? t.onboarding.primaryPosition).toUpperCase()}
-          </Text>
-          <Text fontSize={15} fontWeight="700" color={value.primary ? '$brandPitchBright' : '$brandChalkDim'}>
-            {value.primary ? posteLabel(value.primary, locale) : t.onboarding.tapThePitch}
-          </Text>
-        </XStack>
-
-        {value.secondary.length > 0 ? (
+        <YStack gap="$2">
           <XStack alignItems="center" gap="$2" flexWrap="wrap">
-            <Text fontSize={12.5} fontWeight="700" letterSpacing={0.6} color="$brandChalkDim">
-              {(labels?.secondary ?? t.onboarding.otherPositions).toUpperCase()}
+            <Text {...TYPE.label} color="$brandChalkDim">
+              {(labels?.primary ?? t.onboarding.primaryPosition).toUpperCase()}
             </Text>
-            <Text fontSize={14} color="$brandChalk" flexShrink={1}>
-              {value.secondary.map((p) => posteLabel(p, locale)).join(' · ')}
+            <Text
+              {...TYPE.body}
+              fontWeight="700"
+              color={value.primary ? '$brandPitchBright' : '$brandChalkDim'}
+            >
+              {value.primary ? posteLabel(value.primary, locale) : t.onboarding.tapThePitch}
             </Text>
           </XStack>
-        ) : null}
-      </YStack>
+
+          {value.secondary.length > 0 ? (
+            <XStack alignItems="center" gap="$2" flexWrap="wrap">
+              <Text {...TYPE.label} color="$brandChalkDim">
+                {(labels?.secondary ?? t.onboarding.otherPositions).toUpperCase()}
+              </Text>
+              <Text {...TYPE.body} color="$brandChalk" flexShrink={1}>
+                {value.secondary.map((p) => posteLabel(p, locale)).join(' · ')}
+              </Text>
+            </XStack>
+          ) : null}
+        </YStack>
       ) : null}
     </YStack>
   );

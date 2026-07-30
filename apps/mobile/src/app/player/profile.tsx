@@ -18,6 +18,7 @@ import { BallIcon } from '@/ui/icons';
 import { PitchPositions } from '@/ui/pitch-positions';
 import { PrimaryButton } from '@/ui/primary-button';
 import { SkeletonCard } from '@/ui/skeleton';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Fiche du joueur — son écran d'accueil.
@@ -183,7 +184,7 @@ export default function Home(): ReactNode {
         // Pas de profil joueur : c'est le cas d'un club ou d'un entraîneur qui
         // passe par ici. On ne lui invente pas une fiche de joueur.
         <Card>
-          <Text fontSize={15} lineHeight={22} color="$brandChalkDim">
+          <Text {...TYPE.body} color="$brandChalkDim">
             {t.home.subtitle}
           </Text>
         </Card>
@@ -193,87 +194,87 @@ export default function Home(): ReactNode {
         <>
           {/* Identité en HERO : un seul element principal par ecran. */}
           <Appear index={0}>
-          <Card variant="hero">
-            <XStack gap="$3.5" alignItems="center">
-              <Avatar url={profile.avatarUrl} busy={uploading} />
-              <YStack flexShrink={1} gap="$2">
-                <XStack gap="$2" flexWrap="wrap">
-                  <Badge
-                    label={profile.isSeekingClub ? t.home.seeking : t.home.notSeeking}
-                    tone={profile.isSeekingClub ? 'accent' : 'neutral'}
-                  />
-                  {!profile.isVisible ? <Badge label={t.home.hidden} tone="warning" /> : null}
-                </XStack>
-                <XStack gap="$3" flexWrap="wrap">
-                  <Pressable onPress={() => void pickPhoto()} accessibilityRole="button">
-                    <Text fontSize={14.5} fontWeight="700" color="$brandPitchBright">
-                      {profile.avatarUrl ? t.home.photoChange : t.home.photoAdd}
-                    </Text>
-                  </Pressable>
-                  {profile.avatarUrl ? (
-                    <Pressable onPress={() => void dropPhoto()} accessibilityRole="button">
-                      <Text fontSize={14.5} fontWeight="700" color="$brandChalkDim">
-                        {t.home.photoRemove}
+            <Card variant="hero">
+              <XStack gap="$3.5" alignItems="center">
+                <Avatar url={profile.avatarUrl} busy={uploading} />
+                <YStack flexShrink={1} gap="$2">
+                  <XStack gap="$2" flexWrap="wrap">
+                    <Badge
+                      label={profile.isSeekingClub ? t.home.seeking : t.home.notSeeking}
+                      tone={profile.isSeekingClub ? 'accent' : 'neutral'}
+                    />
+                    {!profile.isVisible ? <Badge label={t.home.hidden} tone="warning" /> : null}
+                  </XStack>
+                  <XStack gap="$3" flexWrap="wrap">
+                    <Pressable onPress={() => void pickPhoto()} accessibilityRole="button">
+                      <Text {...TYPE.body} fontWeight="700" color="$brandPitchBright">
+                        {profile.avatarUrl ? t.home.photoChange : t.home.photoAdd}
                       </Text>
                     </Pressable>
-                  ) : null}
-                </XStack>
-              </YStack>
-            </XStack>
+                    {profile.avatarUrl ? (
+                      <Pressable onPress={() => void dropPhoto()} accessibilityRole="button">
+                        <Text {...TYPE.body} fontWeight="700" color="$brandChalkDim">
+                          {t.home.photoRemove}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </XStack>
+                </YStack>
+              </XStack>
 
-            {/* Un profil masqué est invisible des clubs : le dire, sinon le
+              {/* Un profil masqué est invisible des clubs : le dire, sinon le
                 joueur attend des propositions qui ne viendront jamais. */}
-            {!profile.isVisible ? (
-              <Text fontSize={13.5} lineHeight={20} color="#FFC14D">
-                {t.home.hiddenHint}
-              </Text>
-            ) : null}
-          </Card>
+              {!profile.isVisible ? (
+                <Text {...TYPE.meta} color="#FFC14D">
+                  {t.home.hiddenHint}
+                </Text>
+              ) : null}
+            </Card>
           </Appear>
 
           {/* 🔴 Le terrain, en grand. C'est la fiche du joueur. */}
           <Appear index={1}>
-          <YStack gap="$2">
-            <SectionTitle>{t.home.yourPitch}</SectionTitle>
-            <PitchPositions
-              value={{ primary, secondary: secondary.map((position) => position.poste) }}
-              // Écran de présentation : le choix des postes appartient au
-              // parcours d'inscription, qui porte ses règles de validation.
-              onChange={() => undefined}
-              readOnly
-            />
-          </YStack>
+            <YStack gap="$2">
+              <SectionTitle>{t.home.yourPitch}</SectionTitle>
+              <PitchPositions
+                value={{ primary, secondary: secondary.map((position) => position.poste) }}
+                // Écran de présentation : le choix des postes appartient au
+                // parcours d'inscription, qui porte ses règles de validation.
+                onChange={() => undefined}
+                readOnly
+              />
+            </YStack>
           </Appear>
 
           {/* Ce que le terrain ne dit PAS. Le poste principal n'y figure donc
               pas : `PitchPositions` l'annonce deja sous le dessin, et le
               repeter juste en dessous donnait la meme ligne deux fois. */}
           <Appear index={2}>
-          <Card variant="plain">
-            {/* La ligue est deja dans le sous-titre : on ne la repete pas. */}
-            <Row
-              label={t.home.currentClub}
-              value={profile.currentClub?.name ?? profile.currentClubName ?? t.home.noClub}
-            />
-            {profile.strongFoot ? (
-              <Row label={t.home.foot} value={strongFootLabel(profile.strongFoot, locale)} />
-            ) : null}
-            {profile.heightCm ? (
+            <Card variant="plain">
+              {/* La ligue est deja dans le sous-titre : on ne la repete pas. */}
               <Row
-                label={t.home.height}
-                value={fill(t.home.heightValue, { cm: String(profile.heightCm) })}
+                label={t.home.currentClub}
+                value={profile.currentClub?.name ?? profile.currentClubName ?? t.home.noClub}
               />
-            ) : null}
-          </Card>
+              {profile.strongFoot ? (
+                <Row label={t.home.foot} value={strongFootLabel(profile.strongFoot, locale)} />
+              ) : null}
+              {profile.heightCm ? (
+                <Row
+                  label={t.home.height}
+                  value={fill(t.home.heightValue, { cm: String(profile.heightCm) })}
+                />
+              ) : null}
+            </Card>
           </Appear>
 
           {profile.bio ? (
             <Appear index={3}>
-            <Card variant="plain">
-              <Text fontSize={14.5} lineHeight={21} color="$brandChalk">
-                {profile.bio}
-              </Text>
-            </Card>
+              <Card variant="plain">
+                <Text {...TYPE.body} color="$brandChalk">
+                  {profile.bio}
+                </Text>
+              </Card>
             </Appear>
           ) : null}
 
@@ -297,7 +298,7 @@ export default function Home(): ReactNode {
 
       {/* L'adresse reste visible : c'est elle qui identifie le compte, et un
           joueur qui en a deux doit pouvoir savoir laquelle il utilise. */}
-      <Text fontSize={12.5} color="$brandChalkDim" textAlign="center">
+      <Text {...TYPE.label} color="$brandChalkDim" textAlign="center">
         {user?.email ?? '—'}
       </Text>
     </AppScreen>
@@ -319,11 +320,7 @@ function Avatar({ url, busy }: { url: string | null; busy: boolean }): ReactNode
       borderColor={url ? 'rgba(57,255,136,0.35)' : 'rgba(244,251,247,0.14)'}
       opacity={busy ? 0.5 : 1}
     >
-      {url ? (
-        <AppImage uri={url} size={72} />
-      ) : (
-        <BallIcon size={28} />
-      )}
+      {url ? <AppImage uri={url} size={72} /> : <BallIcon size={28} />}
     </YStack>
   );
 }
@@ -331,10 +328,10 @@ function Avatar({ url, busy }: { url: string | null; busy: boolean }): ReactNode
 function Row({ label, value }: { label: string; value: string }): ReactNode {
   return (
     <XStack justifyContent="space-between" alignItems="center" gap="$3">
-      <Text fontSize={13} fontWeight="600" letterSpacing={0.4} color="$brandChalkDim">
+      <Text {...TYPE.meta} color="$brandChalkDim">
         {label.toUpperCase()}
       </Text>
-      <Text fontSize={15} fontWeight="600" color="$brandChalk" flexShrink={1} textAlign="right">
+      <Text {...TYPE.body} color="$brandChalk" flexShrink={1} textAlign="right">
         {value}
       </Text>
     </XStack>

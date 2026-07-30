@@ -172,20 +172,20 @@ export default function PlayerApplications(): ReactNode {
 
             <XStack alignItems="center" gap="$2.5">
               <StadiumIcon size={18} />
-              <Text fontSize={15} fontWeight="700" color="$brandChalk" flexShrink={1}>
+              <Text {...TYPE.body} fontWeight="700" color="$brandChalk" flexShrink={1}>
                 {item.club.name}
               </Text>
             </XStack>
 
             <XStack gap="$2.5" flexWrap="wrap" alignItems="center">
-              <Text fontSize={13.5} fontWeight="700" color="$brandPitchBright">
+              <Text {...TYPE.meta} fontWeight="700" color="$brandPitchBright">
                 {item.team.name ?? categoryLabel(item.team.category, locale)}
               </Text>
-              <Text fontSize={13.5} color="$brandChalkDim">
+              <Text {...TYPE.meta} color="$brandChalkDim">
                 {fill(t.feed.distance, { km: String(item.distanceKm) })}
               </Text>
               {item.club.locality ? (
-                <Text fontSize={13.5} color="$brandChalkDim">
+                <Text {...TYPE.meta} color="$brandChalkDim">
                   {item.club.locality}
                 </Text>
               ) : null}
@@ -196,14 +196,14 @@ export default function PlayerApplications(): ReactNode {
             {item.status !== 'ACTIVE' ? (
               <XStack alignItems="center" gap="$2">
                 <WarningIcon size={16} />
-                <Text fontSize={13.5} color="#FFC14D" flexShrink={1}>
+                <Text {...TYPE.meta} color="#FFC14D" flexShrink={1}>
                   {t.feed.closedListing}
                 </Text>
               </XStack>
             ) : null}
 
             {item.description ? (
-              <Text fontSize={14.5} lineHeight={21} color="$brandChalkDim" numberOfLines={2}>
+              <Text {...TYPE.body} color="$brandChalkDim" numberOfLines={2}>
                 {item.description}
               </Text>
             ) : null}
@@ -291,7 +291,7 @@ function SectionTabs({
               backgroundColor={active ? 'rgba(57,255,136,0.18)' : 'transparent'}
             >
               <Text
-                fontSize={13.5}
+                {...TYPE.meta}
                 fontWeight="700"
                 color={active ? '$brandPitchBright' : '$brandChalkDim'}
               >
@@ -299,7 +299,7 @@ function SectionTabs({
               </Text>
               {counts[kind] > 0 ? (
                 <Text
-                  fontSize={12.5}
+                  {...TYPE.label}
                   fontWeight="800"
                   color={active ? '$brandPitchBright' : '$brandChalkDim'}
                 >

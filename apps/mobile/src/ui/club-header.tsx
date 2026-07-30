@@ -9,6 +9,7 @@ import { Badge } from '@/ui/app-screen';
 import { GlassSurface, glassSupport } from '@/ui/glass';
 import { StadiumIcon } from '@/ui/icons';
 import { Skeleton } from '@/ui/skeleton';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Bandeau de contexte de l'espace club.
@@ -79,19 +80,15 @@ export function ClubHeader(): ReactNode {
             borderWidth={1}
             borderColor="rgba(244,251,247,0.14)"
           >
-            {club?.logoUrl ? (
-              <AppImage uri={club.logoUrl} size={38} />
-            ) : (
-              <StadiumIcon size={20} />
-            )}
+            {club?.logoUrl ? <AppImage uri={club.logoUrl} size={38} /> : <StadiumIcon size={20} />}
           </YStack>
 
           {club ? (
             <YStack flexShrink={1} gap="$0.5">
-              <Text fontSize={16} fontWeight="800" color="$brandChalk" flexShrink={1}>
+              <Text {...TYPE.heading} color="$brandChalk" flexShrink={1}>
                 {club.club.name}
               </Text>
-              <Text fontSize={12} color="$brandChalkDim" flexShrink={1}>
+              <Text {...TYPE.label} color="$brandChalkDim" flexShrink={1}>
                 {club.club.locality ?? t.clubSpace.noPitch}
               </Text>
             </YStack>

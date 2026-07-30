@@ -2,6 +2,7 @@ import { MotiView } from 'moti';
 import { useState, type ReactNode } from 'react';
 import { TextInput, type KeyboardTypeOptions, type TextInputProps } from 'react-native';
 import { Text, YStack } from 'tamagui';
+import { TYPE } from '@/ui/type-scale';
 
 interface TextFieldProps {
   label: string;
@@ -42,11 +43,14 @@ export function TextField({
 
   return (
     <YStack gap="$2">
-      <Text fontSize={13} fontWeight="600" color="$brandChalkDim" letterSpacing={0.4}>
+      <Text {...TYPE.meta} color="$brandChalkDim">
         {label.toUpperCase()}
       </Text>
       <MotiView
-        animate={{ borderColor, backgroundColor: focused ? 'rgba(20,53,42,0.85)' : 'rgba(14,36,28,0.7)' }}
+        animate={{
+          borderColor,
+          backgroundColor: focused ? 'rgba(20,53,42,0.85)' : 'rgba(14,36,28,0.7)',
+        }}
         transition={{ type: 'timing', duration: 160 }}
         style={{ borderWidth: 1.5, borderRadius: 16 }}
       >
@@ -78,7 +82,7 @@ export function TextField({
       {/* Aucune animation d'entrée : un message d'erreur ne doit ni rester
           invisible ni rester décalé. Cf. `StepTransition`. */}
       {error ? (
-        <Text fontSize={13} color="$brandDanger">
+        <Text {...TYPE.meta} color="$brandDanger">
           {error}
         </Text>
       ) : null}

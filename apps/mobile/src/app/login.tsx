@@ -12,6 +12,7 @@ import { GoogleAuthSection } from '@/ui/google-auth-section';
 import { PrimaryButton } from '@/ui/primary-button';
 import { TextField } from '@/ui/text-field';
 import { validateEmail } from '@/ui/validation';
+import { TYPE } from '@/ui/type-scale';
 
 export default function Login(): ReactNode {
   // Deja connecte : cet ecran n'a plus d'objet. Voir `useSignedInRedirect`.
@@ -76,11 +77,11 @@ export default function Login(): ReactNode {
       <GoogleAuthSection />
 
       <XStack justifyContent="center" gap="$2">
-        <Text fontSize={15} color="$brandChalkDim">
+        <Text {...TYPE.body} color="$brandChalkDim">
           {t.login.noAccount}
         </Text>
         <Pressable onPress={() => router.replace('/register')} accessibilityRole="button">
-          <Text fontSize={15} fontWeight="700" color="$brandPitchBright">
+          <Text {...TYPE.body} fontWeight="700" color="$brandPitchBright">
             {t.welcome.signUp}
           </Text>
         </Pressable>

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { useI18n } from '@/i18n';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Choix masculin / féminin, à deux boutons.
@@ -29,7 +30,7 @@ export function GenderChoice({
 
   return (
     <YStack gap="$2">
-      <Text fontSize={12.5} fontWeight="700" color="$brandChalkDim" letterSpacing={0.6}>
+      <Text {...TYPE.label} color="$brandChalkDim">
         {label.toUpperCase()}
       </Text>
       <XStack gap="$2">
@@ -53,7 +54,7 @@ export function GenderChoice({
                 backgroundColor={active ? 'rgba(57,255,136,0.14)' : 'rgba(12,30,23,0.85)'}
               >
                 <Text
-                  fontSize={15}
+                  {...TYPE.body}
                   fontWeight={active ? '700' : '500'}
                   color={active ? '$brandPitchBright' : '$brandChalk'}
                 >

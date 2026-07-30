@@ -152,7 +152,13 @@ export function EyeIcon({
  * 2 px et extrémités arrondies, pour rester dans la même famille visuelle que
  * les icônes Phosphor voisines.
  */
-export function StadiumIcon({ size = 28, color = ACCENT }: { size?: number; color?: string }): ReactNode {
+export function StadiumIcon({
+  size = 28,
+  color = ACCENT,
+}: {
+  size?: number;
+  color?: string;
+}): ReactNode {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path

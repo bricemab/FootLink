@@ -4,9 +4,17 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Image, Pressable, TextInput } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Text, XStack, YStack } from 'tamagui';
-import { newSearchSession, resolveHere, retrievePlace, searchPlaces, type PlaceSuggestion, type ResolvedPlace } from '@/api/geo';
+import {
+  newSearchSession,
+  resolveHere,
+  retrievePlace,
+  searchPlaces,
+  type PlaceSuggestion,
+  type ResolvedPlace,
+} from '@/api/geo';
 import { useI18n } from '@/i18n';
 import { CheckIcon } from '@/ui/icons';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Choix du terrain d'un club, par autocomplétion.
@@ -247,14 +255,14 @@ export function PlacePicker({
               bien mieux qu'une ligne de texte. */}
           <YStack height={value.aerialUrl ? PREVIEW_HEIGHT : undefined}>
             {value.aerialUrl ? (
-            <Image
-              source={{ uri: value.aerialUrl }}
-              style={{ width: '100%', height: PREVIEW_HEIGHT }}
-              resizeMode="cover"
-              accessibilityLabel={value.label}
-              onError={() => setImageFailed(true)}
-              onLoad={() => setImageFailed(false)}
-            />
+              <Image
+                source={{ uri: value.aerialUrl }}
+                style={{ width: '100%', height: PREVIEW_HEIGHT }}
+                resizeMode="cover"
+                accessibilityLabel={value.label}
+                onError={() => setImageFailed(true)}
+                onLoad={() => setImageFailed(false)}
+              />
             ) : null}
 
             {imageFailed ? (
@@ -268,7 +276,7 @@ export function PlacePicker({
                 alignItems="center"
                 justifyContent="center"
               >
-                <Text fontSize={13} color="$brandChalkDim">
+                <Text {...TYPE.meta} color="$brandChalkDim">
                   {t.club.pitchNoImage}
                 </Text>
               </YStack>
@@ -317,7 +325,7 @@ export function PlacePicker({
               <XStack alignItems="center" justifyContent="space-between" gap="$3">
                 <XStack alignItems="center" gap="$2" flexShrink={1}>
                   <CheckIcon />
-                  <Text fontSize={17} fontWeight="700" color="$brandChalk" flexShrink={1}>
+                  <Text {...TYPE.heading} color="$brandChalk" flexShrink={1}>
                     {value.label}
                   </Text>
                 </XStack>
@@ -331,7 +339,7 @@ export function PlacePicker({
                     setImageFailed(false);
                   }}
                 >
-                  <Text fontSize={14} fontWeight="700" color="$brandPitchBright">
+                  <Text {...TYPE.body} fontWeight="700" color="$brandPitchBright">
                     {t.club.pitchChange}
                   </Text>
                 </Pressable>
@@ -339,7 +347,7 @@ export function PlacePicker({
               {/* Commune et canton viennent du serveur : c'est la preuve que le
                   point a bien été situé, et ce qui justifie l'association
                   présélectionnée juste en dessous. */}
-              <Text fontSize={14} color="$brandChalkDim">
+              <Text {...TYPE.body} color="$brandChalkDim">
                 {`${value.locality} (${value.canton})`}
               </Text>
             </YStack>
@@ -348,6 +356,9 @@ export function PlacePicker({
           {/* Mention obligatoire : elle n'est plus incrustée dans l'image
               (`logo=false&attribution=false`), donc elle doit figurer ici. */}
           <XStack paddingHorizontal="$3.5" paddingVertical="$2">
+            {/* Hors echelle, deliberement : une mention legale d'attribution
+                doit etre lisible sans jamais entrer en concurrence avec le
+                contenu. C'est le seul emploi de cette taille. */}
             <Text fontSize={10} color="rgba(169,196,184,0.55)">
               {AERIAL_ATTRIBUTION}
             </Text>
@@ -395,7 +406,7 @@ export function PlacePicker({
         </XStack>
       </MotiView>
 
-      <Text fontSize={13} color="$brandChalkDim">
+      <Text {...TYPE.meta} color="$brandChalkDim">
         {text.help}
       </Text>
 
@@ -409,7 +420,7 @@ export function PlacePicker({
         >
           <XStack alignItems="center" gap="$2">
             {locating ? <ActivityIndicator color="#39FF88" size="small" /> : null}
-            <Text fontSize={14.5} fontWeight="700" color="$brandPitchBright">
+            <Text {...TYPE.body} fontWeight="700" color="$brandPitchBright">
               {locating ? t.club.locating : t.club.useMyPosition}
             </Text>
           </XStack>
@@ -417,25 +428,25 @@ export function PlacePicker({
       ) : null}
 
       {locationError ? (
-        <Text fontSize={13} color="#FFC14D">
+        <Text {...TYPE.meta} color="#FFC14D">
           {locationError}
         </Text>
       ) : null}
 
       {error ? (
-        <Text fontSize={13} color="$brandDanger">
+        <Text {...TYPE.meta} color="$brandDanger">
           {error}
         </Text>
       ) : null}
 
       {failed ? (
-        <Text fontSize={13} color="$brandDanger">
+        <Text {...TYPE.meta} color="$brandDanger">
           {t.club.pitchUnavailable}
         </Text>
       ) : null}
 
       {showEmpty ? (
-        <Text fontSize={13} color="$brandChalkDim">
+        <Text {...TYPE.meta} color="$brandChalkDim">
           {t.club.pitchEmpty}
         </Text>
       ) : null}
@@ -463,11 +474,11 @@ export function PlacePicker({
                 opacity={resolving !== undefined && resolving !== place.id ? 0.5 : 1}
               >
                 <YStack flexShrink={1} gap="$1">
-                  <Text fontSize={15} color="$brandChalk">
+                  <Text {...TYPE.body} color="$brandChalk">
                     {place.label}
                   </Text>
                   {place.context ? (
-                    <Text fontSize={13} color="$brandChalkDim">
+                    <Text {...TYPE.meta} color="$brandChalkDim">
                       {place.context}
                     </Text>
                   ) : null}
@@ -484,7 +495,7 @@ export function PlacePicker({
 
 function FieldLabel({ text }: { text: string }): ReactNode {
   return (
-    <Text fontSize={13} fontWeight="600" color="$brandChalkDim" letterSpacing={0.4}>
+    <Text {...TYPE.meta} color="$brandChalkDim">
       {text.toUpperCase()}
     </Text>
   );

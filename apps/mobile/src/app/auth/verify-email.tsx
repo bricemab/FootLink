@@ -9,6 +9,7 @@ import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { PrimaryButton } from '@/ui/primary-button';
 import { TextField } from '@/ui/text-field';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Écran de validation d'email.
@@ -104,7 +105,7 @@ export default function VerifyEmail(): ReactNode {
           }}
           accessibilityRole="button"
         >
-          <Text fontSize={15} color="$brandChalkDim">
+          <Text {...TYPE.body} color="$brandChalkDim">
             {t.common.logout}
           </Text>
         </Pressable>

@@ -2,19 +2,10 @@ import { categoryLabel, posteLabel, type Poste } from '@footlink/shared';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 import { Pressable } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useDerivedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useDerivedValue, withTiming } from 'react-native-reanimated';
 import { Text, XStack, YStack } from 'tamagui';
 import { dismissListing, listFeedListings, type FeedListing, type MatchKind } from '@/api/feed';
-import {
-  applyToListing,
-  removeInterest,
-  saveListing,
-  undismissListing,
-} from '@/api/interactions';
+import { applyToListing, removeInterest, saveListing, undismissListing } from '@/api/interactions';
 import { useAuth } from '@/auth/auth-context';
 import { ApiError } from '@/api/client';
 import { useI18n } from '@/i18n';
@@ -232,10 +223,7 @@ export default function PlayerFeed(): ReactNode {
         <EmptyState
           text={blocked === 'location' ? t.feed.locationRequired : t.feed.profileRequired}
           action={
-            <PrimaryButton
-              label={t.home.edit}
-              onPress={() => router.push('/player/profile')}
-            />
+            <PrimaryButton label={t.home.edit} onPress={() => router.push('/player/profile')} />
           }
         />
       ) : null}
@@ -294,11 +282,7 @@ export default function PlayerFeed(): ReactNode {
             option qu'on choisirait.
           */}
           <XStack gap="$3.5" justifyContent="center" alignItems="center">
-            <RoundAction
-              kind="undo"
-              disabled={last === undefined}
-              onPress={() => void undo()}
-            />
+            <RoundAction kind="undo" disabled={last === undefined} onPress={() => void undo()} />
             <RoundAction
               kind="pass"
               onPress={() => {
@@ -382,9 +366,7 @@ function SwipeCard({
     ⚠️ Un demi-tour et pas plus : au-dela de 180° on repasse par la tranche une
     seconde fois, et l'animation se lit comme un bug.
   */
-  const progress = useDerivedValue(() =>
-    withTiming(flipped ? 1 : 0, { duration: 420 }),
-  );
+  const progress = useDerivedValue(() => withTiming(flipped ? 1 : 0, { duration: 420 }));
 
   const frontStyle = useAnimatedStyle(() => ({
     transform: [{ perspective: 1200 }, { rotateY: `${progress.value * 180}deg` }],
@@ -404,10 +386,7 @@ function SwipeCard({
         <CardFace>{renderFront()}</CardFace>
       </Animated.View>
       <Animated.View
-        style={[
-          { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
-          backStyle,
-        ]}
+        style={[{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }, backStyle]}
       >
         <CardFace>{renderBack()}</CardFace>
       </Animated.View>
@@ -431,14 +410,11 @@ function SwipeCard({
             <StadiumIcon size={22} />
           </YStack>
           <YStack flexShrink={1} gap="$0.5">
-            <Text fontSize={17} fontWeight="800" color="$brandChalk" flexShrink={1}>
+            <Text {...TYPE.heading} color="$brandChalk" flexShrink={1}>
               {listing.club.name}
             </Text>
-            <Text fontSize={13} color="$brandChalkDim" flexShrink={1}>
-              {[
-                listing.club.locality,
-                fill(t.feed.distance, { km: String(listing.distanceKm) }),
-              ]
+            <Text {...TYPE.meta} color="$brandChalkDim" flexShrink={1}>
+              {[listing.club.locality, fill(t.feed.distance, { km: String(listing.distanceKm) })]
                 .filter(Boolean)
                 .join(' · ')}
             </Text>
@@ -458,18 +434,12 @@ function SwipeCard({
           </XStack>
 
           {/* Le poste, en grand : c'est LA question de la carte. */}
-          <Text
-            fontSize={30}
-            lineHeight={34}
-            fontWeight="800"
-            letterSpacing={-0.6}
-            color="$brandChalk"
-          >
+          <Text {...TYPE.title} color="$brandChalk">
             {posteLabel(listing.posteRecherche, locale)}
           </Text>
 
           {listing.description ? (
-            <Text fontSize={14.5} lineHeight={20} color="$brandChalkDim" numberOfLines={2}>
+            <Text {...TYPE.body} color="$brandChalkDim" numberOfLines={2}>
               {listing.description}
             </Text>
           ) : null}
@@ -478,7 +448,7 @@ function SwipeCard({
               un verso — un geste invisible n'existe pas. */}
           <XStack alignItems="center" gap="$1.5">
             <UndoIcon size={13} color="rgba(169,196,184,0.7)" />
-            <Text fontSize={12.5} color="$brandChalkDim">
+            <Text {...TYPE.label} color="$brandChalkDim">
               {t.feed.tapForMore}
             </Text>
           </XStack>
@@ -499,10 +469,10 @@ function SwipeCard({
     return (
       <YStack flex={1} padding="$4" gap="$3.5">
         <YStack gap="$1">
-          <Text fontSize={12.5} fontWeight="700" letterSpacing={0.6} color="$brandChalkDim">
+          <Text {...TYPE.label} color="$brandChalkDim">
             {t.feed.detailTitle.toUpperCase()}
           </Text>
-          <Text fontSize={22} fontWeight="800" letterSpacing={-0.4} color="$brandChalk">
+          <Text {...TYPE.subtitle} color="$brandChalk">
             {listing.club.name}
           </Text>
         </YStack>
@@ -522,9 +492,7 @@ function SwipeCard({
           {listing.secondaryPostes.length > 0 ? (
             <DetailRow
               label={t.listings.otherPostes}
-              value={listing.secondaryPostes
-                .map((poste) => posteLabel(poste, locale))
-                .join(' · ')}
+              value={listing.secondaryPostes.map((poste) => posteLabel(poste, locale)).join(' · ')}
             />
           ) : null}
           {listing.club.locality ? (
@@ -539,7 +507,7 @@ function SwipeCard({
 
         {listing.description ? (
           <YStack flex={1}>
-            <Text fontSize={15} lineHeight={22} color="$brandChalk">
+            <Text {...TYPE.body} color="$brandChalk">
               {listing.description}
             </Text>
           </YStack>
@@ -549,7 +517,7 @@ function SwipeCard({
 
         <XStack alignItems="center" gap="$1.5">
           <UndoIcon size={13} color="rgba(169,196,184,0.7)" />
-          <Text fontSize={12.5} color="$brandChalkDim">
+          <Text {...TYPE.label} color="$brandChalkDim">
             {t.feed.tapToReturn}
           </Text>
         </XStack>
@@ -602,16 +570,10 @@ function CardFace({ children }: { children: ReactNode }): ReactNode {
 function DetailRow({ label, value }: { label: string; value: string }): ReactNode {
   return (
     <XStack justifyContent="space-between" alignItems="flex-start" gap="$3">
-      <Text fontSize={12.5} fontWeight="700" letterSpacing={0.4} color="$brandChalkDim">
+      <Text {...TYPE.label} color="$brandChalkDim">
         {label.toUpperCase()}
       </Text>
-      <Text
-        fontSize={14.5}
-        fontWeight="600"
-        color="$brandChalk"
-        flexShrink={1}
-        textAlign="right"
-      >
+      <Text {...TYPE.body} color="$brandChalk" flexShrink={1} textAlign="right">
         {value}
       </Text>
     </XStack>
@@ -703,7 +665,7 @@ function ListingCard({
 
       <XStack alignItems="center" gap="$2.5">
         <StadiumIcon size={18} />
-        <Text fontSize={15} fontWeight="700" color="$brandChalk" flexShrink={1}>
+        <Text {...TYPE.body} fontWeight="700" color="$brandChalk" flexShrink={1}>
           {listing.club.name}
         </Text>
       </XStack>
@@ -713,27 +675,27 @@ function ListingCard({
         C'est elle qui transforme « voici une annonce » en « voici pourquoi ».
       */}
       <XStack gap="$2.5" flexWrap="wrap" alignItems="center">
-        <Text fontSize={13.5} fontWeight="700" color="$brandPitchBright">
+        <Text {...TYPE.meta} fontWeight="700" color="$brandPitchBright">
           {listing.team.name ?? categoryLabel(listing.team.category, locale)}
         </Text>
-        <Text fontSize={13.5} color="$brandChalkDim">
+        <Text {...TYPE.meta} color="$brandChalkDim">
           {fill(t.feed.distance, { km: String(listing.distanceKm) })}
         </Text>
         {listing.club.locality ? (
-          <Text fontSize={13.5} color="$brandChalkDim">
+          <Text {...TYPE.meta} color="$brandChalkDim">
             {listing.club.locality}
           </Text>
         ) : null}
       </XStack>
 
       {listing.secondaryPostes.length > 0 ? (
-        <Text fontSize={13} color="$brandChalkDim">
+        <Text {...TYPE.meta} color="$brandChalkDim">
           {listing.secondaryPostes.map((poste) => posteLabel(poste, locale)).join(' · ')}
         </Text>
       ) : null}
 
       {listing.description ? (
-        <Text fontSize={14.5} lineHeight={21} color="$brandChalk" numberOfLines={3}>
+        <Text {...TYPE.body} color="$brandChalk" numberOfLines={3}>
           {listing.description}
         </Text>
       ) : null}
@@ -807,7 +769,12 @@ function ModeToggle({
   labels: { modeList: string; modeSwipe: string };
 }): ReactNode {
   return (
-    <XStack borderRadius={999} overflow="hidden" borderWidth={1.5} borderColor="rgba(244,251,247,0.16)">
+    <XStack
+      borderRadius={999}
+      overflow="hidden"
+      borderWidth={1.5}
+      borderColor="rgba(244,251,247,0.16)"
+    >
       {(['list', 'swipe'] as const).map((value) => {
         const active = mode === value;
         return (
@@ -822,11 +789,7 @@ function ModeToggle({
               paddingVertical="$1.5"
               backgroundColor={active ? 'rgba(57,255,136,0.18)' : 'transparent'}
             >
-              <Text
-                fontSize={12.5}
-                fontWeight="700"
-                color={active ? '$brandPitchBright' : '$brandChalkDim'}
-              >
+              <Text {...TYPE.label} color={active ? '$brandPitchBright' : '$brandChalkDim'}>
                 {value === 'list' ? labels.modeList : labels.modeSwipe}
               </Text>
             </YStack>

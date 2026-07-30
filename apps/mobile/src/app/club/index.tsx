@@ -8,7 +8,13 @@ import {
   putToStorage,
   removeClubLogo,
 } from '@/api/club-logo';
-import { getMyClub, listRegions, updateMyClub, type MyClubResponse, type Region } from '@/api/clubs';
+import {
+  getMyClub,
+  listRegions,
+  updateMyClub,
+  type MyClubResponse,
+  type Region,
+} from '@/api/clubs';
 import { listCoaches } from '@/api/coaches';
 import type { ResolvedPlace } from '@/api/geo';
 import { Redirect, useFocusEffect, useRouter } from 'expo-router';
@@ -23,6 +29,7 @@ import { RegionPicker } from '@/ui/region-picker';
 import { PrimaryButton } from '@/ui/primary-button';
 import { TextField } from '@/ui/text-field';
 import { validateEmail } from '@/ui/validation';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Configuration du club — onglet d'accueil de l'espace club.
@@ -279,7 +286,7 @@ export default function ClubConfig(): ReactNode {
     >
       {banner ? <FormBanner message={banner} /> : null}
       {notice ? (
-        <Text fontSize={14} fontWeight="700" color="$brandPitchBright">
+        <Text {...TYPE.body} fontWeight="700" color="$brandPitchBright">
           {notice}
         </Text>
       ) : null}
@@ -295,7 +302,7 @@ export default function ClubConfig(): ReactNode {
           {!canOperate ? <FormBanner message={t.clubSpace.pendingNotice} /> : null}
 
           <Card>
-            <Text fontSize={12.5} fontWeight="700" letterSpacing={0.6} color="$brandChalkDim">
+            <Text {...TYPE.label} color="$brandChalkDim">
               {t.clubSpace.logo.toUpperCase()}
             </Text>
             <XStack alignItems="center" gap="$3.5">
@@ -315,7 +322,7 @@ export default function ClubConfig(): ReactNode {
                     />
                   ) : null}
                 </XStack>
-                <Text fontSize={12.5} color="$brandChalkDim">
+                <Text {...TYPE.label} color="$brandChalkDim">
                   {t.clubSpace.logoHint}
                 </Text>
               </YStack>
@@ -359,18 +366,18 @@ export default function ClubConfig(): ReactNode {
           {/* Publier une adresse email est un choix, pas un défaut. */}
           <Card onPress={() => setShowContactEmail(!showContactEmail)} accent={showContactEmail}>
             <XStack alignItems="center" justifyContent="space-between" gap="$3">
-              <Text fontSize={16} fontWeight="700" color="$brandChalk" flexShrink={1}>
+              <Text {...TYPE.heading} color="$brandChalk" flexShrink={1}>
                 {t.clubSpace.contactEmailShow}
               </Text>
               <Text
-                fontSize={15}
+                {...TYPE.body}
                 fontWeight="800"
                 color={showContactEmail ? '$brandPitchBright' : '$brandChalkDim'}
               >
                 {showContactEmail ? 'ON' : 'OFF'}
               </Text>
             </XStack>
-            <Text fontSize={13.5} color="$brandChalkDim">
+            <Text {...TYPE.meta} color="$brandChalkDim">
               {showContactEmail ? t.clubSpace.contactEmailShown : t.clubSpace.contactEmailHidden}
             </Text>
           </Card>
@@ -382,11 +389,7 @@ export default function ClubConfig(): ReactNode {
             quelques clubs sont a cheval sur deux associations, et le canton ne
             tranche pas pour eux. Le serveur la revalide de toute facon.
           */}
-          <RegionPicker
-            regions={openRegions}
-            value={regionCode}
-            onChange={setRegionCode}
-          />
+          <RegionPicker regions={openRegions} value={regionCode} onChange={setRegionCode} />
 
           {/* Terrain en lecture, remplaçable à la demande. Canton et commune
               suivent le point, recalculés serveur. */}
@@ -406,7 +409,7 @@ export default function ClubConfig(): ReactNode {
               <XStack alignItems="center" justifyContent="space-between" gap="$3">
                 <XStack alignItems="center" gap="$2.5" flexShrink={1}>
                   <StadiumIcon size={20} />
-                  <Text fontSize={15} color="$brandChalk" flexShrink={1}>
+                  <Text {...TYPE.body} color="$brandChalk" flexShrink={1}>
                     {club.club.stadiumName ?? club.club.addressLine ?? t.clubSpace.noPitch}
                   </Text>
                 </XStack>
@@ -414,7 +417,7 @@ export default function ClubConfig(): ReactNode {
               </XStack>
               <XStack gap="$2" alignItems="center">
                 {club.club.locality ? (
-                  <Text fontSize={13} color="$brandChalkDim">
+                  <Text {...TYPE.meta} color="$brandChalkDim">
                     {club.club.canton
                       ? `${club.club.locality} (${club.club.canton})`
                       : club.club.locality}
@@ -435,12 +438,12 @@ export default function ClubConfig(): ReactNode {
               <XStack alignItems="center" justifyContent="space-between" gap="$3">
                 <XStack alignItems="center" gap="$2.5" flexShrink={1}>
                   <CoachIcon size={20} />
-                  <Text fontSize={16} fontWeight="700" color="$brandChalk" flexShrink={1}>
+                  <Text {...TYPE.heading} color="$brandChalk" flexShrink={1}>
                     {t.clubSpace.coaches}
                   </Text>
                 </XStack>
                 <XStack alignItems="center" gap="$2">
-                  <Text fontSize={15} fontWeight="700" color="$brandPitchBright">
+                  <Text {...TYPE.body} fontWeight="700" color="$brandPitchBright">
                     {coachCount === undefined
                       ? '—'
                       : fill(t.clubSpace.countCoaches, { count: String(coachCount) })}
@@ -448,7 +451,7 @@ export default function ClubConfig(): ReactNode {
                   <ChevronIcon direction="right" />
                 </XStack>
               </XStack>
-              <Text fontSize={13.5} color="$brandChalkDim">
+              <Text {...TYPE.meta} color="$brandChalkDim">
                 {t.clubSpace.coachesHint}
               </Text>
             </Card>
@@ -462,13 +465,13 @@ export default function ClubConfig(): ReactNode {
             <XStack alignItems="center" justifyContent="space-between" gap="$3">
               <XStack alignItems="center" gap="$2.5" flexShrink={1}>
                 <EyeIcon size={20} />
-                <Text fontSize={16} fontWeight="700" color="$brandChalk" flexShrink={1}>
+                <Text {...TYPE.heading} color="$brandChalk" flexShrink={1}>
                   {t.clubSpace.previewCard}
                 </Text>
               </XStack>
               <ChevronIcon direction="right" />
             </XStack>
-            <Text fontSize={13.5} color="$brandChalkDim">
+            <Text {...TYPE.meta} color="$brandChalkDim">
               {t.clubSpace.previewHint}
             </Text>
           </Card>
@@ -534,7 +537,7 @@ function TextAction({
     <Pressable onPress={onPress} accessibilityRole="button" disabled={disabled} hitSlop={8}>
       {({ pressed }) => (
         <Text
-          fontSize={14.5}
+          {...TYPE.body}
           fontWeight="700"
           color="$brandPitchBright"
           opacity={disabled ? 0.4 : pressed ? 0.6 : 1}

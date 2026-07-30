@@ -5,6 +5,7 @@ import { Text, XStack, YStack } from 'tamagui';
 import { useI18n } from '@/i18n';
 import { ChevronIcon } from '@/ui/icons';
 import { PitchBackdrop } from '@/ui/pitch-backdrop';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Enveloppe commune aux écrans d'authentification : titre, retour, et gestion
@@ -60,15 +61,12 @@ export function AuthFormShell({
         >
           <YStack gap="$5">
             {showBack ? (
-              <Pressable
-                onPress={onBack ?? (() => router.back())}
-                accessibilityRole="button"
-              >
+              <Pressable onPress={onBack ?? (() => router.back())} accessibilityRole="button">
                 {/* Une icone, pas « ← ». Meme regle qu'ailleurs : un glyphe ne
                     se rend pas pareil d'un appareil a l'autre. */}
                 <XStack alignItems="center" gap="$1.5">
                   <ChevronIcon direction="left" size={18} color="rgba(169,196,184,0.9)" />
-                  <Text fontSize={15} color="$brandChalkDim">
+                  <Text {...TYPE.body} color="$brandChalkDim">
                     {t.common.back}
                   </Text>
                 </XStack>
@@ -78,10 +76,10 @@ export function AuthFormShell({
             {header}
 
             <YStack gap="$2">
-              <Text fontSize={32} lineHeight={37} fontWeight="800" color="$brandChalk" letterSpacing={-0.6}>
+              <Text {...TYPE.title} color="$brandChalk">
                 {title}
               </Text>
-              <Text fontSize={16} lineHeight={22} color="$brandChalkDim">
+              <Text {...TYPE.heading} color="$brandChalkDim">
                 {subtitle}
               </Text>
             </YStack>

@@ -22,7 +22,7 @@ import { ListingForm, toPostes } from '@/ui/listing-form';
 import { statusLabel, statusTone } from '@/ui/listing-status';
 import type { PitchSelection } from '@/ui/pitch-positions';
 import { PrimaryButton } from '@/ui/primary-button';
-
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Modification d'une annonce, changement de statut et suppression.
@@ -189,7 +189,7 @@ export default function ListingDetail(): ReactNode {
           <XStack alignItems="center" justifyContent="space-between" gap="$3">
             <Badge label={statusLabel(listing.status, t)} tone={statusTone(listing.status)} />
             <Text
-              fontSize={14}
+              {...TYPE.body}
               fontWeight="700"
               color={listing.applicationCount > 0 ? '$brandPitchBright' : '$brandChalkDim'}
             >
@@ -228,13 +228,13 @@ export default function ListingDetail(): ReactNode {
               <XStack alignItems="center" justifyContent="space-between" gap="$3">
                 <XStack alignItems="center" gap="$2.5" flexShrink={1}>
                   <BallIcon size={20} />
-                  <Text fontSize={16} fontWeight="700" color="$brandChalk" flexShrink={1}>
+                  <Text {...TYPE.heading} color="$brandChalk" flexShrink={1}>
                     {t.feed.playersTitle}
                   </Text>
                 </XStack>
                 <ChevronIcon direction="right" />
               </XStack>
-              <Text fontSize={13.5} color="$brandChalkDim">
+              <Text {...TYPE.meta} color="$brandChalkDim">
                 {t.feed.playersSubtitle}
               </Text>
             </Card>
@@ -273,10 +273,10 @@ export default function ListingDetail(): ReactNode {
             />
           ) : (
             <Card>
-              <Text fontSize={17} fontWeight="800" color="$brandChalk">
+              <Text {...TYPE.heading} color="$brandChalk">
                 {t.listings.deleteTitle}
               </Text>
-              <Text fontSize={14.5} lineHeight={21} color="$brandChalkDim">
+              <Text {...TYPE.body} color="$brandChalkDim">
                 {impact.isEmpty
                   ? t.listings.deleteEmpty
                   : fill(t.listings.deleteImpact, {
@@ -292,7 +292,7 @@ export default function ListingDetail(): ReactNode {
                 onPress={() => void confirmDelete()}
               />
               <Pressable onPress={() => setImpact(undefined)} accessibilityRole="button">
-                <Text fontSize={15} fontWeight="700" color="$brandChalkDim" textAlign="center">
+                <Text {...TYPE.body} fontWeight="700" color="$brandChalkDim" textAlign="center">
                   {t.teams.cancel}
                 </Text>
               </Pressable>

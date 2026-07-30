@@ -21,6 +21,7 @@ import { Stepper, StepTransition } from '@/ui/stepper';
 import { TextField } from '@/ui/text-field';
 import { useStepper } from '@/ui/use-stepper';
 import { validateEmail, validatePassword } from '@/ui/validation';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Demande de compte club.
@@ -38,8 +39,7 @@ type Step = 'ACCOUNT' | 'CODE' | 'PASSWORD' | 'CLUB' | 'CONTEXT';
 export default function RegisterClub(): ReactNode {
   const router = useRouter();
   const { t, fill, locale } = useI18n();
-  const { signInWithGoogleAsClub, adoptSession, signOut, phase, authed, user, reload } =
-    useAuth();
+  const { signInWithGoogleAsClub, adoptSession, signOut, phase, authed, user, reload } = useAuth();
 
   const [step, setStep] = useState<Step>('ACCOUNT');
   const [openRegions, setOpenRegions] = useState<Region[]>([]);
@@ -139,9 +139,7 @@ export default function RegisterClub(): ReactNode {
       // renseigné : un compte ayant déjà un club se voyait offrir le formulaire
       // de création, et n'apprenait le refus qu'à l'envoi.
       setReady(true);
-      setBlocked(
-        existing !== null ? 'HAS_CLUB' : preSignedIn.current ? 'ALREADY_USED' : 'NONE',
-      );
+      setBlocked(existing !== null ? 'HAS_CLUB' : preSignedIn.current ? 'ALREADY_USED' : 'NONE');
     })();
     return () => {
       cancelled = true;
@@ -394,11 +392,11 @@ export default function RegisterClub(): ReactNode {
                 du code (409) : le lien donne l'issue au lieu de laisser
                 l'utilisateur buter sur le message. */}
             <XStack justifyContent="center" gap="$2">
-              <Text fontSize={15} color="$brandChalkDim">
+              <Text {...TYPE.body} color="$brandChalkDim">
                 {t.register.hasAccount}
               </Text>
               <Pressable onPress={() => router.replace('/login')} accessibilityRole="button">
-                <Text fontSize={15} fontWeight="700" color="$brandPitchBright">
+                <Text {...TYPE.body} fontWeight="700" color="$brandPitchBright">
                   {t.login.submit}
                 </Text>
               </Pressable>
@@ -431,7 +429,11 @@ export default function RegisterClub(): ReactNode {
               error={fieldError}
               onSubmitEditing={() => void goToPassword()}
             />
-            <PrimaryButton label={t.coach.next} loading={busy} onPress={() => void goToPassword()} />
+            <PrimaryButton
+              label={t.coach.next}
+              loading={busy}
+              onPress={() => void goToPassword()}
+            />
             <PrimaryButton
               label={t.coach.resend}
               variant="ghost"
@@ -455,7 +457,7 @@ export default function RegisterClub(): ReactNode {
                 error={fieldError}
               />
               {fieldError ? null : (
-                <Text fontSize={13} color="$brandChalkDim">
+                <Text {...TYPE.meta} color="$brandChalkDim">
                   {fill(t.register.passwordHint, { min: String(PASSWORD_MIN_LENGTH) })}
                 </Text>
               )}

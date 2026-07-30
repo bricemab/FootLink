@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, XStack, YStack } from 'tamagui';
 import { useI18n } from '@/i18n';
 import { CheckIcon, ChevronIcon } from '@/ui/icons';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Choix de la catégorie d'une équipe.
@@ -56,7 +57,7 @@ export function CategoryPicker({
 
   return (
     <YStack gap="$2">
-      <Text fontSize={13} fontWeight="600" color="$brandChalkDim" letterSpacing={0.4}>
+      <Text {...TYPE.meta} color="$brandChalkDim">
         {t.teams.category.toUpperCase()}
       </Text>
 
@@ -76,7 +77,7 @@ export function CategoryPicker({
               backgroundColor="rgba(14,36,28,0.7)"
               borderRadius={14}
             >
-              <Text fontSize={15} flexShrink={1} color={value ? '$brandChalk' : '$brandChalkDim'}>
+              <Text {...TYPE.body} flexShrink={1} color={value ? '$brandChalk' : '$brandChalkDim'}>
                 {value ? categoryLabel(value, locale) : t.teams.categoryChoose}
               </Text>
               <ChevronIcon direction="down" />
@@ -86,7 +87,7 @@ export function CategoryPicker({
       </Pressable>
 
       {error ? (
-        <Text fontSize={13} color="$brandDanger">
+        <Text {...TYPE.meta} color="$brandDanger">
           {error}
         </Text>
       ) : null}
@@ -101,11 +102,11 @@ export function CategoryPicker({
         <YStack flex={1} backgroundColor="rgba(7,19,15,0.94)" paddingTop={insets.top + 24}>
           <YStack flex={1} paddingHorizontal="$4" gap="$4">
             <XStack justifyContent="space-between" alignItems="center">
-              <Text fontSize={22} fontWeight="800" color="$brandChalk">
+              <Text {...TYPE.subtitle} color="$brandChalk">
                 {t.teams.categoryChoose}
               </Text>
               <Pressable onPress={() => setOpen(false)} accessibilityRole="button">
-                <Text fontSize={15} color="$brandPitchBright" fontWeight="700">
+                <Text {...TYPE.body} color="$brandPitchBright" fontWeight="700">
                   {t.club.regionClose}
                 </Text>
               </Pressable>
@@ -158,7 +159,7 @@ export function CategoryPicker({
                       borderColor={active ? '#39FF88' : 'rgba(244,251,247,0.14)'}
                       backgroundColor="rgba(14,36,28,0.7)"
                     >
-                      <Text fontSize={15} color="$brandChalk" flexShrink={1}>
+                      <Text {...TYPE.body} color="$brandChalk" flexShrink={1}>
                         {categoryLabel(category, locale)}
                       </Text>
                       {active ? <CheckIcon /> : null}

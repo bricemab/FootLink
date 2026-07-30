@@ -1,6 +1,7 @@
 import { MotiView } from 'moti';
 import type { ReactNode } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Progression d'un formulaire découpé en étapes.
@@ -44,11 +45,11 @@ export function Stepper({
       </XStack>
 
       <XStack justifyContent="space-between" alignItems="center" gap="$3">
-        <Text fontSize={12} fontWeight="700" letterSpacing={1.2} color="$brandPitchBright">
+        <Text {...TYPE.label} color="$brandPitchBright">
           {stepLabel.toUpperCase()}
         </Text>
         {nextLabel ? (
-          <Text fontSize={12} color="$brandChalkDim" flexShrink={1} textAlign="right">
+          <Text {...TYPE.label} color="$brandChalkDim" flexShrink={1} textAlign="right">
             {nextLabel}
           </Text>
         ) : null}

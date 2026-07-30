@@ -14,6 +14,7 @@ import { BallIcon, ChevronIcon } from '@/ui/icons';
 import { statusLabel, statusTone } from '@/ui/listing-status';
 import { SkeletonList } from '@/ui/skeleton';
 import { PrimaryButton } from '@/ui/primary-button';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Annonces du club.
@@ -94,14 +95,11 @@ export default function ClubListings(): ReactNode {
       {/* Une liste filtrée qui ne le dit pas se lit comme une liste vide. */}
       {filtered ? (
         <XStack alignItems="center" justifyContent="space-between" gap="$3" flexWrap="wrap">
-          <Text fontSize={13.5} color="$brandChalkDim">
+          <Text {...TYPE.meta} color="$brandChalkDim">
             {t.listings.filteredByTeam}
           </Text>
-          <Pressable
-            onPress={() => router.replace('/club/listings')}
-            accessibilityRole="button"
-          >
-            <Text fontSize={13.5} fontWeight="700" color="$brandPitchBright">
+          <Pressable onPress={() => router.replace('/club/listings')} accessibilityRole="button">
+            <Text {...TYPE.meta} fontWeight="700" color="$brandPitchBright">
               {t.listings.showAll}
             </Text>
           </Pressable>
@@ -118,46 +116,48 @@ export default function ClubListings(): ReactNode {
 
       {listings?.map((listing, index) => (
         <Appear key={listing.id} index={index}>
-        <Card
-          accent={listing.status === 'ACTIVE'}
-          onPress={() => router.push({ pathname: '/club/listings/[id]', params: { id: listing.id } })}
-        >
-          <XStack alignItems="center" justifyContent="space-between" gap="$3">
-            <Text fontSize={17} fontWeight="700" color="$brandChalk" flexShrink={1}>
-              {posteLabel(listing.posteRecherche, locale)}
-            </Text>
-            <Badge label={statusLabel(listing.status, t)} tone={statusTone(listing.status)} />
-          </XStack>
+          <Card
+            accent={listing.status === 'ACTIVE'}
+            onPress={() =>
+              router.push({ pathname: '/club/listings/[id]', params: { id: listing.id } })
+            }
+          >
+            <XStack alignItems="center" justifyContent="space-between" gap="$3">
+              <Text {...TYPE.heading} color="$brandChalk" flexShrink={1}>
+                {posteLabel(listing.posteRecherche, locale)}
+              </Text>
+              <Badge label={statusLabel(listing.status, t)} tone={statusTone(listing.status)} />
+            </XStack>
 
-          {/*
+            {/*
             L'équipe, toujours — y compris en liste filtrée. Sans elle, deux
             annonces « Gardien » de deux équipes seraient indiscernables, et
             c'est justement le risque qu'ouvre une liste globale.
           */}
-          <Text fontSize={13.5} fontWeight="700" color="$brandPitchBright">
-            {listing.team.name ?? categoryLabel(listing.team.category, locale)}
-          </Text>
-
-          {listing.secondaryPostes.length > 0 ? (
-            <Text fontSize={13.5} color="$brandChalkDim">
-              {listing.secondaryPostes.map((poste) => posteLabel(poste, locale)).join(' · ')}
+            <Text {...TYPE.meta} fontWeight="700" color="$brandPitchBright">
+              {listing.team.name ?? categoryLabel(listing.team.category, locale)}
             </Text>
-          ) : null}
 
-          <XStack gap="$3" alignItems="center" flexWrap="wrap">
-            <Text fontSize={13} color="$brandChalkDim">
-              {fill(t.listings.season, { season: listing.season })}
-            </Text>
-            <Text
-              fontSize={13.5}
-              fontWeight="700"
-              color={listing.applicationCount > 0 ? '$brandPitchBright' : '$brandChalkDim'}
-            >
-              {fill(t.listings.applications, { count: String(listing.applicationCount) })}
-            </Text>
-          </XStack>
+            {listing.secondaryPostes.length > 0 ? (
+              <Text {...TYPE.meta} color="$brandChalkDim">
+                {listing.secondaryPostes.map((poste) => posteLabel(poste, locale)).join(' · ')}
+              </Text>
+            ) : null}
 
-          {/*
+            <XStack gap="$3" alignItems="center" flexWrap="wrap">
+              <Text {...TYPE.meta} color="$brandChalkDim">
+                {fill(t.listings.season, { season: listing.season })}
+              </Text>
+              <Text
+                {...TYPE.meta}
+                fontWeight="700"
+                color={listing.applicationCount > 0 ? '$brandPitchBright' : '$brandChalkDim'}
+              >
+                {fill(t.listings.applications, { count: String(listing.applicationCount) })}
+              </Text>
+            </XStack>
+
+            {/*
             🔴 **Acces DIRECT aux joueurs correspondants, depuis la liste.**
 
             Il fallait avant : onglet Annonces, puis l'annonce, puis defiler
@@ -168,50 +168,50 @@ export default function ClubListings(): ReactNode {
             Reserve aux annonces PUBLIEES : un brouillon n'est visible de
             personne, annoncer ses correspondants promettrait du faux.
           */}
-          {listing.status === 'ACTIVE' ? (
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: '/club/listings/candidates',
-                  params: { listingId: listing.id },
-                })
-              }
-              accessibilityRole="button"
-            >
-              <XStack
-                alignItems="center"
-                justifyContent="space-between"
-                gap="$2"
-                paddingVertical="$2.5"
-                paddingHorizontal="$3"
-                borderRadius={12}
-                borderWidth={1.5}
-                borderColor={
-                  listing.matchingPlayersCount > 0
-                    ? 'rgba(57,255,136,0.35)'
-                    : 'rgba(244,251,247,0.12)'
+            {listing.status === 'ACTIVE' ? (
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: '/club/listings/candidates',
+                    params: { listingId: listing.id },
+                  })
                 }
-                backgroundColor="rgba(7,19,15,0.5)"
+                accessibilityRole="button"
               >
-                <XStack alignItems="center" gap="$2" flexShrink={1}>
-                  <BallIcon size={17} />
-                  <Text
-                    fontSize={14}
-                    fontWeight="700"
-                    color={
-                      listing.matchingPlayersCount > 0 ? '$brandPitchBright' : '$brandChalkDim'
-                    }
-                  >
-                    {listing.matchingPlayersCount > 0
-                      ? fill(t.feed.matching, { count: String(listing.matchingPlayersCount) })
-                      : t.feed.matchingNone}
-                  </Text>
+                <XStack
+                  alignItems="center"
+                  justifyContent="space-between"
+                  gap="$2"
+                  paddingVertical="$2.5"
+                  paddingHorizontal="$3"
+                  borderRadius={12}
+                  borderWidth={1.5}
+                  borderColor={
+                    listing.matchingPlayersCount > 0
+                      ? 'rgba(57,255,136,0.35)'
+                      : 'rgba(244,251,247,0.12)'
+                  }
+                  backgroundColor="rgba(7,19,15,0.5)"
+                >
+                  <XStack alignItems="center" gap="$2" flexShrink={1}>
+                    <BallIcon size={17} />
+                    <Text
+                      {...TYPE.body}
+                      fontWeight="700"
+                      color={
+                        listing.matchingPlayersCount > 0 ? '$brandPitchBright' : '$brandChalkDim'
+                      }
+                    >
+                      {listing.matchingPlayersCount > 0
+                        ? fill(t.feed.matching, { count: String(listing.matchingPlayersCount) })
+                        : t.feed.matchingNone}
+                    </Text>
+                  </XStack>
+                  {listing.matchingPlayersCount > 0 ? <ChevronIcon direction="right" /> : null}
                 </XStack>
-                {listing.matchingPlayersCount > 0 ? <ChevronIcon direction="right" /> : null}
-              </XStack>
-            </Pressable>
-          ) : null}
-        </Card>
+              </Pressable>
+            ) : null}
+          </Card>
         </Appear>
       ))}
 
@@ -219,9 +219,7 @@ export default function ClubListings(): ReactNode {
         label={t.listings.add}
         onPress={() =>
           router.push(
-            teamId
-              ? { pathname: '/club/listings/new', params: { teamId } }
-              : '/club/listings/new',
+            teamId ? { pathname: '/club/listings/new', params: { teamId } } : '/club/listings/new',
           )
         }
       />

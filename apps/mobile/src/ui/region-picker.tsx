@@ -6,6 +6,7 @@ import { Text, XStack, YStack } from 'tamagui';
 import type { Region } from '@/api/clubs';
 import { useI18n } from '@/i18n';
 import { CheckIcon, ChevronIcon } from '@/ui/icons';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Choix de l'association régionale.
@@ -47,8 +48,7 @@ export function RegionPicker({
     // Cantonale Neuchâteloise de Football ».
     return regions.filter(
       (region) =>
-        label(region).toLowerCase().includes(needle) ||
-        region.code.toLowerCase().includes(needle),
+        label(region).toLowerCase().includes(needle) || region.code.toLowerCase().includes(needle),
     );
     // `label` dépend de la locale, qui est stable pendant la saisie.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -60,7 +60,7 @@ export function RegionPicker({
 
   return (
     <YStack gap="$2">
-      <Text fontSize={13} fontWeight="600" color="$brandChalkDim" letterSpacing={0.4}>
+      <Text {...TYPE.meta} color="$brandChalkDim">
         {t.club.region.toUpperCase()}
       </Text>
 
@@ -75,7 +75,7 @@ export function RegionPicker({
           borderColor="rgba(244,251,247,0.18)"
           backgroundColor="rgba(14,36,28,0.7)"
         >
-          <Text fontSize={15} color="$brandChalk" flexShrink={1}>
+          <Text {...TYPE.body} color="$brandChalk" flexShrink={1}>
             {label(regions[0])}
           </Text>
         </XStack>
@@ -97,7 +97,7 @@ export function RegionPicker({
                 borderRadius={14}
               >
                 <Text
-                  fontSize={15}
+                  {...TYPE.body}
                   flexShrink={1}
                   color={selected ? '$brandChalk' : '$brandChalkDim'}
                 >
@@ -120,11 +120,11 @@ export function RegionPicker({
         <YStack flex={1} backgroundColor="rgba(7,19,15,0.94)" paddingTop={insets.top + 24}>
           <YStack flex={1} paddingHorizontal="$4" gap="$4">
             <XStack justifyContent="space-between" alignItems="center">
-              <Text fontSize={22} fontWeight="800" color="$brandChalk">
+              <Text {...TYPE.subtitle} color="$brandChalk">
                 {t.club.regionChoose}
               </Text>
               <Pressable onPress={() => setOpen(false)} accessibilityRole="button">
-                <Text fontSize={15} color="$brandPitchBright" fontWeight="700">
+                <Text {...TYPE.body} color="$brandPitchBright" fontWeight="700">
                   {t.club.regionClose}
                 </Text>
               </Pressable>
@@ -157,7 +157,7 @@ export function RegionPicker({
               showsVerticalScrollIndicator={false}
             >
               {filtered.length === 0 ? (
-                <Text fontSize={15} color="$brandChalkDim" paddingVertical="$3">
+                <Text {...TYPE.body} color="$brandChalkDim" paddingVertical="$3">
                   {t.club.regionEmpty}
                 </Text>
               ) : null}
@@ -186,7 +186,7 @@ export function RegionPicker({
                       borderColor={active ? '#39FF88' : 'rgba(244,251,247,0.14)'}
                       backgroundColor="rgba(14,36,28,0.7)"
                     >
-                      <Text fontSize={15} color="$brandChalk" flexShrink={1}>
+                      <Text {...TYPE.body} color="$brandChalk" flexShrink={1}>
                         {label(region)}
                       </Text>
                       {active ? <CheckIcon /> : null}

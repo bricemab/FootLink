@@ -14,6 +14,7 @@ import { BallIcon } from '@/ui/icons';
 import { MatchCelebration } from '@/ui/match-celebration';
 import { PrimaryButton } from '@/ui/primary-button';
 import { SkeletonList } from '@/ui/skeleton';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Les joueurs qui correspondent à une annonce.
@@ -110,9 +111,8 @@ export default function ListingCandidates(): ReactNode {
     }, [load]),
   );
 
-  const seasonStartYear = new Date().getUTCMonth() >= 7
-    ? new Date().getUTCFullYear()
-    : new Date().getUTCFullYear() - 1;
+  const seasonStartYear =
+    new Date().getUTCMonth() >= 7 ? new Date().getUTCFullYear() : new Date().getUTCFullYear() - 1;
 
   return (
     <AppScreen
@@ -143,7 +143,7 @@ export default function ListingCandidates(): ReactNode {
             <XStack alignItems="center" justifyContent="space-between" gap="$3">
               <XStack alignItems="center" gap="$2.5" flexShrink={1}>
                 <BallIcon size={20} />
-                <Text fontSize={17} fontWeight="700" color="$brandChalk" flexShrink={1}>
+                <Text {...TYPE.heading} color="$brandChalk" flexShrink={1}>
                   {player.firstName} {player.lastName}
                 </Text>
               </XStack>
@@ -152,17 +152,17 @@ export default function ListingCandidates(): ReactNode {
 
             {/* Ce qui justifie la proposition, sur une ligne. */}
             <XStack gap="$2.5" flexWrap="wrap" alignItems="center">
-              <Text fontSize={13.5} fontWeight="700" color="$brandPitchBright">
+              <Text {...TYPE.meta} fontWeight="700" color="$brandPitchBright">
                 {posteLabel(player.matchedPoste, locale)}
               </Text>
-              <Text fontSize={13.5} color="$brandChalkDim">
+              <Text {...TYPE.meta} color="$brandChalkDim">
                 {fill(t.feed.distance, { km: String(player.distanceKm) })}
               </Text>
-              <Text fontSize={13.5} color="$brandChalkDim">
+              <Text {...TYPE.meta} color="$brandChalkDim">
                 {fill(t.feed.age, { age: String(seasonStartYear - player.birthYear) })}
               </Text>
               {player.locality ? (
-                <Text fontSize={13.5} color="$brandChalkDim">
+                <Text {...TYPE.meta} color="$brandChalkDim">
                   {player.locality}
                 </Text>
               ) : null}
@@ -171,7 +171,7 @@ export default function ListingCandidates(): ReactNode {
             {/* Repeter « Defenseur central » sous « Defenseur central » n'apprend
                 rien : la liste complete ne sert que si le joueur en tient plusieurs. */}
             {player.postes.length > 1 ? (
-              <Text fontSize={13.5} color="$brandChalkDim">
+              <Text {...TYPE.meta} color="$brandChalkDim">
                 {player.postes.map((position) => posteLabel(position.poste, locale)).join(' · ')}
               </Text>
             ) : null}
@@ -182,7 +182,7 @@ export default function ListingCandidates(): ReactNode {
                 donc meme sans nom de club, sinon masquer son club reviendrait
                 a masquer son niveau. */}
             {player.currentClubName || player.currentCategory ? (
-              <Text fontSize={13.5} color="$brandChalkDim">
+              <Text {...TYPE.meta} color="$brandChalkDim">
                 {[
                   player.currentClubName,
                   player.currentCategory ? categoryLabel(player.currentCategory, locale) : null,
@@ -193,7 +193,7 @@ export default function ListingCandidates(): ReactNode {
             ) : null}
 
             {player.bio ? (
-              <Text fontSize={14.5} lineHeight={21} color="$brandChalk" numberOfLines={3}>
+              <Text {...TYPE.body} color="$brandChalk" numberOfLines={3}>
                 {player.bio}
               </Text>
             ) : null}
