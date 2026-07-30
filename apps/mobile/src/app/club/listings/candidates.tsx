@@ -78,7 +78,13 @@ export default function ListingCandidates(): ReactNode {
 
       {players?.map((player, index) => (
         <Appear key={player.id} index={index}>
-          <Card>
+          {/* La carte mene a la fiche : le club veut voir QUI est ce joueur,
+              pas seulement son poste et sa distance. */}
+          <Card
+            onPress={() =>
+              router.push({ pathname: '/club/players/[id]', params: { id: player.id } })
+            }
+          >
             <XStack alignItems="center" justifyContent="space-between" gap="$3">
               <XStack alignItems="center" gap="$2.5" flexShrink={1}>
                 <BallIcon size={20} />
@@ -117,11 +123,17 @@ export default function ListingCandidates(): ReactNode {
 
             {/* Le club actuel n'apparaît QUE si le joueur ne l'a pas masqué —
                 le serveur renvoie `null` dans ce cas, il n'y a rien à filtrer
-                ici. */}
-            {player.currentClubName ? (
+                ici. La categorie, elle, n'est jamais masquee : elle s'affiche
+                donc meme sans nom de club, sinon masquer son club reviendrait
+                a masquer son niveau. */}
+            {player.currentClubName || player.currentCategory ? (
               <Text fontSize={13.5} color="$brandChalkDim">
-                {player.currentClubName}
-                {player.currentCategory ? ` · ${categoryLabel(player.currentCategory, locale)}` : ''}
+                {[
+                  player.currentClubName,
+                  player.currentCategory ? categoryLabel(player.currentCategory, locale) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </Text>
             ) : null}
 

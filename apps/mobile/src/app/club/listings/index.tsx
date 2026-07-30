@@ -10,6 +10,7 @@ import { Appear } from '@/ui/appear';
 import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
+import { BallIcon, ChevronIcon } from '@/ui/icons';
 import { statusLabel, statusTone } from '@/ui/listing-status';
 import { SkeletonList } from '@/ui/skeleton';
 import { PrimaryButton } from '@/ui/primary-button';
@@ -155,6 +156,61 @@ export default function ClubListings(): ReactNode {
               {fill(t.listings.applications, { count: String(listing.applicationCount) })}
             </Text>
           </XStack>
+
+          {/*
+            🔴 **Acces DIRECT aux joueurs correspondants, depuis la liste.**
+
+            Il fallait avant : onglet Annonces, puis l'annonce, puis defiler
+            jusqu'en bas, puis un dernier appui. Quatre gestes pour la chose que
+            le club vient chercher — Brice l'a signale. Le chiffre est ici, et il
+            est le bouton.
+
+            Reserve aux annonces PUBLIEES : un brouillon n'est visible de
+            personne, annoncer ses correspondants promettrait du faux.
+          */}
+          {listing.status === 'ACTIVE' ? (
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: '/club/listings/candidates',
+                  params: { listingId: listing.id },
+                })
+              }
+              accessibilityRole="button"
+            >
+              <XStack
+                alignItems="center"
+                justifyContent="space-between"
+                gap="$2"
+                paddingVertical="$2.5"
+                paddingHorizontal="$3"
+                borderRadius={12}
+                borderWidth={1.5}
+                borderColor={
+                  listing.matchingPlayersCount > 0
+                    ? 'rgba(57,255,136,0.35)'
+                    : 'rgba(244,251,247,0.12)'
+                }
+                backgroundColor="rgba(7,19,15,0.5)"
+              >
+                <XStack alignItems="center" gap="$2" flexShrink={1}>
+                  <BallIcon size={17} />
+                  <Text
+                    fontSize={14}
+                    fontWeight="700"
+                    color={
+                      listing.matchingPlayersCount > 0 ? '$brandPitchBright' : '$brandChalkDim'
+                    }
+                  >
+                    {listing.matchingPlayersCount > 0
+                      ? fill(t.feed.matching, { count: String(listing.matchingPlayersCount) })
+                      : t.feed.matchingNone}
+                  </Text>
+                </XStack>
+                {listing.matchingPlayersCount > 0 ? <ChevronIcon direction="right" /> : null}
+              </XStack>
+            </Pressable>
+          ) : null}
         </Card>
         </Appear>
       ))}

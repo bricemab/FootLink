@@ -170,6 +170,10 @@ export default function ClubLayout(): ReactNode {
               navigation. */}
           <Tabs.Screen name="coaches" options={{ href: null }} />
           <Tabs.Screen name="preview" options={{ href: null }} />
+          {/* ⚠️ Tout DOSSIER de `club/` devient un onglet : `players` s'est
+              invite dans la barre des son ajout. `href: null` le retire de la
+              barre sans le retirer de la navigation. */}
+          <Tabs.Screen name="players" options={{ href: null }} />
         </Tabs>
       </ThemeProvider>
     </BackdropRoot>

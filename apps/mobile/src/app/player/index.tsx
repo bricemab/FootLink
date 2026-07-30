@@ -3,7 +3,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 import { Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
-import { listFeedListings, type FeedListing, type MatchKind } from '@/api/feed';
+import { dismissListing, listFeedListings, type FeedListing, type MatchKind } from '@/api/feed';
 import { useAuth } from '@/auth/auth-context';
 import { ApiError } from '@/api/client';
 import { useI18n } from '@/i18n';
@@ -30,11 +30,19 @@ import { SwipeDeck } from '@/ui/swipe-deck';
  * inspire la méfiance, et on ne confie pas une saison à un inconnu proposé sans
  * raison.
  *
- * ⚠️ **« Passer » n'est pour l'instant que local.** Le modèle ne connaît que
- * `APPLIED` et `SAVED` : un refus n'a nulle part où être écrit, donc la carte
- * écartée reviendra au prochain chargement. C'est une question de modèle posée
- * à Brice, pas un oubli — inventer une valeur d'enum seul serait dévier d'une
- * décision arrêtée.
+ * 🔴 **« Passer » écrit en base ; « Postuler » non — et l'asymétrie est
+ * voulue.** Un refus va dans `ListingDismissal` : sans ça, la carte écartée
+ * revenait au chargement suivant, et le feed redemandait indéfiniment la même
+ * chose. Postuler appartient à la phase 7 : tant que rien n'est écrit, la carte
+ * ne doit pas disparaître durablement — un joueur qui voulait justement
+ * répondre perdrait l'annonce sans avoir répondu. Le geste droit ne fait donc
+ * que retirer la carte de la session en cours.
+ *
+ * ⚠️ **Un refus porte sur UNE annonce, jamais sur un club.** La table est
+ * clavée `(joueur, annonce)` : écarter l'annonce d'un club n'empêche ni de voir
+ * ses autres annonces, ni de voir celle qu'il republiera — une annonce recréée
+ * porte un nouvel identifiant. C'est la demande explicite de Brice, et c'est
+ * aussi la seule lecture defendable : on refuse un poste, pas des gens.
  */
 export default function PlayerFeed(): ReactNode {
   const router = useRouter();
@@ -45,7 +53,12 @@ export default function PlayerFeed(): ReactNode {
   const [mode, setMode] = useState<'list' | 'swipe'>('list');
   const [banner, setBanner] = useState<string>();
   const [blocked, setBlocked] = useState<'location' | 'profile'>();
-  /** Écartées pendant CETTE session seulement — voir l'avertissement en tête. */
+  /**
+   * Retirées de l'affichage courant. Un refus est aussi écrit en base — le
+   * serveur ne les renverra plus —, mais on ne recharge pas la liste pour
+   * autant : l'attente d'un aller-retour réseau à chaque carte casserait le
+   * rythme du geste.
+   */
   const [passed, setPassed] = useState<string[]>([]);
 
   const load = useCallback(async (): Promise<void> => {
@@ -75,6 +88,29 @@ export default function PlayerFeed(): ReactNode {
     useCallback(() => {
       void load();
     }, [load]),
+  );
+
+  /**
+   * Écarter une annonce.
+   *
+   * 🔴 **On retire la carte AVANT la réponse du serveur, et on la remet si
+   * l'écriture échoue.** L'ordre inverse — attendre puis retirer — ferait
+   * traîner la carte sous le doigt pendant tout l'aller-retour, ce qui se lit
+   * comme une application qui rame. Et un échec silencieux serait pire : la
+   * carte reviendrait au prochain chargement sans que personne comprenne
+   * pourquoi. Elle revient donc tout de suite, avec la raison.
+   */
+  const dismiss = useCallback(
+    async (listingId: string): Promise<void> => {
+      setPassed((current) => [...current, listingId]);
+      try {
+        await authed((token) => dismissListing(token, listingId));
+      } catch (error) {
+        setPassed((current) => current.filter((id) => id !== listingId));
+        setBanner(toUserMessage(error, t));
+      }
+    },
+    [authed, t],
   );
 
   const visible = (listings ?? []).filter((listing) => !passed.includes(listing.id));
@@ -136,13 +172,14 @@ export default function PlayerFeed(): ReactNode {
           <SwipeDeck
             items={visible}
             onDecision={(listing, direction) => {
-              // Postuler appartient à la phase 7 : pour l'instant, les deux
-              // gestes écartent la carte. Mieux vaut un geste qui n'écrit rien
-              // qu'un bouton qui ment sur ce qu'il fait.
-              setPassed((current) => [...current, listing.id]);
-              if (direction === 'right') {
-                setBanner(t.feed.apply);
+              if (direction === 'left') {
+                void dismiss(listing.id);
+                return;
               }
+              // Postuler appartient à la phase 7. Rien n'est écrit : la carte
+              // ne quitte que la session en cours.
+              setPassed((current) => [...current, listing.id]);
+              setBanner(t.feed.applySoon);
             }}
             renderCard={(listing) => (
               <ListingCard listing={listing} locale={locale} t={t} fill={fill} tall />
@@ -154,7 +191,7 @@ export default function PlayerFeed(): ReactNode {
               onPress={() => {
                 const first = visible[0];
                 if (first) {
-                  setPassed((current) => [...current, first.id]);
+                  void dismiss(first.id);
                 }
               }}
             />
@@ -164,7 +201,7 @@ export default function PlayerFeed(): ReactNode {
                 const first = visible[0];
                 if (first) {
                   setPassed((current) => [...current, first.id]);
-                  setBanner(t.feed.apply);
+                  setBanner(t.feed.applySoon);
                 }
               }}
             />

@@ -6,6 +6,8 @@ import {
   type Poste,
 } from '@footlink/shared';
 import { ClubStatus, ListingStatus, Prisma, UserStatus } from '@prisma/client';
+import { ClubsService } from '../clubs/clubs.service';
+import { MediaService } from '../media/media.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TeamsService } from '../teams/teams.service';
 import type { FeedQueryDto } from './dto/feed.dto';
@@ -15,6 +17,22 @@ import type { FeedQueryDto } from './dto/feed.dto';
  * de confort : c'est elle qui fait qu'« a 12 km » veut dire quelque chose.
  */
 const EARTH_RADIUS_KM = 6371;
+
+/**
+ * Distance entre deux points, en JavaScript.
+ *
+ * Le SQL sert a FILTRER des milliers de lignes ; ici on a deja les deux points
+ * et une seule distance a produire. Une requete pour ca serait du bruit.
+ */
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (deg: number): number => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
+}
 
 /**
  * Pourquoi une annonce et un joueur se sont rencontres.
@@ -60,6 +78,10 @@ export interface FeedPlayer {
   firstName: string;
   lastName: string;
   birthYear: number;
+  heightCm: number | null;
+  strongFoot: string | null;
+  /** URL de lecture SIGNEE et courte. Jamais la cle de stockage. */
+  avatarUrl: string | null;
   currentCategory: string | null;
   currentClubName: string | null;
   locality: string | null;
@@ -108,6 +130,8 @@ export class FeedService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly teams: TeamsService,
+    private readonly clubs: ClubsService,
+    private readonly media: MediaService,
   ) {}
 
   /**
@@ -187,6 +211,12 @@ export class FeedService {
         AND NOT EXISTS (
           SELECT 1 FROM PlayerInterest pi
           WHERE pi.listingId = l.id AND pi.playerId = ${player.id}
+        )
+        -- Ecartee par le joueur. La portee est la PAIRE : ecarter une annonce
+        -- n'en cache aucune autre, pas meme du meme club.
+        AND NOT EXISTS (
+          SELECT 1 FROM ListingDismissal ld
+          WHERE ld.listingId = l.id AND ld.playerId = ${player.id}
         )
         ${this.blockFilterSql(userId, Prisma.sql`cm.userId`)}
       ORDER BY matchRank ASC, distanceKm ASC, l.createdAt DESC, l.id ASC
@@ -277,6 +307,162 @@ export class FeedService {
     `;
 
     return this.hydratePlayers(rows);
+  }
+
+  /**
+   * Le joueur ecarte une annonce.
+   *
+   * Idempotent : reappuyer ne produit ni doublon ni erreur. Un geste de rejet
+   * qui echoue parce qu'on l'a fait deux fois serait absurde.
+   */
+  async dismiss(userId: string, listingId: string): Promise<void> {
+    const player = await this.prisma.playerProfile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    if (!player) {
+      throw new BadRequestException({
+        code: 'PLAYER_PROFILE_REQUIRED',
+        message: 'Complete your player profile first.',
+      });
+    }
+    const listing = await this.prisma.listing.findUnique({ where: { id: listingId } });
+    if (!listing) {
+      throw new NotFoundException('Listing not found.');
+    }
+    await this.prisma.listingDismissal.upsert({
+      where: { playerId_listingId: { playerId: player.id, listingId } },
+      update: {},
+      create: { playerId: player.id, listingId },
+    });
+  }
+
+  /**
+   * Combien de joueurs correspondent a chacune de ces annonces.
+   *
+   * 🔴 **Ce n'est PAS le nombre de candidatures.** Une candidature est un geste
+   * du joueur ; une correspondance est un calcul. Les confondre faisait afficher
+   * « 0 candidature » sur une annonce que trois joueurs pouvaient remplir — un
+   * club en aurait conclu que son annonce n'interesse personne, alors qu'il ne
+   * l'avait simplement pas encore montree.
+   *
+   * Une seule requete pour toute la liste : un decompte par annonce ferait
+   * autant d'allers-retours qu'il y a d'annonces.
+   */
+  async matchingCounts(listingIds: string[]): Promise<Map<string, number>> {
+    if (listingIds.length === 0) {
+      return new Map();
+    }
+    const rows = await this.prisma.$queryRaw<{ listingId: string; total: bigint }[]>`
+      SELECT l.id AS listingId, COUNT(DISTINCT p.id) AS total
+      FROM Listing l
+      JOIN Team t ON t.id = l.teamId
+      JOIN Club c ON c.id = t.clubId
+      JOIN PlayerProfile p ON p.gender = t.gender
+      JOIN User u ON u.id = p.userId
+      JOIN PlayerPosition pp ON pp.playerId = p.id
+      WHERE l.id IN (${Prisma.join(listingIds)})
+        AND p.isVisible = TRUE AND p.isSeekingClub = TRUE
+        AND u.status = ${UserStatus.ACTIVE}
+        AND p.lat IS NOT NULL AND p.lng IS NOT NULL
+        AND c.lat IS NOT NULL AND c.lng IS NOT NULL
+        AND (
+          pp.poste = l.posteRecherche
+          OR JSON_CONTAINS(COALESCE(l.secondaryPostes, JSON_ARRAY()), JSON_QUOTE(pp.poste))
+        )
+        AND (
+          6371 * 2 * ASIN(SQRT(
+            POWER(SIN((RADIANS(p.lat) - RADIANS(c.lat)) / 2), 2)
+            + COS(RADIANS(c.lat)) * COS(RADIANS(p.lat))
+            * POWER(SIN((RADIANS(p.lng) - RADIANS(c.lng)) / 2), 2)
+          ))
+        ) <= p.searchRadiusKm
+      GROUP BY l.id
+    `;
+    return new Map(rows.map((row) => [row.listingId, Number(row.total)]));
+  }
+
+  /**
+   * La fiche publique d'un joueur, vue par un club.
+   *
+   * 🔴 **Trois gardes, et aucune n'est superflue :**
+   *
+   * 1. le lecteur appartient a un club APPROUVE — un club en attente de
+   *    validation ne consulte pas le vivier ;
+   * 2. le joueur est VISIBLE et en recherche — son interrupteur de discretion
+   *    doit valoir partout, pas seulement dans les listes ;
+   * 3. aucun blocage entre les deux, dans un sens comme dans l'autre.
+   *
+   * Sans la deuxieme, un club pourrait atteindre par identifiant un profil qu'il
+   * ne peut pas voir en liste : c'est la definition meme d'un IDOR.
+   */
+  async publicPlayer(userId: string, playerId: string): Promise<FeedPlayer> {
+    const { club } = await this.clubs.getMyClubContext(userId, true);
+
+    const player = await this.prisma.playerProfile.findFirst({
+      where: {
+        id: playerId,
+        isVisible: true,
+        isSeekingClub: true,
+        user: { status: UserStatus.ACTIVE },
+      },
+      include: { positions: true, user: { select: { id: true, avatarKey: true } } },
+    });
+    if (!player) {
+      throw new NotFoundException('Player not found.');
+    }
+
+    const blocked = await this.prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerUserId: userId, blockedUserId: player.user.id },
+          { blockerUserId: player.user.id, blockedUserId: userId },
+        ],
+      },
+      select: { id: true },
+    });
+    if (blocked) {
+      // Le meme message qu'un profil inexistant : dire « vous etes bloque »
+      // apprendrait a un club qu'il l'est, ce qui n'est pas son affaire.
+      throw new NotFoundException('Player not found.');
+    }
+
+    const distance =
+      club.lat !== null && club.lng !== null && player.lat !== null && player.lng !== null
+        ? haversineKm(
+            Number(club.lat),
+            Number(club.lng),
+            Number(player.lat),
+            Number(player.lng),
+          )
+        : 0;
+
+    return {
+      id: player.id,
+      firstName: player.firstName,
+      lastName: player.lastName,
+      birthYear: player.birthYear,
+      heightCm: player.heightCm,
+      strongFoot: player.strongFoot,
+      avatarUrl: await this.media.readUrl(player.user.avatarKey),
+      currentCategory: player.currentCategory,
+      currentClubName: player.hideCurrentClub ? null : player.currentClubName,
+      locality: player.locality,
+      canton: player.canton,
+      bio: player.bio,
+      postes: player.positions.map((position) => ({
+        poste: position.poste,
+        isPrimary: position.isPrimary,
+      })),
+      // Sur une fiche ouverte directement, il n'y a pas d'annonce de reference :
+      // le critere de correspondance n'a pas de sens ici.
+      matchKind: 'POSTE_PRINCIPAL',
+      matchedPoste:
+        player.positions.find((position) => position.isPrimary)?.poste ??
+        player.positions[0]?.poste ??
+        'GARDIEN',
+      distanceKm: Math.round(distance),
+    };
   }
 
   // --- Fragments SQL -------------------------------------------------------
@@ -512,9 +698,19 @@ export class FeedService {
     }
     const players = await this.prisma.playerProfile.findMany({
       where: { id: { in: rows.map((row) => row.id) } },
-      include: { positions: true },
+      include: { positions: true, user: { select: { avatarKey: true } } },
     });
     const byId = new Map(players.map((player) => [player.id, player]));
+    // Les URL signees sont produites une par une : on ne les demande donc que
+    // pour les joueurs reellement renvoyes, jamais pour tout le vivier.
+    const avatars = new Map(
+      await Promise.all(
+        players.map(
+          async (player) =>
+            [player.id, await this.media.readUrl(player.user.avatarKey)] as const,
+        ),
+      ),
+    );
 
     return rows.flatMap((row) => {
       const player = byId.get(row.id);
@@ -527,6 +723,9 @@ export class FeedService {
           firstName: player.firstName,
           lastName: player.lastName,
           birthYear: player.birthYear,
+          heightCm: player.heightCm,
+          strongFoot: player.strongFoot,
+          avatarUrl: avatars.get(player.id) ?? null,
           currentCategory: player.currentCategory,
           // Masque a la demande du joueur : c'est tout l'objet de ce drapeau.
           currentClubName: player.hideCurrentClub ? null : player.currentClubName,

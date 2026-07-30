@@ -295,6 +295,7 @@ model PlayerProfile {
   interests     PlayerInterest[]
   clubInterests ClubInterest[]
   matches       Match[]
+  dismissals    ListingDismissal[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -467,6 +468,7 @@ model Listing {
   interests     PlayerInterest[]
   clubInterests ClubInterest[]
   matches       Match[]
+  dismissals    ListingDismissal[]
 
   @@index([status])
   @@index([posteRecherche])
@@ -493,6 +495,33 @@ model PlayerInterest {
 }
 
 // Club -> Joueur : le club "like" un joueur pour une annonce (le joueur est notifié)
+/// Une annonce ecartee par un joueur (« je passe »).
+///
+/// 🔴 **Ce n'est PAS un `PlayerInterest`.** Un refus n'est pas un interet, et
+/// l'ecrire comme tel obligerait toute la logique du Match a l'exclure
+/// explicitement partout — un oubli, et deux personnes se retrouvent en
+/// conversation alors que l'une a dit non.
+///
+/// ⚠️ **La portee est la PAIRE**, jamais le joueur ni le club : ecarter une
+/// annonce n'en cache aucune autre, pas meme du meme club. Un joueur qui ne veut
+/// pas d'un poste de gardien doit continuer a voir l'annonce de defenseur du
+/// meme club.
+///
+/// Rien de definitif : la suppression en cascade fait qu'une annonce recreee
+/// porte un nouvel identifiant, donc reapparait. Un club qui republie touche a
+/// nouveau ceux qui avaient passe.
+model ListingDismissal {
+  id        String        @id @default(cuid())
+  playerId  String
+  player    PlayerProfile @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  listingId String
+  listing   Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@unique([playerId, listingId])
+  @@index([listingId])
+}
+
 model ClubInterest {
   id        String        @id @default(cuid())
   listingId String

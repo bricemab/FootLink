@@ -8,6 +8,7 @@ import { AppImage } from '@/ui/app-image';
 import { Badge } from '@/ui/app-screen';
 import { GlassSurface, glassSupport } from '@/ui/glass';
 import { StadiumIcon } from '@/ui/icons';
+import { Skeleton } from '@/ui/skeleton';
 
 /**
  * Bandeau de contexte de l'espace club.
@@ -22,6 +23,14 @@ import { StadiumIcon } from '@/ui/icons';
  * n'ouvriraient sur rien tant que les écrans d'entraîneur (feed, messagerie)
  * n'existent pas — un interrupteur sans ampoule. La place leur est réservée,
  * pas occupée.
+ *
+ * 🔴 **Le bandeau occupe sa place AVANT de connaître le club, et c'est le
+ * point important.** Il rendait `null` pendant le chargement : comme c'est lui
+ * qui absorbe la barre d'état (`insets.top`), l'écran du dessous remontait
+ * alors sous l'horloge, puis redescendait d'un coup à l'arrivée des données.
+ * Observé sur un démarrage à froid — deux défauts pour une seule cause, une
+ * hauteur qui apparaît après coup. Le cadre est donc toujours rendu ; seul son
+ * contenu attend.
  */
 export function ClubHeader(): ReactNode {
   const insets = useSafeAreaInsets();
@@ -39,11 +48,7 @@ export function ClubHeader(): ReactNode {
     void load();
   }, [load]);
 
-  if (!club) {
-    return null;
-  }
-
-  const approved = club.canOperate;
+  const approved = club?.canOperate ?? true;
 
   return (
     <>
@@ -74,21 +79,32 @@ export function ClubHeader(): ReactNode {
             borderWidth={1}
             borderColor="rgba(244,251,247,0.14)"
           >
-            {club.logoUrl ? (
+            {club?.logoUrl ? (
               <AppImage uri={club.logoUrl} size={38} />
             ) : (
               <StadiumIcon size={20} />
             )}
           </YStack>
 
-          <YStack flexShrink={1} gap="$0.5">
-            <Text fontSize={16} fontWeight="800" color="$brandChalk" flexShrink={1}>
-              {club.club.name}
-            </Text>
-            <Text fontSize={12} color="$brandChalkDim" flexShrink={1}>
-              {club.club.locality ?? t.clubSpace.noPitch}
-            </Text>
-          </YStack>
+          {club ? (
+            <YStack flexShrink={1} gap="$0.5">
+              <Text fontSize={16} fontWeight="800" color="$brandChalk" flexShrink={1}>
+                {club.club.name}
+              </Text>
+              <Text fontSize={12} color="$brandChalkDim" flexShrink={1}>
+                {club.club.locality ?? t.clubSpace.noPitch}
+              </Text>
+            </YStack>
+          ) : (
+            /*
+              La silhouette occupe EXACTEMENT la place des deux lignes reelles :
+              c'est ce qui evite le saut au moment ou le club arrive.
+            */
+            <YStack flexShrink={1} gap="$1.5" width={150}>
+              <Skeleton height={14} width="80%" />
+              <Skeleton height={11} width="50%" />
+            </YStack>
+          )}
 
           {!approved ? <Badge label={t.clubSpace.statusPending} tone="warning" /> : null}
           <GlassProbe />
@@ -103,9 +119,9 @@ export function ClubHeader(): ReactNode {
         deja consomme la barre d'etat. L'ecart qu'on voyait etait donc un
         residu, pas une intention -- et un residu ne se regle pas, il derive.
 
-        Elle est dans ce composant et non dans le layout pour disparaitre AVEC
-        le bandeau : sans club charge, `ClubHeader` rend `null`, et un espaceur
-        pose a cote laisserait un trou sans rien au-dessus.
+        Elle est dans ce composant et non dans le layout parce qu'elle
+        appartient au bandeau : les deux vont ensemble, on ne peut pas en
+        deplacer un sans l'autre.
       */}
       <YStack height={18} />
     </>

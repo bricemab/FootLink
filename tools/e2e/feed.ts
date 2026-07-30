@@ -95,6 +95,15 @@ async function feed(token: string, path: string): Promise<{ status: number; item
   return { status: res.status, items: Array.isArray(body) ? (body as FeedItem[]) : [] };
 }
 
+/** Les actions du feed ne renvoient pas de corps : seul le code compte. */
+async function post(token: string, path: string): Promise<number> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+  });
+  return res.status;
+}
+
 /**
  * 🔴 **La saison vient du helper partagé, elle n'est PAS recalculée ici.**
  *
@@ -202,6 +211,7 @@ function seed(): void {
 
 function cleanup(): void {
   sql(`
+    DELETE FROM \`ListingDismissal\` WHERE playerId LIKE 'fq%${RUN}';
     DELETE FROM \`PlayerInterest\` WHERE playerId LIKE 'fq%${RUN}';
     DELETE FROM \`ClubInterest\` WHERE playerId LIKE 'fq%${RUN}';
     DELETE FROM \`Block\` WHERE blockerUserId LIKE 'f%${RUN}' OR blockedUserId LIKE 'f%${RUN}';
@@ -290,6 +300,45 @@ async function main(): Promise<void> {
     );
     check('un rayon large remonte, lui', names.includes('Large'));
     check('un profil masqué n’est jamais proposé', !names.includes('Discret'), names);
+
+    /*
+     * --- Écarter une annonce ----------------------------------------------
+     *
+     * 🔴 Le contrôle qui compte est le DEUXIÈME : écarter une annonce ne doit
+     * en cacher aucune autre, pas même du même club. C'est la demande explicite
+     * de Brice, et c'est le genre de règle qu'une jointure trop large casse
+     * sans bruit — le feed se viderait peu à peu, et personne ne saurait dire
+     * depuis quand.
+     */
+    check('écarter une annonce répond 204', (await post(proche, `/feed/listings/fl2${RUN}/dismiss`)) === 204);
+    const afterDismiss = await feed(proche, '/feed/listings?limit=50');
+    const afterDismissIds = afterDismiss.items.map((item) => item.id);
+    check('l’annonce écartée ne revient plus', !afterDismissIds.includes(`fl2${RUN}`), afterDismissIds);
+    check(
+      '🔴 écarter UNE annonce n’en écarte aucune autre, même du même club',
+      afterDismissIds.includes(`fl1${RUN}`),
+      afterDismissIds,
+    );
+
+    // Écarter deux fois : un doigt qui glisse deux fois ne doit pas produire
+    // une erreur de clé dupliquée (l'écriture est un upsert).
+    check('écarter deux fois de suite ne casse rien', (await post(proche, `/feed/listings/fl2${RUN}/dismiss`)) === 204);
+
+    /*
+     * Une annonce RECRÉÉE porte un nouvel identifiant : elle repasse. C'est ce
+     * qui rend le refus non définitif sans avoir à le faire expirer — le club
+     * qui republie retrouve tout le monde.
+     */
+    sql(`
+      INSERT INTO \`Listing\` (id,teamId,posteRecherche,secondaryPostes,status,season,createdAt,updatedAt)
+      VALUES ('fl9${RUN}','ft1${RUN}','ATTAQUANT','["GARDIEN"]','ACTIVE','${currentSeason()}',NOW(),NOW());
+    `);
+    const afterRecreate = await feed(proche, '/feed/listings?limit=50');
+    check(
+      'la même annonce republiée est de nouveau proposée',
+      afterRecreate.items.some((item) => item.id === `fl9${RUN}`),
+      afterRecreate.items.map((item) => item.id),
+    );
 
     // --- Un intérêt déjà exprimé sort du feed ------------------------------
     sql(

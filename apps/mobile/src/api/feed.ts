@@ -1,4 +1,4 @@
-import type { CategoryCode, Gender, Poste } from '@footlink/shared';
+import type { CategoryCode, Gender, Poste, StrongFoot } from '@footlink/shared';
 import { apiRequest } from './client';
 
 /**
@@ -44,6 +44,9 @@ export interface FeedPlayer {
   firstName: string;
   lastName: string;
   birthYear: number;
+  heightCm: number | null;
+  strongFoot: StrongFoot | null;
+  avatarUrl: string | null;
   currentCategory: CategoryCode | null;
   /** Null quand le joueur a choisi de masquer son club actuel. */
   currentClubName: string | null;
@@ -86,6 +89,25 @@ export function listFeedPlayers(
   page: FeedPage = {},
 ): Promise<FeedPlayer[]> {
   return apiRequest<FeedPlayer[]>(`/feed/listings/${listingId}/players${query(page)}`, {
+    accessToken,
+  });
+}
+
+/**
+ * La fiche publique d'un joueur.
+ *
+ * Le serveur refuse un joueur masque ou hors recherche, meme si on connait son
+ * identifiant : atteindre par identifiant ce qu'on ne voit pas en liste serait
+ * un IDOR.
+ */
+export function getFeedPlayer(accessToken: string, playerId: string): Promise<FeedPlayer> {
+  return apiRequest<FeedPlayer>(`/feed/players/${playerId}`, { accessToken });
+}
+
+/** Le joueur ecarte une annonce : elle ne lui sera plus proposee. */
+export function dismissListing(accessToken: string, listingId: string): Promise<void> {
+  return apiRequest<void>(`/feed/listings/${listingId}/dismiss`, {
+    method: 'POST',
     accessToken,
   });
 }

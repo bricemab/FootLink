@@ -29,6 +29,15 @@ export interface Listing {
   /** Candidatures reçues et matchs conclus — ce que la suppression détruirait. */
   applicationCount: number;
   matchCount: number;
+  /**
+   * Combien de joueurs CORRESPONDENT à cette annonce.
+   *
+   * ⚠️ À ne pas confondre avec `applicationCount` : une candidature est un geste
+   * du joueur, une correspondance est un calcul. Afficher seulement le premier
+   * faisait lire « 0 candidature » sur une annonce que trois joueurs pouvaient
+   * remplir.
+   */
+  matchingPlayersCount: number;
 }
 
 /** Ligne brute, telle que la renvoient la création et la mise à jour. */
@@ -74,9 +83,14 @@ export type UpdateListingInput = Partial<{
 }>;
 
 /** Forme brute des endpoints enrichis. Ne sort pas de ce fichier. */
-interface ListingApi extends Omit<Listing, 'secondaryPostes' | 'applicationCount' | 'matchCount'> {
+interface ListingApi
+  extends Omit<
+    Listing,
+    'secondaryPostes' | 'applicationCount' | 'matchCount' | 'matchingPlayersCount'
+  > {
   secondaryPostes: Poste[] | null;
   _count: { interests: number; matches: number };
+  matchingPlayersCount?: number;
 }
 
 function toListing(raw: ListingApi): Listing {
@@ -94,6 +108,10 @@ function toListing(raw: ListingApi): Listing {
     team: raw.team,
     applicationCount: raw._count.interests,
     matchCount: raw._count.matches,
+    // Absent sur le detail d'une annonce, qui ne compte pas les correspondants :
+    // seule la LISTE en a besoin, et l'appeler partout couterait une requete
+    // supplementaire pour un chiffre que personne ne regarde a cet endroit.
+    matchingPlayersCount: raw.matchingPlayersCount ?? 0,
   };
 }
 

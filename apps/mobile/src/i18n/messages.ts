@@ -344,6 +344,10 @@ export const fr = {
     modeList: 'Liste',
     modeSwipe: 'Cartes',
     apply: 'Postuler',
+    // Dit ce qui se passe VRAIMENT : le geste est enregistre pour plus tard,
+    // rien n'est envoye au club. Afficher « Postuler » laissait croire que la
+    // candidature etait partie.
+    applySoon: 'Postuler arrive bientot. Rien n’a ete envoye au club.',
     pass: 'Passer',
     passed: 'Passé',
     swipeHint: 'Fais glisser la carte : à droite pour postuler, à gauche pour passer.',
@@ -351,6 +355,18 @@ export const fr = {
     playersTitle: 'Joueurs correspondants',
     playersSubtitle: 'Ceux qui peuvent tenir le poste, dans leur rayon.',
     playersEmpty: 'Aucun joueur ne correspond encore. Le vivier grandit chaque semaine.',
+    playerTitle: 'Fiche joueur',
+    // ⚠️ « Ton terrain » est le titre du profil DU JOUEUR. Le reutiliser sur la
+    // fiche vue par un club faisait dire « ton terrain » a propos de quelqu'un
+    // d'autre. Meme dessin, autre bord, autres mots.
+    theirPitch: 'Son terrain',
+    canton: 'Canton',
+    // ⚠️ « correspondants » n'est PAS « candidatures » : l'un est un calcul,
+    // l'autre un geste du joueur. Les confondre faisait lire « 0 candidature »
+    // sur une annonce que trois joueurs pouvaient remplir.
+    matching: '{count} correspondant(s)',
+    matchingNone: 'Aucun correspondant',
+    seeMatching: 'Voir les joueurs',
     age: '{age} ans',
     // Rayon
     radius: 'Rayon de recherche',
@@ -779,12 +795,19 @@ export const de: typeof fr = {
     modeList: 'Liste',
     modeSwipe: 'Karten',
     apply: 'Bewerben',
+    applySoon: 'Bewerben kommt bald. Es wurde nichts an den Verein gesendet.',
     pass: 'Überspringen',
     passed: 'Übersprungen',
     swipeHint: 'Wische die Karte: rechts zum Bewerben, links zum Überspringen.',
     playersTitle: 'Passende Spieler',
     playersSubtitle: 'Wer die Position spielen kann, in seinem Radius.',
     playersEmpty: 'Noch kein passender Spieler. Der Pool wächst jede Woche.',
+    playerTitle: 'Spielerprofil',
+    theirPitch: 'Sein Spielfeld',
+    canton: 'Kanton',
+    matching: '{count} passend',
+    matchingNone: 'Keine Treffer',
+    seeMatching: 'Spieler ansehen',
     age: '{age} Jahre',
     radius: 'Suchradius',
     radiusValue: '{km} km',

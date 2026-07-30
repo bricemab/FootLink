@@ -2,6 +2,7 @@ import { ConflictException, ForbiddenException, Injectable, NotFoundException } 
 import { getCurrentSeasonLabel } from '@footlink/shared';
 import { ClubMemberRole, Listing, ListingStatus, Poste, Prisma } from '@prisma/client';
 import { ClubsService } from '../clubs/clubs.service';
+import { FeedService } from '../feed/feed.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TeamsService } from '../teams/teams.service';
 import { CreateListingDto, ListListingsQueryDto, UpdateListingDto } from './dto/listing.dto';
@@ -39,6 +40,7 @@ export class ListingsService {
     private readonly prisma: PrismaService,
     private readonly clubs: ClubsService,
     private readonly teams: TeamsService,
+    private readonly feed: FeedService,
   ) {}
 
   /**
@@ -48,6 +50,15 @@ export class ListingsService {
    * entraîneur ne voit que les annonces de ses équipes. L'app ne filtre rien —
    * c'est ce qui garantit qu'un écran réutilisé ailleurs ne fuite pas.
    */
+  /**
+   * Les annonces du club, avec le nombre de joueurs qui CORRESPONDENT.
+   *
+   * 🔴 **A ne pas confondre avec les candidatures.** Une candidature est un
+   * geste du joueur ; une correspondance est un calcul. Afficher seulement le
+   * premier faisait lire « 0 candidature » sur une annonce que trois joueurs
+   * pouvaient remplir — un club en concluait que son annonce n'interesse
+   * personne, alors qu'il ne l'avait simplement pas encore montree.
+   */
   async listMine(userId: string, query: ListListingsQueryDto) {
     const { club, member } = await this.clubs.getMyClubContext(userId, false);
 
@@ -56,7 +67,7 @@ export class ListingsService {
         ? { clubId: club.id }
         : { clubId: club.id, coaches: { some: { clubMemberId: member.id } } };
 
-    return this.prisma.listing.findMany({
+    const listings = await this.prisma.listing.findMany({
       where: {
         team: teamFilter,
         ...(query.teamId ? { teamId: query.teamId } : {}),
@@ -68,6 +79,14 @@ export class ListingsService {
         _count: { select: { interests: true, matches: true } },
       },
     });
+
+    // Un seul appel pour toute la liste : un decompte par annonce ferait autant
+    // d'allers-retours qu'il y a d'annonces.
+    const counts = await this.feed.matchingCounts(listings.map((listing) => listing.id));
+    return listings.map((listing) => ({
+      ...listing,
+      matchingPlayersCount: counts.get(listing.id) ?? 0,
+    }));
   }
 
   async getOne(userId: string, listingId: string) {

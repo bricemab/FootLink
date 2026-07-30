@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { FeedQueryDto } from './dto/feed.dto';
 import { FeedService, type FeedListing, type FeedPlayer } from './feed.service';
@@ -22,6 +22,30 @@ export class FeedController {
     @Query() query: FeedQueryDto,
   ): Promise<FeedListing[]> {
     return this.feed.listingsForPlayer(userId, query);
+  }
+
+  /**
+   * Le joueur ecarte une annonce : elle ne lui sera plus proposee.
+   *
+   * ⚠️ Rien de definitif et rien de global : seule CETTE annonce disparait, et
+   * une annonce republiee porte un nouvel identifiant, donc reapparait.
+   */
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post('listings/:id/dismiss')
+  async dismiss(@CurrentUser('userId') userId: string, @Param('id') id: string): Promise<void> {
+    await this.feed.dismiss(userId, id);
+  }
+
+  /**
+   * La fiche publique d'un joueur.
+   *
+   * Reservee aux membres d'un club APPROUVE, et seulement pour un joueur
+   * visible : atteindre par identifiant ce qu'on ne voit pas en liste serait un
+   * IDOR.
+   */
+  @Get('players/:id')
+  player(@CurrentUser('userId') userId: string, @Param('id') id: string): Promise<FeedPlayer> {
+    return this.feed.publicPlayer(userId, id);
   }
 
   /** Les joueurs qui correspondent a une annonce du club connecte. */
