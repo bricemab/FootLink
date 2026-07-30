@@ -1,4 +1,4 @@
-import { categoryLabel, posteLabel } from '@footlink/shared';
+import { categoryLabel, posteLabel, type Poste } from '@footlink/shared';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 import { Pressable } from 'react-native';
@@ -13,6 +13,7 @@ import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { CheckIcon, CrossIcon, StadiumIcon } from '@/ui/icons';
 import { PrimaryButton } from '@/ui/primary-button';
+import { PitchPositions, PITCH_RATIO } from '@/ui/pitch-positions';
 import { SkeletonList } from '@/ui/skeleton';
 import { SwipeDeck } from '@/ui/swipe-deck';
 
@@ -50,7 +51,14 @@ export default function PlayerFeed(): ReactNode {
   const { authed } = useAuth();
 
   const [listings, setListings] = useState<FeedListing[]>();
-  const [mode, setMode] = useState<'list' | 'swipe'>('list');
+  /*
+   * 🔴 **Le paquet de cartes par DEFAUT.** La liste l'etait, et c'etait le
+   * choix timide : on ouvrait sur un inventaire a lire, la ou le produit
+   * promet une decision a prendre. Une carte plein ecran pose une question a
+   * la fois et attend un geste — c'est ce qui donne envie de rouvrir l'app
+   * demain. La liste reste a un appui, pour comparer et revenir en arriere.
+   */
+  const [mode, setMode] = useState<'list' | 'swipe'>('swipe');
   const [banner, setBanner] = useState<string>();
   const [blocked, setBlocked] = useState<'location' | 'profile'>();
   /**
@@ -114,13 +122,19 @@ export default function PlayerFeed(): ReactNode {
   );
 
   const visible = (listings ?? []).filter((listing) => !passed.includes(listing.id));
+  const deck = mode === 'swipe' && visible.length > 0;
 
   return (
     <AppScreen
       title={t.feed.title}
-      subtitle={t.feed.subtitle}
+      /*
+        Pas de sous-titre en mode cartes : chaque ligne prise en haut est prise
+        a la carte, et c'est elle qui doit tomber sous le pouce.
+      */
+      subtitle={deck ? undefined : t.feed.subtitle}
       allowStackBack={false}
-      onRefresh={() => void load()}
+      fill={deck}
+      onRefresh={deck ? undefined : () => void load()}
       action={
         visible.length > 0 ? (
           <ModeToggle mode={mode} onChange={setMode} labels={t.feed} />
@@ -164,13 +178,11 @@ export default function PlayerFeed(): ReactNode {
           ))
         : null}
 
-      {visible.length > 0 && mode === 'swipe' ? (
-        <YStack gap="$3">
-          <Text fontSize={13} color="$brandChalkDim" textAlign="center">
-            {t.feed.swipeHint}
-          </Text>
+      {deck ? (
+        <>
           <SwipeDeck
             items={visible}
+            stamps={{ yes: t.feed.apply, no: t.feed.pass }}
             onDecision={(listing, direction) => {
               if (direction === 'left') {
                 void dismiss(listing.id);
@@ -182,10 +194,10 @@ export default function PlayerFeed(): ReactNode {
               setBanner(t.feed.applySoon);
             }}
             renderCard={(listing) => (
-              <ListingCard listing={listing} locale={locale} t={t} fill={fill} tall />
+              <SwipeCard listing={listing} locale={locale} t={t} fill={fill} />
             )}
           />
-          <XStack gap="$3" justifyContent="center">
+          <XStack gap="$5" justifyContent="center" alignItems="center">
             <RoundAction
               accept={false}
               onPress={() => {
@@ -206,35 +218,202 @@ export default function PlayerFeed(): ReactNode {
               }}
             />
           </XStack>
-        </YStack>
+        </>
       ) : null}
     </AppScreen>
   );
 }
 
 /**
- * Une annonce, telle que le joueur la voit.
+ * La carte du paquet — la seule chose à l'écran, et elle doit tenir seule.
  *
- * `tall` en mode cartes : une carte qu'on fait glisser doit occuper la main,
- * pas se perdre en haut de l'écran.
+ * 🔴 **Le terrain est la photo de la carte.** Un paquet de cartes vit de son
+ * image : sans elle, il ne reste qu'un paragraphe qu'on fait glisser, et le
+ * geste n'a plus de raison d'être. Nous n'avons pas de photo de club — mais
+ * nous avons mieux, parce que c'est la question posée : le terrain, avec le
+ * poste cherché qui s'allume. On sait où on jouerait avant d'avoir lu un mot.
+ *
+ * ⚠️ **Aucun dégradé natif.** La profondeur vient d'un disque vert flouté par
+ * son opacité, posé derrière le contenu — pas d'`expo-linear-gradient`. Ajouter
+ * un module natif pour un fond coûterait un `prebuild` et un build EAS, et deux
+ * builds ont déjà été perdus sur un module natif absent (cf. HANDOFF).
+ */
+function SwipeCard({
+  listing,
+  locale,
+  t,
+  fill,
+}: {
+  listing: FeedListing;
+  locale: 'FR' | 'DE' | 'IT';
+  t: ReturnType<typeof useI18n>['t'];
+  fill: ReturnType<typeof useI18n>['fill'];
+}): ReactNode {
+  return (
+    <YStack
+      flex={1}
+      borderRadius={28}
+      overflow="hidden"
+      backgroundColor="rgba(9,24,18,0.97)"
+      borderWidth={1.5}
+      borderColor="rgba(57,255,136,0.32)"
+      shadowColor="#39FF88"
+      shadowOpacity={0.18}
+      shadowRadius={26}
+      shadowOffset={{ width: 0, height: 10 }}
+      elevation={8}
+    >
+      {/* Le halo de la carte. Décoratif : il ne doit jamais intercepter le
+          geste, qui appartient à la carte entière. */}
+      <YStack
+        position="absolute"
+        top={-110}
+        right={-90}
+        width={280}
+        height={280}
+        borderRadius={140}
+        backgroundColor="#1DBF73"
+        opacity={0.3}
+        pointerEvents="none"
+      />
+
+      <YStack flex={1} padding="$4" gap="$3">
+        <XStack alignItems="center" gap="$2.5">
+          <YStack
+            width={44}
+            height={44}
+            borderRadius={14}
+            alignItems="center"
+            justifyContent="center"
+            backgroundColor="rgba(7,19,15,0.75)"
+            borderWidth={1}
+            borderColor="rgba(244,251,247,0.16)"
+          >
+            <StadiumIcon size={22} />
+          </YStack>
+          <YStack flexShrink={1} gap="$0.5">
+            <Text fontSize={17} fontWeight="800" color="$brandChalk" flexShrink={1}>
+              {listing.club.name}
+            </Text>
+            <Text fontSize={13} color="$brandChalkDim" flexShrink={1}>
+              {[
+                listing.club.locality,
+                fill(t.feed.distance, { km: String(listing.distanceKm) }),
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
+          </YStack>
+        </XStack>
+
+        <PitchSlot
+          primary={listing.posteRecherche}
+          secondary={listing.secondaryPostes}
+          labels={{ primary: t.listings.mainPoste, secondary: t.listings.otherPostes }}
+        />
+
+        <YStack gap="$2">
+          <XStack alignItems="center" gap="$2" flexWrap="wrap">
+            <Badge label={reasonLabel(listing.matchKind, t)} tone="accent" />
+            <Badge label={categoryLabel(listing.team.category, locale)} />
+          </XStack>
+
+          {/* Le poste, en grand : c'est LA question de la carte. */}
+          <Text
+            fontSize={30}
+            lineHeight={34}
+            fontWeight="800"
+            letterSpacing={-0.6}
+            color="$brandChalk"
+          >
+            {posteLabel(listing.posteRecherche, locale)}
+          </Text>
+
+          {listing.description ? (
+            <Text fontSize={14.5} lineHeight={20} color="$brandChalkDim" numberOfLines={2}>
+              {listing.description}
+            </Text>
+          ) : null}
+        </YStack>
+      </YStack>
+    </YStack>
+  );
+}
+
+/**
+ * Le terrain, dimensionné sur la place qui RESTE.
+ *
+ * ⚠️ `PitchPositions` se dimensionne sur sa largeur (hauteur = largeur x
+ * `PITCH_RATIO`). Lui donner toute la largeur de la carte marchait sur un grand
+ * telephone et debordait sur un petit, ou par le bas il aurait mange le poste
+ * et la description. On mesure donc la place disponible et on prend la plus
+ * contraignante des deux dimensions.
+ */
+function PitchSlot({
+  primary,
+  secondary,
+  labels,
+}: {
+  primary: Poste;
+  secondary: Poste[];
+  labels: { primary: string; secondary: string };
+}): ReactNode {
+  const [box, setBox] = useState({ width: 0, height: 0 });
+  const size = Math.min(box.width, box.height / PITCH_RATIO);
+
+  return (
+    <YStack
+      flex={1}
+      alignItems="center"
+      justifyContent="center"
+      onLayout={(event) =>
+        setBox({
+          width: event.nativeEvent.layout.width,
+          height: event.nativeEvent.layout.height,
+        })
+      }
+    >
+      {/* En dessous d'une certaine taille, les pastilles se chevauchent : mieux
+          vaut ne rien dessiner qu'un terrain illisible. */}
+      {size > 140 ? (
+        <YStack width={size}>
+          <PitchPositions
+            value={{ primary, secondary }}
+            onChange={() => undefined}
+            labels={labels}
+            readOnly
+            showSummary={false}
+          />
+        </YStack>
+      ) : null}
+    </YStack>
+  );
+}
+
+/**
+ * Une annonce en LISTE — pour comparer, revenir en arriere, relire.
+ *
+ * Le mode cartes a sa propre carte (`SwipeCard`) : les deux repondaient au
+ * meme composant avec un drapeau `tall`, et ce drapeau ne changeait qu'une
+ * taille de police. Une carte qu'on fait glisser et une ligne qu'on parcourt
+ * n'ont ni la meme hierarchie ni le meme contenu — les confondre bridait les
+ * deux.
  */
 function ListingCard({
   listing,
   locale,
   t,
   fill,
-  tall = false,
 }: {
   listing: FeedListing;
   locale: 'FR' | 'DE' | 'IT';
   t: ReturnType<typeof useI18n>['t'];
   fill: ReturnType<typeof useI18n>['fill'];
-  tall?: boolean;
 }): ReactNode {
   return (
-    <Card variant={tall ? 'hero' : 'card'}>
+    <Card variant="card">
       <XStack alignItems="center" justifyContent="space-between" gap="$3">
-        <Text fontSize={tall ? 24 : 18} fontWeight="800" color="$brandChalk" flexShrink={1}>
+        <Text fontSize={18} fontWeight="800" color="$brandChalk" flexShrink={1}>
           {posteLabel(listing.posteRecherche, locale)}
         </Text>
         <Badge label={reasonLabel(listing.matchKind, t)} tone="accent" />
@@ -272,7 +451,7 @@ function ListingCard({
       ) : null}
 
       {listing.description ? (
-        <Text fontSize={14.5} lineHeight={21} color="$brandChalk" numberOfLines={tall ? 6 : 3}>
+        <Text fontSize={14.5} lineHeight={21} color="$brandChalk" numberOfLines={3}>
           {listing.description}
         </Text>
       ) : null}

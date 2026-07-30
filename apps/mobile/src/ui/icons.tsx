@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { CaretDownIcon } from 'phosphor-react-native/src/icons/CaretDown';
 import { EyeIcon as PhEye } from 'phosphor-react-native/src/icons/Eye';
+import { CaretLeftIcon } from 'phosphor-react-native/src/icons/CaretLeft';
 import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
 import { CheckIcon as PhCheck } from 'phosphor-react-native/src/icons/Check';
 import { MegaphoneIcon as PhMegaphone } from 'phosphor-react-native/src/icons/Megaphone';
@@ -160,9 +161,10 @@ export function ChevronIcon({
   color = DIM,
 }: {
   size?: number;
-  direction?: 'down' | 'right';
+  direction?: 'down' | 'right' | 'left';
   color?: string;
 }): ReactNode {
-  const Glyph = direction === 'down' ? CaretDownIcon : CaretRightIcon;
+  const Glyph =
+    direction === 'down' ? CaretDownIcon : direction === 'left' ? CaretLeftIcon : CaretRightIcon;
   return <Glyph size={size} color={color} weight="bold" />;
 }

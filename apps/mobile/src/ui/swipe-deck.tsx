@@ -9,7 +9,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { YStack } from 'tamagui';
+import { Text, XStack, YStack } from 'tamagui';
 import { hapticSuccess, hapticTap } from '@/ui/haptics';
 import { CheckIcon, CrossIcon } from '@/ui/icons';
 
@@ -52,12 +52,19 @@ export function SwipeDeck<T>({
   renderCard,
   onDecision,
   onEmpty,
+  stamps,
 }: {
   items: T[];
   renderCard: (item: T, index: number) => ReactNode;
   /** `right` = ça m'intéresse, `left` = je passe. */
   onDecision: (item: T, direction: 'left' | 'right') => void;
   onEmpty?: ReactNode;
+  /**
+   * Les deux mots imprimés sur la carte pendant le geste.
+   *
+   * Injectés et non codés ici : le deck ne connaît ni le domaine ni la langue.
+   */
+  stamps: { yes: string; no: string };
 }): ReactNode {
   const x = useSharedValue(0);
   const y = useSharedValue(0);
@@ -124,13 +131,26 @@ export function SwipeDeck<T>({
     ],
   }));
 
-  /** Verdict qui se révèle pendant le geste : on voit sa décision arriver. */
-  const yesStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(x.value, [0, DECISION_THRESHOLD], [0, 1], 'clamp'),
-  }));
-  const noStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(x.value, [-DECISION_THRESHOLD, 0], [1, 0], 'clamp'),
-  }));
+  /*
+   * Le verdict qui se révèle pendant le geste : on voit sa décision arriver.
+   *
+   * Il grandit en même temps qu'il apparaît (0.7 → 1). Une simple opacité
+   * donnait un tampon posé là ; l'échelle le fait *s'abattre* sur la carte, et
+   * c'est ce mouvement qu'on reconnaît d'ailleurs.
+   *
+   * ⚠️ Le tampon « oui » est à GAUCHE et le « non » à DROITE, à l'opposé du
+   * sens du geste. C'est la convention du genre, et elle a une raison : la main
+   * qui pousse la carte vers la droite couvre le bord droit. Un tampon posé
+   * sous le pouce ne se voit pas.
+   */
+  const yesStyle = useAnimatedStyle(() => {
+    const progress = interpolate(x.value, [0, DECISION_THRESHOLD], [0, 1], 'clamp');
+    return { opacity: progress, transform: [{ scale: interpolate(progress, [0, 1], [0.7, 1]) }] };
+  });
+  const noStyle = useAnimatedStyle(() => {
+    const progress = interpolate(x.value, [-DECISION_THRESHOLD, 0], [1, 0], 'clamp');
+    return { opacity: progress, transform: [{ scale: interpolate(progress, [0, 1], [0.7, 1]) }] };
+  });
 
   /*
    * La carte suivante, légèrement en retrait et grandissante.
@@ -152,30 +172,42 @@ export function SwipeDeck<T>({
   }
 
   return (
-    <YStack position="relative">
+    // `flex={1}` : le paquet occupe toute la hauteur qu'on lui laisse, et les
+    // cartes avec lui. Une carte de la taille de son contenu se perdait en haut
+    // d'un grand écran vide.
+    <YStack flex={1} position="relative">
       {next !== undefined ? (
-        <Animated.View style={[{ position: 'absolute', left: 0, right: 0 }, nextStyle]}>
+        <Animated.View
+          style={[{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }, nextStyle]}
+        >
           {renderCard(next, 1)}
         </Animated.View>
       ) : null}
 
       <GestureDetector gesture={pan}>
-        <Animated.View style={cardStyle}>
+        <Animated.View style={[{ flex: 1 }, cardStyle]}>
           {renderCard(top, 0)}
 
-          {/* Les deux verdicts, superposés à la carte. Ils n'interceptent aucun
-              appui : le geste appartient à la carte entière. */}
+          {/*
+            Les deux verdicts, superposés à la carte. Ils n'interceptent aucun
+            appui : le geste appartient à la carte entière.
+
+            ⚠️ **Au tiers de la hauteur, pas en haut.** Colles au bord superieur,
+            ils tombaient exactement sur le nom du club — le tampon et le nom
+            devenaient illisibles ensemble. A cette hauteur ils se posent sur le
+            terrain, qui supporte un calque sans rien perdre.
+          */}
           <Animated.View
             pointerEvents="none"
-            style={[{ position: 'absolute', top: 18, left: 18 }, noStyle]}
+            style={[{ position: 'absolute', top: '30%', left: 22 }, yesStyle]}
           >
-            <Verdict accept={false} />
+            <Verdict accept label={stamps.yes} />
           </Animated.View>
           <Animated.View
             pointerEvents="none"
-            style={[{ position: 'absolute', top: 18, right: 18 }, yesStyle]}
+            style={[{ position: 'absolute', top: '30%', right: 22 }, noStyle]}
           >
-            <Verdict accept />
+            <Verdict accept={false} label={stamps.no} />
           </Animated.View>
         </Animated.View>
       </GestureDetector>
@@ -184,7 +216,14 @@ export function SwipeDeck<T>({
 }
 
 /**
- * Pastille de verdict.
+ * Le tampon de verdict.
+ *
+ * 🔴 **Un tampon, pas une pastille.** C'était un rond avec une icône : lisible,
+ * mais muet — un rond vert ne dit pas *ce qu'on est en train de faire*. Le mot
+ * écrit en gros, incliné, avec un liseré épais, dit « POSTULER » ou « PASSER »
+ * avant que le doigt ne lâche. C'est le seul endroit de l'app où l'inclinaison
+ * est justifiée : elle imite un tampon qu'on abat, et elle distingue
+ * immédiatement cette couche de la carte qui est dessous, parfaitement droite.
  *
  * ⚠️ **Des icônes SVG, pas des glyphes.** La première version utilisait « ✓ » et
  * « ✕ » avec un commentaire s'accordant une exception. Il n'y en a pas : le
@@ -192,20 +231,25 @@ export function SwipeDeck<T>({
  * c'est exactement ce que la règle du projet interdit. `CheckIcon` et
  * `CrossIcon` existent pour ça.
  */
-function Verdict({ accept }: { accept: boolean }): ReactNode {
+function Verdict({ accept, label }: { accept: boolean; label: string }): ReactNode {
+  const color = accept ? '#39FF88' : '#FF5A5F';
   return (
-    <YStack
-      width={54}
-      height={54}
-      borderRadius={27}
+    <XStack
       alignItems="center"
-      justifyContent="center"
-      backgroundColor="rgba(7,19,15,0.85)"
-      borderWidth={2.5}
-      borderColor={accept ? 'rgba(57,255,136,0.9)' : 'rgba(255,90,95,0.9)'}
+      gap="$2"
+      paddingHorizontal="$3.5"
+      paddingVertical="$2"
+      borderRadius={14}
+      borderWidth={3}
+      borderColor={color}
+      backgroundColor="rgba(7,19,15,0.72)"
+      rotate={accept ? '-14deg' : '14deg'}
     >
-      {accept ? <CheckIcon size={26} /> : <CrossIcon size={26} />}
-    </YStack>
+      {accept ? <CheckIcon size={22} /> : <CrossIcon size={22} />}
+      <Text fontSize={20} fontWeight="900" letterSpacing={1.2} color={color}>
+        {label.toUpperCase()}
+      </Text>
+    </XStack>
   );
 }
 

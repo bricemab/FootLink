@@ -98,7 +98,7 @@ export default function ClubLayout(): ReactNode {
       place dans la mise en page. C'est la combinaison des deux qui est demandée
       — décor traversant, contenu contenu.
     */
-    <BackdropRoot>
+    <BackdropRoot header>
       <ThemeProvider value={TRANSPARENT_THEME}>
         <ClubHeader />
         <Tabs

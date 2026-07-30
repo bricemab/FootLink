@@ -38,7 +38,15 @@ const ACCENT = '#39FF88';
  * un défilement pour exister. On resserre un peu le dessin plutôt que de faire
  * chercher le bouton.
  */
-const RATIO = 1.15;
+/**
+ * Hauteur du terrain rapportee a sa largeur.
+ *
+ * Exporte parce que l'appelant peut avoir besoin de l'inverser : la carte du
+ * feed connait la hauteur dont elle dispose et en deduit la largeur a donner.
+ * Recopier ce nombre la-bas l'aurait fige le jour ou on redessine le terrain.
+ */
+export const PITCH_RATIO = 1.15;
+const RATIO = PITCH_RATIO;
 
 export interface PitchSelection {
   primary: Poste | null;
@@ -51,6 +59,7 @@ export function PitchPositions({
   maxSecondary = 3,
   labels,
   readOnly = false,
+  showSummary = true,
 }: {
   value: PitchSelection;
   onChange: (next: PitchSelection) => void;
@@ -70,6 +79,14 @@ export function PitchPositions({
    * une neutralite — il fait douter de tout le reste de l'ecran.
    */
   readOnly?: boolean;
+  /**
+   * Faux = le terrain SEUL, sans les lignes « poste principal / aussi » qui le
+   * suivent.
+   *
+   * Utile la ou le poste est deja ecrit en grand a cote (la carte du feed) :
+   * l'ecrire deux fois n'apprend rien et vole la place de ce qui manque.
+   */
+  showSummary?: boolean;
 }): ReactNode {
   const { t, locale } = useI18n();
   const [width, setWidth] = useState(0);
@@ -258,6 +275,7 @@ export function PitchPositions({
 
       {/* Ce que l'appui vient de produire, en mots — une pastille verte ne dit
           pas si le poste est principal ou secondaire. */}
+      {showSummary ? (
       <YStack gap="$2">
         <XStack alignItems="center" gap="$2" flexWrap="wrap">
           <Text fontSize={12.5} fontWeight="700" letterSpacing={0.6} color="$brandChalkDim">
@@ -279,6 +297,7 @@ export function PitchPositions({
           </XStack>
         ) : null}
       </YStack>
+      ) : null}
     </YStack>
   );
 }

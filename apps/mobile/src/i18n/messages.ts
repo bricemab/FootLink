@@ -203,6 +203,10 @@ export const fr = {
   },
   home: {
     title: 'Te voilà !',
+    // ⚠️ Un onglet porte un NOM, pas une salutation. « Te voilà ! » accueille
+    // une fois ; lu vingt fois par jour sous une icone, il ne veut plus rien
+    // dire et n'annonce pas ou il mene.
+    tab: 'Profil',
     subtitle: 'Ton compte est actif. Les écrans de profil et le feed arrivent.',
     role: 'Rôle',
     status: 'Statut',
@@ -666,6 +670,7 @@ export const de: typeof fr = {
     done: 'E-Mail bestätigt!',
   },
   home: {
+    tab: 'Profil',
     yourPitch: 'Dein Spielfeld',
     seeking: 'Auf Vereinssuche',
     notSeeking: 'Nicht auf Suche',

@@ -44,7 +44,9 @@ export default function PlayerLayout(): ReactNode {
   const insets = useSafeAreaInsets();
 
   return (
-    <BackdropRoot>
+    // `header={false}` : l'espace joueur n'a PAS de bandeau de contexte — aucun
+    // club a nommer. C'est donc chaque ecran qui porte la barre d'etat.
+    <BackdropRoot header={false}>
       <ThemeProvider value={TRANSPARENT_THEME}>
         <Tabs
           screenOptions={{
@@ -80,7 +82,7 @@ export default function PlayerLayout(): ReactNode {
           <Tabs.Screen
             name="profile"
             options={{
-              title: t.home.title,
+              title: t.home.tab,
               tabBarIcon: ({ color }) => <BallIcon size={24} color={asColor(color)} />,
             }}
           />

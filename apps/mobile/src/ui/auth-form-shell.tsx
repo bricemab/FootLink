@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView } from 'react-native';
-import { Text, YStack } from 'tamagui';
+import { Text, XStack, YStack } from 'tamagui';
 import { useI18n } from '@/i18n';
+import { ChevronIcon } from '@/ui/icons';
 import { PitchBackdrop } from '@/ui/pitch-backdrop';
 
 /**
@@ -63,9 +64,14 @@ export function AuthFormShell({
                 onPress={onBack ?? (() => router.back())}
                 accessibilityRole="button"
               >
-                <Text fontSize={15} color="$brandChalkDim">
-                  ← {t.common.back}
-                </Text>
+                {/* Une icone, pas « ← ». Meme regle qu'ailleurs : un glyphe ne
+                    se rend pas pareil d'un appareil a l'autre. */}
+                <XStack alignItems="center" gap="$1.5">
+                  <ChevronIcon direction="left" size={18} color="rgba(169,196,184,0.9)" />
+                  <Text fontSize={15} color="$brandChalkDim">
+                    {t.common.back}
+                  </Text>
+                </XStack>
               </Pressable>
             ) : null}
 

@@ -5,7 +5,8 @@ import { Pressable, RefreshControl, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, XStack, YStack } from 'tamagui';
 import { useI18n } from '@/i18n';
-import { PitchBackdrop, useInsideChrome } from '@/ui/pitch-backdrop';
+import { ChevronIcon } from '@/ui/icons';
+import { PitchBackdrop, useChrome } from '@/ui/pitch-backdrop';
 
 /**
  * Enveloppe des écrans d'application : titre, retour, défilement.
@@ -27,6 +28,7 @@ export function AppScreen({
   allowStackBack = true,
   onRefresh,
   refreshing = false,
+  fill = false,
   children,
 }: {
   title: string;
@@ -46,6 +48,18 @@ export function AppScreen({
   /** Fourni = tirer pour rafraîchir. Une liste distante doit pouvoir être relue. */
   onRefresh?: () => void;
   refreshing?: boolean;
+  /**
+   * Vrai = le contenu OCCUPE la hauteur restante au lieu de défiler.
+   *
+   * Pour ce qui se dimensionne sur l'écran plutôt que sur son contenu : le
+   * paquet de cartes du feed, qui doit tomber sous le pouce. Un contenu en
+   * `flex: 1` dans une `ScrollView` n'a pas de hauteur a remplir — d'ou une
+   * enveloppe differente, et non un style de plus.
+   *
+   * ⚠️ `onRefresh` est alors sans effet : tirer pour rafraichir demande un
+   * defilement. Ces ecrans se rechargent a la prise de focus.
+   */
+  fill?: boolean;
   children: ReactNode;
 }): ReactNode {
   const router = useRouter();
@@ -65,32 +79,20 @@ export function AppScreen({
    * Hors habillage (l'accueil), la zone de securite est bien reelle et
    * personne d'autre ne la porte : on la remet.
    */
-  const bottomInset = useInsideChrome() ? 16 : insets.bottom + 24;
+  const bottomInset = useChrome().bottom ? 16 : insets.bottom + 24;
 
-  return (
-    <PitchBackdrop>
-      <ScrollView
-        contentContainerStyle={{ paddingTop: 8, paddingBottom: bottomInset }}
-        showsVerticalScrollIndicator={false}
-        {...(onRefresh
-          ? {
-              refreshControl: (
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  tintColor="#39FF88"
-                  colors={['#39FF88']}
-                />
-              ),
-            }
-          : {})}
-      >
-        <YStack gap="$4">
+  const head = (
+    <>
+          {/* Une icone, pas « ← » : le rendu d'un glyphe change d'un appareil et
+              d'une version d'OS a l'autre, c'est la regle du projet. */}
           {showBack ? (
             <Pressable onPress={onBack ?? (() => router.back())} accessibilityRole="button">
-              <Text fontSize={15} color="$brandChalkDim">
-                ← {t.common.back}
-              </Text>
+              <XStack alignItems="center" gap="$1.5">
+                <ChevronIcon direction="left" size={18} color="rgba(169,196,184,0.9)" />
+                <Text fontSize={15} color="$brandChalkDim">
+                  {t.common.back}
+                </Text>
+              </XStack>
             </Pressable>
           ) : null}
 
@@ -113,7 +115,48 @@ export function AppScreen({
             </YStack>
             {action}
           </XStack>
+    </>
+  );
 
+  /*
+   * Deux enveloppes, un seul en-tete. La difference tient a UNE question : le
+   * contenu se dimensionne-t-il sur lui-meme (il defile) ou sur l'ecran (il
+   * remplit) ? On ne peut pas avoir les deux — `flex: 1` dans une `ScrollView`
+   * n'a aucune hauteur a remplir.
+   */
+  if (fill) {
+    return (
+      <PitchBackdrop>
+        <YStack flex={1} gap="$4" paddingTop={8} paddingBottom={bottomInset}>
+          {head}
+          <YStack flex={1} gap="$3">
+            {children}
+          </YStack>
+        </YStack>
+      </PitchBackdrop>
+    );
+  }
+
+  return (
+    <PitchBackdrop>
+      <ScrollView
+        contentContainerStyle={{ paddingTop: 8, paddingBottom: bottomInset }}
+        showsVerticalScrollIndicator={false}
+        {...(onRefresh
+          ? {
+              refreshControl: (
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor="#39FF88"
+                  colors={['#39FF88']}
+                />
+              ),
+            }
+          : {})}
+      >
+        <YStack gap="$4">
+          {head}
           <YStack gap="$3">{children}</YStack>
         </YStack>
       </ScrollView>
