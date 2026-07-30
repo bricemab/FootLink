@@ -14,6 +14,7 @@ import {
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
 import { AppScreen, Badge, Card } from '@/ui/app-screen';
+import { BallIcon, ChevronIcon } from '@/ui/icons';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { hapticError, hapticSuccess } from '@/ui/haptics';
@@ -210,6 +211,34 @@ export default function ListingDetail(): ReactNode {
           />
 
           <PrimaryButton label={t.listings.save} loading={busy} onPress={() => void save()} />
+
+          {/* Les joueurs qui correspondent : c'est l'interet de publier une
+              annonce, autant y mener depuis l'annonce elle-meme. Reserve aux
+              annonces PUBLIEES — un brouillon n'est visible de personne, donc
+              proposer d'en voir les candidats promettrait quelque chose de faux. */}
+          {listing.status === 'ACTIVE' ? (
+            <Card
+              onPress={() =>
+                router.push({
+                  pathname: '/club/listings/candidates',
+                  params: { listingId: listing.id },
+                })
+              }
+            >
+              <XStack alignItems="center" justifyContent="space-between" gap="$3">
+                <XStack alignItems="center" gap="$2.5" flexShrink={1}>
+                  <BallIcon size={20} />
+                  <Text fontSize={16} fontWeight="700" color="$brandChalk" flexShrink={1}>
+                    {t.feed.playersTitle}
+                  </Text>
+                </XStack>
+                <ChevronIcon direction="right" />
+              </XStack>
+              <Text fontSize={13.5} color="$brandChalkDim">
+                {t.feed.playersSubtitle}
+              </Text>
+            </Card>
+          ) : null}
 
           {listing.status === 'ACTIVE' ? (
             <>

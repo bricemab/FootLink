@@ -4,6 +4,7 @@ import { EyeIcon as PhEye } from 'phosphor-react-native/src/icons/Eye';
 import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
 import { CheckIcon as PhCheck } from 'phosphor-react-native/src/icons/Check';
 import { MegaphoneIcon as PhMegaphone } from 'phosphor-react-native/src/icons/Megaphone';
+import { XIcon as PhX } from 'phosphor-react-native/src/icons/X';
 import { SoccerBallIcon } from 'phosphor-react-native/src/icons/SoccerBall';
 import { StrategyIcon } from 'phosphor-react-native/src/icons/Strategy';
 import { UsersThreeIcon } from 'phosphor-react-native/src/icons/UsersThree';
@@ -85,6 +86,17 @@ export function MegaphoneIcon({
   color?: string;
 }): ReactNode {
   return <PhMegaphone size={size} color={color} weight="duotone" />;
+}
+
+/** Refus : le pendant de `CheckIcon`, pour un verdict qu'on rejette. */
+export function CrossIcon({
+  size = 18,
+  color = '#FF5A5F',
+}: {
+  size?: number;
+  color?: string;
+}): ReactNode {
+  return <PhX size={size} color={color} weight="bold" />;
 }
 
 /** Aperçu : ce que verront les autres. */

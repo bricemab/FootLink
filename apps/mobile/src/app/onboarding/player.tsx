@@ -208,7 +208,7 @@ export default function OnboardingPlayer(): ReactNode {
       // `hasPlayerProfile` change en base : on rafraîchit la session pour que la
       // garde de routage ne renvoie plus ici.
       await reload();
-      router.replace('/home');
+      router.replace('/player');
     } catch (error) {
       setBanner(toUserMessage(error, t));
     } finally {

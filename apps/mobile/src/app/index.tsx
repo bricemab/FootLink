@@ -62,5 +62,5 @@ export default function Index(): ReactNode {
     return <Redirect href="/club" />;
   }
 
-  return <Redirect href="/home" />;
+  return <Redirect href="/player" />;
 }
