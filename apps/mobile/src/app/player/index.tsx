@@ -2,8 +2,19 @@ import { categoryLabel, posteLabel, type Poste } from '@footlink/shared';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 import { Pressable } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useDerivedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { Text, XStack, YStack } from 'tamagui';
 import { dismissListing, listFeedListings, type FeedListing, type MatchKind } from '@/api/feed';
+import {
+  applyToListing,
+  removeInterest,
+  saveListing,
+  undismissListing,
+} from '@/api/interactions';
 import { useAuth } from '@/auth/auth-context';
 import { ApiError } from '@/api/client';
 import { useI18n } from '@/i18n';
@@ -11,11 +22,11 @@ import { Appear } from '@/ui/appear';
 import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
-import { CheckIcon, CrossIcon, StadiumIcon } from '@/ui/icons';
+import { BookmarkIcon, CheckIcon, CrossIcon, StadiumIcon, UndoIcon } from '@/ui/icons';
 import { PrimaryButton } from '@/ui/primary-button';
 import { PitchPositions, PITCH_RATIO } from '@/ui/pitch-positions';
 import { SkeletonList } from '@/ui/skeleton';
-import { SwipeDeck } from '@/ui/swipe-deck';
+import { SwipeDeck, type SwipeDirection } from '@/ui/swipe-deck';
 
 /**
  * Le feed du joueur — l'écran qui donne enfin une raison d'ouvrir l'app.
@@ -31,13 +42,21 @@ import { SwipeDeck } from '@/ui/swipe-deck';
  * inspire la méfiance, et on ne confie pas une saison à un inconnu proposé sans
  * raison.
  *
- * 🔴 **« Passer » écrit en base ; « Postuler » non — et l'asymétrie est
- * voulue.** Un refus va dans `ListingDismissal` : sans ça, la carte écartée
- * revenait au chargement suivant, et le feed redemandait indéfiniment la même
- * chose. Postuler appartient à la phase 7 : tant que rien n'est écrit, la carte
- * ne doit pas disparaître durablement — un joueur qui voulait justement
- * répondre perdrait l'annonce sans avoir répondu. Le geste droit ne fait donc
- * que retirer la carte de la session en cours.
+ * 🔴 **Trois issues, et une seule engage.** C'est ce qui manquait :
+ *
+ * - droite — **postuler**. Le club est notifié. C'est public.
+ * - haut — **enregistrer**. Signet privé, personne n'est prévenu.
+ * - gauche — **passer**. Rien n'est dit à personne, et c'est annulable.
+ *
+ * Avec deux gestes seulement, chaque carte forçait soit un engagement
+ * prématuré — postuler prévient un vrai club immédiatement —, soit une perte
+ * définitive. Un paquet de cartes ne fonctionne que si le geste est bon marché,
+ * et le seul geste gratuit était le destructeur.
+ *
+ * ⚠️ **Aucune action n'est accessible UNIQUEMENT par un geste.** Les trois
+ * boutons sous la carte ne doublent pas le glissement par confort : ils sont ce
+ * qui rend l'écran utilisable d'une main occupée, ou par quelqu'un qui ne peut
+ * pas glisser.
  *
  * ⚠️ **Un refus porte sur UNE annonce, jamais sur un club.** La table est
  * clavée `(joueur, annonce)` : écarter l'annonce d'un club n'empêche ni de voir
@@ -68,6 +87,17 @@ export default function PlayerFeed(): ReactNode {
    * rythme du geste.
    */
   const [passed, setPassed] = useState<string[]>([]);
+  /**
+   * Le dernier geste, pour pouvoir revenir dessus.
+   *
+   * 🔴 **C'est ce qui rend le paquet leger.** Sans retour en arriere, chaque
+   * carte est un aller simple : on hesite avant chacune, et un paquet ou l'on
+   * hesite ne sert a rien. Un seul niveau — au-dela, on ne se souvient plus de
+   * ce qu'on annule.
+   */
+  const [last, setLast] = useState<{ listingId: string; direction: SwipeDirection }>();
+  /** Le recto pose la question, le verso donne le detail. Remis a plat a chaque carte. */
+  const [flipped, setFlipped] = useState(false);
 
   const load = useCallback(async (): Promise<void> => {
     setBanner(undefined);
@@ -108,18 +138,63 @@ export default function PlayerFeed(): ReactNode {
    * carte reviendrait au prochain chargement sans que personne comprenne
    * pourquoi. Elle revient donc tout de suite, avec la raison.
    */
-  const dismiss = useCallback(
-    async (listingId: string): Promise<void> => {
+  const act = useCallback(
+    async (listingId: string, direction: SwipeDirection): Promise<void> => {
+      setFlipped(false);
       setPassed((current) => [...current, listingId]);
+      setLast({ listingId, direction });
       try {
-        await authed((token) => dismissListing(token, listingId));
+        if (direction === 'left') {
+          await authed((token) => dismissListing(token, listingId));
+          return;
+        }
+        if (direction === 'up') {
+          await authed((token) => saveListing(token, listingId));
+          setBanner(t.feed.savedDone);
+          return;
+        }
+        const { matched } = await authed((token) => applyToListing(token, listingId));
+        setBanner(matched ? t.feed.matchDone : t.feed.appliedDone);
       } catch (error) {
         setPassed((current) => current.filter((id) => id !== listingId));
+        setLast(undefined);
         setBanner(toUserMessage(error, t));
       }
     },
     [authed, t],
   );
+
+  /**
+   * Revenir sur le dernier geste.
+   *
+   * ⚠️ **Annuler une candidature n'annule pas la notification** deja recue par
+   * le club : elle pointera vers une candidature qui n'existe plus. C'est un
+   * defaut assume — bien moindre que d'enfermer quelqu'un dans une candidature
+   * qu'il n'a pas voulue. Le serveur refuse en revanche des qu'un match est ne :
+   * la conversation, elle, ne peut pas disparaitre sans un mot.
+   */
+  const undo = useCallback(async (): Promise<void> => {
+    if (!last) {
+      return;
+    }
+    const { listingId, direction } = last;
+    setLast(undefined);
+    setPassed((current) => current.filter((id) => id !== listingId));
+    setBanner(undefined);
+    try {
+      await authed((token) =>
+        direction === 'left'
+          ? undismissListing(token, listingId)
+          : removeInterest(token, listingId),
+      );
+      await load();
+    } catch (error) {
+      // Le geste tient toujours cote serveur : on remet la carte de cote pour
+      // ne pas afficher une annonce que le feed ne renverra plus.
+      setPassed((current) => [...current, listingId]);
+      setBanner(toUserMessage(error, t));
+    }
+  }, [authed, last, load, t]);
 
   const visible = (listings ?? []).filter((listing) => !passed.includes(listing.id));
   const deck = mode === 'swipe' && visible.length > 0;
@@ -173,7 +248,14 @@ export default function PlayerFeed(): ReactNode {
       {visible.length > 0 && mode === 'list'
         ? visible.map((listing, index) => (
             <Appear key={listing.id} index={index}>
-              <ListingCard listing={listing} locale={locale} t={t} fill={fill} />
+              <ListingCard
+                listing={listing}
+                locale={locale}
+                t={t}
+                fill={fill}
+                onSave={() => void act(listing.id, 'up')}
+                onApply={() => void act(listing.id, 'right')}
+              />
             </Appear>
           ))
         : null}
@@ -182,38 +264,55 @@ export default function PlayerFeed(): ReactNode {
         <>
           <SwipeDeck
             items={visible}
-            stamps={{ yes: t.feed.apply, no: t.feed.pass }}
-            onDecision={(listing, direction) => {
-              if (direction === 'left') {
-                void dismiss(listing.id);
-                return;
-              }
-              // Postuler appartient à la phase 7. Rien n'est écrit : la carte
-              // ne quitte que la session en cours.
-              setPassed((current) => [...current, listing.id]);
-              setBanner(t.feed.applySoon);
-            }}
-            renderCard={(listing) => (
-              <SwipeCard listing={listing} locale={locale} t={t} fill={fill} />
+            stamps={{ yes: t.feed.apply, no: t.feed.pass, up: t.feed.save }}
+            onDecision={(listing, direction) => void act(listing.id, direction)}
+            onTap={() => setFlipped((current) => !current)}
+            renderCard={(listing, index) => (
+              <SwipeCard
+                listing={listing}
+                locale={locale}
+                t={t}
+                fill={fill}
+                flipped={index === 0 && flipped}
+              />
             )}
           />
-          <XStack gap="$5" justifyContent="center" alignItems="center">
+          {/*
+            Quatre boutons, quatre poids. Le diametre dit l'importance : les
+            deux decisions franches sont les plus grosses, garder vient ensuite,
+            et annuler reste discret — c'est un rattrapage, pas une quatrieme
+            option qu'on choisirait.
+          */}
+          <XStack gap="$3.5" justifyContent="center" alignItems="center">
             <RoundAction
-              accept={false}
+              kind="undo"
+              disabled={last === undefined}
+              onPress={() => void undo()}
+            />
+            <RoundAction
+              kind="pass"
               onPress={() => {
                 const first = visible[0];
                 if (first) {
-                  void dismiss(first.id);
+                  void act(first.id, 'left');
                 }
               }}
             />
             <RoundAction
-              accept
+              kind="save"
               onPress={() => {
                 const first = visible[0];
                 if (first) {
-                  setPassed((current) => [...current, first.id]);
-                  setBanner(t.feed.applySoon);
+                  void act(first.id, 'up');
+                }
+              }}
+            />
+            <RoundAction
+              kind="apply"
+              onPress={() => {
+                const first = visible[0];
+                if (first) {
+                  void act(first.id, 'right');
                 }
               }}
             />
@@ -243,40 +342,58 @@ function SwipeCard({
   locale,
   t,
   fill,
+  flipped = false,
 }: {
   listing: FeedListing;
   locale: 'FR' | 'DE' | 'IT';
   t: ReturnType<typeof useI18n>['t'];
   fill: ReturnType<typeof useI18n>['fill'];
+  /** Vrai = on regarde le verso. Piloté par l'écran, pas par la carte. */
+  flipped?: boolean;
 }): ReactNode {
-  return (
-    <YStack
-      flex={1}
-      borderRadius={28}
-      overflow="hidden"
-      backgroundColor="rgba(9,24,18,0.97)"
-      borderWidth={1.5}
-      borderColor="rgba(57,255,136,0.32)"
-      shadowColor="#39FF88"
-      shadowOpacity={0.18}
-      shadowRadius={26}
-      shadowOffset={{ width: 0, height: 10 }}
-      elevation={8}
-    >
-      {/* Le halo de la carte. Décoratif : il ne doit jamais intercepter le
-          geste, qui appartient à la carte entière. */}
-      <YStack
-        position="absolute"
-        top={-110}
-        right={-90}
-        width={280}
-        height={280}
-        borderRadius={140}
-        backgroundColor="#1DBF73"
-        opacity={0.3}
-        pointerEvents="none"
-      />
+  /*
+    🔴 **La rotation est pilotee par une valeur DERIVEE de la prop**, et non par
+    un effet qui declencherait une animation. Une valeur derivee vit sur le fil
+    d'UI : le retournement continue meme si le fil JavaScript est occupe a
+    charger la page suivante — exactement la meme raison que pour le glissement.
 
+    ⚠️ Un demi-tour et pas plus : au-dela de 180° on repasse par la tranche une
+    seconde fois, et l'animation se lit comme un bug.
+  */
+  const progress = useDerivedValue(() =>
+    withTiming(flipped ? 1 : 0, { duration: 420 }),
+  );
+
+  const frontStyle = useAnimatedStyle(() => ({
+    transform: [{ perspective: 1200 }, { rotateY: `${progress.value * 180}deg` }],
+    // `backfaceVisibility` seul ne suffit pas sur tous les Android : l'opacite
+    // garantit qu'une face ne transparait jamais a travers l'autre.
+    opacity: progress.value < 0.5 ? 1 : 0,
+  }));
+
+  const backStyle = useAnimatedStyle(() => ({
+    transform: [{ perspective: 1200 }, { rotateY: `${180 + progress.value * 180}deg` }],
+    opacity: progress.value < 0.5 ? 0 : 1,
+  }));
+
+  return (
+    <YStack flex={1}>
+      <Animated.View style={[{ flex: 1 }, frontStyle]}>
+        <CardFace>{renderFront()}</CardFace>
+      </Animated.View>
+      <Animated.View
+        style={[
+          { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
+          backStyle,
+        ]}
+      >
+        <CardFace>{renderBack()}</CardFace>
+      </Animated.View>
+    </YStack>
+  );
+
+  function renderFront(): ReactNode {
+    return (
       <YStack flex={1} padding="$4" gap="$3">
         <XStack alignItems="center" gap="$2.5">
           <YStack
@@ -334,9 +451,148 @@ function SwipeCard({
               {listing.description}
             </Text>
           ) : null}
+
+          {/* L'invitation a retourner. Sans elle, personne ne devine qu'il y a
+              un verso — un geste invisible n'existe pas. */}
+          <XStack alignItems="center" gap="$1.5">
+            <UndoIcon size={13} color="rgba(169,196,184,0.7)" />
+            <Text fontSize={12.5} color="$brandChalkDim">
+              {t.feed.tapForMore}
+            </Text>
+          </XStack>
         </YStack>
       </YStack>
+    );
+  }
+
+  /**
+   * Le verso : ce que le recto ne pouvait pas porter.
+   *
+   * ⚠️ **Il ne repete pas le recto.** Un verso qui redit la meme chose en plus
+   * petit donne l'impression d'avoir perdu son geste. Ici : la description
+   * ENTIERE (le recto la coupe a deux lignes), les postes acceptes en toutes
+   * lettres, l'equipe et la saison — de quoi decider, pas de quoi relire.
+   */
+  function renderBack(): ReactNode {
+    return (
+      <YStack flex={1} padding="$4" gap="$3.5">
+        <YStack gap="$1">
+          <Text fontSize={12.5} fontWeight="700" letterSpacing={0.6} color="$brandChalkDim">
+            {t.feed.detailTitle.toUpperCase()}
+          </Text>
+          <Text fontSize={22} fontWeight="800" letterSpacing={-0.4} color="$brandChalk">
+            {listing.club.name}
+          </Text>
+        </YStack>
+
+        <YStack gap="$2">
+          <DetailRow
+            label={t.listings.team}
+            value={listing.team.name ?? categoryLabel(listing.team.category, locale)}
+          />
+          {/* Pas de ligne « genre » : le feed ne propose que des equipes du
+              genre du joueur, l'afficher n'apprendrait rien. */}
+          <DetailRow label={t.feed.seasonLabel} value={listing.season} />
+          <DetailRow
+            label={t.listings.mainPoste}
+            value={posteLabel(listing.posteRecherche, locale)}
+          />
+          {listing.secondaryPostes.length > 0 ? (
+            <DetailRow
+              label={t.listings.otherPostes}
+              value={listing.secondaryPostes
+                .map((poste) => posteLabel(poste, locale))
+                .join(' · ')}
+            />
+          ) : null}
+          {listing.club.locality ? (
+            <DetailRow
+              label={t.club.locality}
+              value={`${listing.club.locality} · ${fill(t.feed.distance, {
+                km: String(listing.distanceKm),
+              })}`}
+            />
+          ) : null}
+        </YStack>
+
+        {listing.description ? (
+          <YStack flex={1}>
+            <Text fontSize={15} lineHeight={22} color="$brandChalk">
+              {listing.description}
+            </Text>
+          </YStack>
+        ) : (
+          <YStack flex={1} />
+        )}
+
+        <XStack alignItems="center" gap="$1.5">
+          <UndoIcon size={13} color="rgba(169,196,184,0.7)" />
+          <Text fontSize={12.5} color="$brandChalkDim">
+            {t.feed.tapToReturn}
+          </Text>
+        </XStack>
+      </YStack>
+    );
+  }
+}
+
+/**
+ * Le cadre commun aux deux faces.
+ *
+ * Extrait pour que recto et verso ne puissent pas diverger : deux cadres ecrits
+ * separement finissent toujours par ne plus avoir le meme rayon, et le
+ * retournement laisse alors voir un saut.
+ */
+function CardFace({ children }: { children: ReactNode }): ReactNode {
+  return (
+    <YStack
+      flex={1}
+      borderRadius={28}
+      overflow="hidden"
+      backgroundColor="rgba(9,24,18,0.97)"
+      borderWidth={1.5}
+      borderColor="rgba(57,255,136,0.32)"
+      shadowColor="#39FF88"
+      shadowOpacity={0.18}
+      shadowRadius={26}
+      shadowOffset={{ width: 0, height: 10 }}
+      elevation={8}
+    >
+      {/* Le halo de la carte. Décoratif : il ne doit jamais intercepter le
+          geste, qui appartient à la carte entière. */}
+      <YStack
+        position="absolute"
+        top={-110}
+        right={-90}
+        width={280}
+        height={280}
+        borderRadius={140}
+        backgroundColor="#1DBF73"
+        opacity={0.3}
+        pointerEvents="none"
+      />
+      {children}
     </YStack>
+  );
+}
+
+/** Une ligne du verso : intitulé à gauche, valeur à droite. */
+function DetailRow({ label, value }: { label: string; value: string }): ReactNode {
+  return (
+    <XStack justifyContent="space-between" alignItems="flex-start" gap="$3">
+      <Text fontSize={12.5} fontWeight="700" letterSpacing={0.4} color="$brandChalkDim">
+        {label.toUpperCase()}
+      </Text>
+      <Text
+        fontSize={14.5}
+        fontWeight="600"
+        color="$brandChalk"
+        flexShrink={1}
+        textAlign="right"
+      >
+        {value}
+      </Text>
+    </XStack>
   );
 }
 
@@ -404,11 +660,15 @@ function ListingCard({
   locale,
   t,
   fill,
+  onSave,
+  onApply,
 }: {
   listing: FeedListing;
   locale: 'FR' | 'DE' | 'IT';
   t: ReturnType<typeof useI18n>['t'];
   fill: ReturnType<typeof useI18n>['fill'];
+  onSave: () => void;
+  onApply: () => void;
 }): ReactNode {
   return (
     <Card variant="card">
@@ -455,6 +715,41 @@ function ListingCard({
           {listing.description}
         </Text>
       ) : null}
+
+      {/*
+        🔴 **La liste AGIT, elle ne fait pas que montrer.** Sans ces deux
+        boutons, le selecteur Liste/Cartes changeait ce qu'on POUVAIT FAIRE et
+        pas seulement l'apparence : on pouvait comparer, mais rien decider sans
+        repasser aux cartes.
+
+        ⚠️ Pas de « passer » ici, et c'est delibere : ecarter est un geste de
+        tri rapide, il appartient au paquet. Une liste sert a choisir, pas a
+        eliminer — et un bouton de rejet au milieu d'une liste s'appuie par
+        accident bien plus souvent qu'un glissement.
+      */}
+      <XStack gap="$2.5" alignItems="center">
+        <Pressable onPress={onSave} accessibilityRole="button" accessibilityLabel={t.feed.save}>
+          {({ pressed }) => (
+            <YStack
+              width={44}
+              height={44}
+              borderRadius={14}
+              alignItems="center"
+              justifyContent="center"
+              borderWidth={1.5}
+              borderColor="rgba(255,193,77,0.55)"
+              backgroundColor="rgba(7,19,15,0.6)"
+              opacity={pressed ? 0.75 : 1}
+              scale={pressed ? 0.94 : 1}
+            >
+              <BookmarkIcon size={20} />
+            </YStack>
+          )}
+        </Pressable>
+        <YStack flex={1}>
+          <PrimaryButton label={t.feed.apply} variant="ghost" onPress={onApply} />
+        </YStack>
+      </XStack>
     </Card>
   );
 }
@@ -528,23 +823,61 @@ function ModeToggle({
  * tout le monde d'un moyen précis quand la main est occupée. La règle vaut
  * partout : jamais d'action accessible UNIQUEMENT par un geste.
  */
-function RoundAction({ accept, onPress }: { accept: boolean; onPress: () => void }): ReactNode {
+function RoundAction({
+  kind,
+  onPress,
+  disabled = false,
+}: {
+  kind: 'undo' | 'pass' | 'save' | 'apply';
+  onPress: () => void;
+  disabled?: boolean;
+}): ReactNode {
+  /*
+    Le diametre EST la hierarchie. Les deux decisions franches sont les plus
+    grosses ; garder vient ensuite parce qu'il n'engage rien ; annuler est le
+    plus petit — c'est un rattrapage, pas une quatrieme option qu'on choisirait.
+  */
+  const size = kind === 'undo' ? 46 : kind === 'save' ? 54 : 62;
+  const border =
+    kind === 'apply'
+      ? 'rgba(57,255,136,0.7)'
+      : kind === 'pass'
+        ? 'rgba(255,90,95,0.7)'
+        : kind === 'save'
+          ? 'rgba(255,193,77,0.7)'
+          : 'rgba(244,251,247,0.22)';
+
   return (
-    <Pressable onPress={onPress} accessibilityRole="button">
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+    >
       {({ pressed }) => (
         <YStack
-          width={62}
-          height={62}
-          borderRadius={31}
+          width={size}
+          height={size}
+          borderRadius={size / 2}
           alignItems="center"
           justifyContent="center"
           backgroundColor="rgba(7,19,15,0.85)"
           borderWidth={2}
-          borderColor={accept ? 'rgba(57,255,136,0.7)' : 'rgba(255,90,95,0.7)'}
-          opacity={pressed ? 0.75 : 1}
-          scale={pressed ? 0.94 : 1}
+          borderColor={border}
+          // Desactive : visiblement eteint, mais toujours a sa place. Le faire
+          // disparaitre decalerait les trois autres a chaque carte.
+          opacity={disabled ? 0.35 : pressed ? 0.75 : 1}
+          scale={pressed && !disabled ? 0.94 : 1}
         >
-          {accept ? <CheckIcon size={26} /> : <CrossIcon size={26} />}
+          {kind === 'apply' ? (
+            <CheckIcon size={26} />
+          ) : kind === 'pass' ? (
+            <CrossIcon size={26} />
+          ) : kind === 'save' ? (
+            <BookmarkIcon size={22} />
+          ) : (
+            <UndoIcon size={19} />
+          )}
         </YStack>
       )}
     </Pressable>

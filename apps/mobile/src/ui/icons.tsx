@@ -5,6 +5,8 @@ import { CaretLeftIcon } from 'phosphor-react-native/src/icons/CaretLeft';
 import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
 import { CheckIcon as PhCheck } from 'phosphor-react-native/src/icons/Check';
 import { MegaphoneIcon as PhMegaphone } from 'phosphor-react-native/src/icons/Megaphone';
+import { ArrowCounterClockwiseIcon as PhUndo } from 'phosphor-react-native/src/icons/ArrowCounterClockwise';
+import { BookmarkSimpleIcon as PhBookmark } from 'phosphor-react-native/src/icons/BookmarkSimple';
 import { XIcon as PhX } from 'phosphor-react-native/src/icons/X';
 import { SoccerBallIcon } from 'phosphor-react-native/src/icons/SoccerBall';
 import { StrategyIcon } from 'phosphor-react-native/src/icons/Strategy';
@@ -98,6 +100,36 @@ export function CrossIcon({
   color?: string;
 }): ReactNode {
   return <PhX size={size} color={color} weight="bold" />;
+}
+
+/**
+ * Signet : « je garde ça pour plus tard ».
+ *
+ * ⚠️ `filled` change le SENS, pas seulement l'aspect : plein = deja enregistre.
+ * C'est le seul retour visuel qui dise si le geste a pris, et il doit se lire
+ * sans lire le texte a cote.
+ */
+export function BookmarkIcon({
+  size = 22,
+  color = '#FFC14D',
+  filled = false,
+}: {
+  size?: number;
+  color?: string;
+  filled?: boolean;
+}): ReactNode {
+  return <PhBookmark size={size} color={color} weight={filled ? 'fill' : 'bold'} />;
+}
+
+/** Revenir sur le dernier geste. */
+export function UndoIcon({
+  size = 20,
+  color = '#A9C4B8',
+}: {
+  size?: number;
+  color?: string;
+}): ReactNode {
+  return <PhUndo size={size} color={color} weight="bold" />;
 }
 
 /** Aperçu : ce que verront les autres. */

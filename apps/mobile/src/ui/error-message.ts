@@ -34,9 +34,31 @@ export function toUserMessage(error: unknown, t: Messages): string {
   if (error.code === 'COACH_INVITE_RATE_LIMITED') {
     return t.errors.coachInviteRateLimited;
   }
+  /*
+   * 🔴 **« Mot de passe incorrect » ne vient QUE du serveur, jamais du statut.**
+   * Le 401 y menait par defaut : un feed qui expirait affichait donc « Email ou
+   * mot de passe incorrect » a quelqu'un dont la session etait parfaitement
+   * valide en base. Vu a l'ecran, et impossible a diagnostiquer pour celui qui
+   * le lit — il verifie un mot de passe qui n'a rien a se reprocher.
+   *
+   * L'authentification pose desormais `INVALID_CREDENTIALS` ; tout autre 401
+   * est une session qui s'est terminee, et se dit comme telle.
+   */
+  if (error.code === 'INVALID_CREDENTIALS') {
+    return t.errors.invalidCredentials;
+  }
+  // Les conflits du module d'interactions. Sans eux ils tombaient dans le repli
+  // du 409 ci-dessous, qui parle d'adresse email : retirer une candidature
+  // aurait repondu « un compte existe deja avec cet email ».
+  if (error.code === 'ALREADY_APPLIED') {
+    return t.errors.alreadyApplied;
+  }
+  if (error.code === 'MATCH_EXISTS') {
+    return t.errors.matchExists;
+  }
   switch (error.status) {
     case 401:
-      return t.errors.invalidCredentials;
+      return t.errors.sessionExpired;
     // Repli : un 409 sans code métier vient forcément d'un conflit d'adresse,
     // c'est le seul autre cas qui existe aujourd'hui. Les nouveaux conflits
     // doivent porter un code, pas s'appuyer sur ce repli.

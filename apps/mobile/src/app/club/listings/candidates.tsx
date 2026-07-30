@@ -3,6 +3,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 import { listFeedPlayers, type FeedPlayer, type MatchKind } from '@/api/feed';
+import { likePlayer, listListingLikes, unlikePlayer } from '@/api/interactions';
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
 import { Appear } from '@/ui/appear';
@@ -10,6 +11,7 @@ import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { BallIcon } from '@/ui/icons';
+import { PrimaryButton } from '@/ui/primary-button';
 import { SkeletonList } from '@/ui/skeleton';
 
 /**
@@ -35,6 +37,9 @@ export default function ListingCandidates(): ReactNode {
 
   const [players, setPlayers] = useState<FeedPlayer[]>();
   const [banner, setBanner] = useState<string>();
+  /** Qui le club a deja retenu. Relu du serveur : c'est lui qui fait foi. */
+  const [liked, setLiked] = useState<string[]>([]);
+  const [busy, setBusy] = useState<string>();
 
   const load = useCallback(async (): Promise<void> => {
     if (!listingId) {
@@ -42,12 +47,56 @@ export default function ListingCandidates(): ReactNode {
     }
     setBanner(undefined);
     try {
-      setPlayers(await authed((token) => listFeedPlayers(token, listingId, { limit: 30 })));
+      /*
+        Les deux ensemble : une liste de joueurs sans savoir lesquels sont deja
+        retenus ferait clignoter les boutons a chaque ouverture, et le club
+        recommencerait son tri depuis zero.
+      */
+      const [list, likes] = await Promise.all([
+        authed((token) => listFeedPlayers(token, listingId, { limit: 30 })),
+        authed((token) => listListingLikes(token, listingId)),
+      ]);
+      setPlayers(list);
+      setLiked(likes);
     } catch (error) {
       setBanner(toUserMessage(error, t));
       setPlayers([]);
     }
   }, [authed, listingId, t]);
+
+  /**
+   * Retenir un joueur, ou se retracter.
+   *
+   * ⚠️ **Retenir NE cree pas de conversation a soi seul.** Le joueur est
+   * notifie, et il reste libre de ne pas repondre : c'est seulement s'il
+   * postule a son tour qu'une relation s'ouvre. Un « like » de club qui
+   * ouvrirait d'office une discussion mettrait la pression sur la partie la
+   * plus faible du rapport.
+   */
+  const toggle = useCallback(
+    async (playerId: string, already: boolean): Promise<void> => {
+      if (!listingId) {
+        return;
+      }
+      setBusy(playerId);
+      setBanner(undefined);
+      try {
+        if (already) {
+          await authed((token) => unlikePlayer(token, listingId, playerId));
+          setLiked((current) => current.filter((id) => id !== playerId));
+        } else {
+          const { matched } = await authed((token) => likePlayer(token, listingId, playerId));
+          setLiked((current) => [...current, playerId]);
+          setBanner(matched ? t.feed.clubMatched : t.feed.clubLiked);
+        }
+      } catch (error) {
+        setBanner(toUserMessage(error, t));
+      } finally {
+        setBusy(undefined);
+      }
+    },
+    [authed, listingId, t],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -142,6 +191,13 @@ export default function ListingCandidates(): ReactNode {
                 {player.bio}
               </Text>
             ) : null}
+
+            <PrimaryButton
+              label={liked.includes(player.id) ? t.feed.clubKept : t.feed.clubKeep}
+              variant={liked.includes(player.id) ? 'ghost' : 'solid'}
+              loading={busy === player.id}
+              onPress={() => void toggle(player.id, liked.includes(player.id))}
+            />
           </Card>
         </Appear>
       ))}

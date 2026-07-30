@@ -46,28 +46,21 @@ export function resolveApiBaseUrl(): string {
   );
 }
 
-/** Codes métier renvoyés par l'API, utilisés pour router l'utilisateur. */
-export type ApiErrorCode =
-  | 'EMAIL_NOT_VERIFIED'
-  | 'ACCOUNT_NOT_ACTIVE'
-  | 'EMAIL_ALREADY_USED'
-  | 'ACCOUNT_IS_GOOGLE'
-  | 'COACH_NOT_INVITED'
-  | 'CLUB_ALREADY_LINKED'
-  | 'COACH_INVITE_INVALID'
-  | 'COACH_INVITE_LOCKED'
-  | 'SIGNUP_CODE_INVALID'
-  | 'SIGNUP_CODE_LOCKED'
-  | 'TEAM_DELETION_CONFIRMATION_REQUIRED'
-  | 'COACH_INVITE_RATE_LIMITED'
-  | 'NETWORK'
-  | 'UNKNOWN';
-
-const KNOWN_CODES: readonly string[] = [
+/**
+ * Codes métier renvoyés par l'API, utilisés pour router l'utilisateur.
+ *
+ * ⚠️ **Une seule liste, et le type en DECOULE.** Il y avait une union de types
+ * et un tableau de chaines a tenir en phase a la main : ajouter un code d'un
+ * cote seulement le faisait silencieusement retomber en `UNKNOWN`, donc sur
+ * « Quelque chose s'est mal passe ». Le type derive du tableau : oublier n'est
+ * plus possible.
+ */
+const KNOWN_CODES = [
   'EMAIL_NOT_VERIFIED',
   'ACCOUNT_NOT_ACTIVE',
   'EMAIL_ALREADY_USED',
   'ACCOUNT_IS_GOOGLE',
+  'INVALID_CREDENTIALS',
   'COACH_NOT_INVITED',
   'CLUB_ALREADY_LINKED',
   'COACH_INVITE_INVALID',
@@ -76,7 +69,12 @@ const KNOWN_CODES: readonly string[] = [
   'SIGNUP_CODE_LOCKED',
   'TEAM_DELETION_CONFIRMATION_REQUIRED',
   'COACH_INVITE_RATE_LIMITED',
-];
+  'ALREADY_APPLIED',
+  'MATCH_EXISTS',
+] as const;
+
+/** `NETWORK` et `UNKNOWN` ne viennent pas du serveur : c'est l'app qui les pose. */
+export type ApiErrorCode = (typeof KNOWN_CODES)[number] | 'NETWORK' | 'UNKNOWN';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -108,8 +106,17 @@ function extractDetail(body: ApiErrorBody): string | undefined {
   return message;
 }
 
+/**
+ * Le code brut du serveur, ramene a ceux qu'on connait.
+ *
+ * `KNOWN_CODES` etant `as const`, son `includes` n'accepte plus n'importe quelle
+ * chaine : on elargit donc le tableau LOCALEMENT, le temps du test. C'est le
+ * seul endroit ou l'on quitte le typage — et c'est normal, c'est la frontiere
+ * entre du JSON venu du reseau et nos types.
+ */
 function toCode(raw: string | undefined): ApiErrorCode {
-  return raw !== undefined && KNOWN_CODES.includes(raw) ? (raw as ApiErrorCode) : 'UNKNOWN';
+  const known: readonly string[] = KNOWN_CODES;
+  return raw !== undefined && known.includes(raw) ? (raw as ApiErrorCode) : 'UNKNOWN';
 }
 
 export interface RequestOptions {

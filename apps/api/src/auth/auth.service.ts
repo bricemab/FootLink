@@ -174,7 +174,10 @@ export class AuthService {
           message: 'This account uses Google sign-in.',
         });
       }
-      throw new UnauthorizedException('Invalid credentials.');
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message: 'Invalid credentials.',
+      });
     }
     if (user.status !== UserStatus.ACTIVE) {
       throw new ForbiddenException('Account is not active.');
@@ -182,7 +185,10 @@ export class AuthService {
     if (user.loginLockedUntil !== null && user.loginLockedUntil.getTime() > Date.now()) {
       // Même erreur générique qu'un mauvais mot de passe : annoncer le verrou
       // confirmerait à un attaquant que le compte existe (et l'état de son attaque).
-      throw new UnauthorizedException('Invalid credentials.');
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message: 'Invalid credentials.',
+      });
     }
     const valid = await argon2.verify(user.passwordHash, dto.password);
     if (!valid) {
@@ -196,7 +202,10 @@ export class AuthService {
             ? new Date(Date.now() + LOGIN_LOCKOUT_MINUTES * 60 * 1000)
             : null,
       });
-      throw new UnauthorizedException('Invalid credentials.');
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message: 'Invalid credentials.',
+      });
     }
     if (user.failedLoginAttempts > 0 || user.loginLockedUntil !== null) {
       await this.users.update(user.id, { failedLoginAttempts: 0, loginLockedUntil: null });

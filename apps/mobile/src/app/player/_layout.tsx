@@ -4,7 +4,7 @@ import { StyleSheet, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useI18n } from '@/i18n';
 import { GlassSurface, TAB_BAR_HEIGHT } from '@/ui/glass';
-import { BallIcon, MegaphoneIcon } from '@/ui/icons';
+import { BallIcon, BookmarkIcon, MegaphoneIcon } from '@/ui/icons';
 import { BackdropRoot } from '@/ui/pitch-backdrop';
 
 /**
@@ -15,13 +15,13 @@ import { BackdropRoot } from '@/ui/pitch-backdrop';
  * onglets. C'était le symptôme le plus visible d'un produit construit d'un seul
  * côté.
  *
- * Deux destinations aujourd'hui, et la barre porte la structure DEFINITIVE :
- * `Candidatures` et `Messages` s'inséreront entre `Découvrir` et `Profil` sans
- * rien déplacer de ce que l'utilisateur aura appris. Cinq places au maximum,
- * comme côté club.
+ * Trois destinations aujourd'hui, et la barre porte la structure DEFINITIVE :
+ * `Messages` s'insérera entre `Candidatures` et `Profil` sans rien déplacer de
+ * ce que l'utilisateur aura appris. Cinq places au maximum, comme côté club.
  *
- * ⚠️ **Aucun onglet vide** : on n'ajoute `Candidatures` que quand la phase 7
- * lui donnera un contenu. Un onglet qui mène au néant est pire que pas d'onglet.
+ * ⚠️ **Aucun onglet vide** : `Candidatures` n'est apparu qu'avec le module
+ * d'interactions qui lui donne un contenu. Un onglet qui mène au néant est pire
+ * que pas d'onglet — et c'est aussi pour ça que `Messages` attend encore.
  *
  * Le décor et le thème transparent suivent exactement la même règle que
  * l'espace club — voir `club/_layout.tsx` pour le détail des trois endroits qui
@@ -77,6 +77,16 @@ export default function PlayerLayout(): ReactNode {
             options={{
               title: t.feed.title,
               tabBarIcon: ({ color }) => <MegaphoneIcon size={24} color={asColor(color)} />,
+            }}
+          />
+          {/* Insere ENTRE Decouvrir et Profil, a la place reservee des le
+              depart. Sans cet onglet, « garder » serait une ecriture sans
+              lecture : le feed exclut deja tout ce sur quoi on s'est prononce. */}
+          <Tabs.Screen
+            name="applications"
+            options={{
+              title: t.feed.myTitle,
+              tabBarIcon: ({ color }) => <BookmarkIcon size={23} color={asColor(color)} />,
             }}
           />
           <Tabs.Screen
