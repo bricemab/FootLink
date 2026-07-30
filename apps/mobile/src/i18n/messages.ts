@@ -201,6 +201,13 @@ export const fr = {
     resent: 'Email renvoyé.',
     done: 'Email confirmé !',
   },
+  match: {
+    title: 'C’est réciproque',
+    body: 'Vous vous êtes choisis. La messagerie arrive : en attendant, ta candidature reste visible du club.',
+    continue: 'Continuer',
+    seeApplications: 'Voir mes candidatures',
+    seeCandidates: 'Voir les joueurs',
+  },
   home: {
     title: 'Te voilà !',
     // ⚠️ Un onglet porte un NOM, pas une salutation. « Te voilà ! » accueille
@@ -230,8 +237,6 @@ export const fr = {
       'FootLink a besoin d’accéder à tes photos. Autorise-le dans les réglages du téléphone.',
     photoUnavailable:
       'Le choix d’image n’est pas disponible dans cette version de l’app. Reconstruis-la.',
-    feedSoon: 'Le feed arrive',
-    feedSoonHint: 'Bientôt, les annonces des clubs qui cherchent ton poste apparaîtront ici.',
   },
   // Espace club : supervision, équipes, entraîneurs.
   clubSpace: {
@@ -698,6 +703,13 @@ export const de: typeof fr = {
     resent: 'E-Mail erneut gesendet.',
     done: 'E-Mail bestätigt!',
   },
+  match: {
+    title: 'Es passt beidseitig',
+    body: 'Ihr habt euch gewählt. Der Chat kommt bald: bis dahin bleibt deine Bewerbung für den Verein sichtbar.',
+    continue: 'Weiter',
+    seeApplications: 'Meine Bewerbungen',
+    seeCandidates: 'Spieler ansehen',
+  },
   home: {
     tab: 'Profil',
     yourPitch: 'Dein Spielfeld',
@@ -719,8 +731,6 @@ export const de: typeof fr = {
       'FootLink braucht Zugriff auf deine Fotos. Erlaube es in den Telefoneinstellungen.',
     photoUnavailable:
       'Die Bildauswahl ist in dieser App-Version nicht verfügbar. Bitte neu bauen.',
-    feedSoon: 'Der Feed kommt',
-    feedSoonHint: 'Bald erscheinen hier die Anzeigen der Vereine, die deine Position suchen.',
     title: 'Da bist du!',
     subtitle: 'Dein Konto ist aktiv. Profil und Feed folgen in Kürze.',
     role: 'Rolle',

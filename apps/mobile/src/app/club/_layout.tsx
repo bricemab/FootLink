@@ -2,6 +2,7 @@ import { DarkTheme, Tabs, ThemeProvider } from 'expo-router';
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
 import { ClubHeader } from '@/ui/club-header';
 import { BackdropRoot } from '@/ui/pitch-backdrop';
@@ -25,6 +26,13 @@ import { MegaphoneIcon, StadiumIcon, TeamsIcon } from '@/ui/icons';
  * pas remplir la barre avec ce qui existe : on la remplit avec ce qui restera.
  * Cinq destinations au maximum — au-delà, les libellés se tronquent et la barre
  * devient un menu qu'on lit au lieu d'un repère qu'on reconnaît.
+ *
+ * ⚠️ **La barre depend du ROLE.** Un entraineur partage cet espace avec le
+ * responsable de club — mêmes équipes, mêmes annonces, filtrées par ses
+ * affectations côté serveur — mais l'onglet `Club`, qui est de
+ * l'administration, ne lui est pas montré. Il ne le voit pas grisé : un onglet
+ * qu'on ne peut pas ouvrir n'apprend rien et donne l'impression d'un produit
+ * qui se ferme.
  *
  * Trois conséquences de ce choix :
  *
@@ -87,6 +95,13 @@ const TRANSPARENT_THEME = {
 export default function ClubLayout(): ReactNode {
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  /*
+    Un entraineur n'administre pas le club : ni sa fiche, ni son logo, ni ses
+    autres entraineurs. L'onglet disparait de SA barre — pas de version grisee
+    qui refuserait a l'usage, ni d'ecran qui repondrait 403.
+  */
+  const isCoach = user?.role === 'COACH';
 
   return (
     /*
@@ -146,10 +161,14 @@ export default function ClubLayout(): ReactNode {
         >
           <Tabs.Screen
             name="index"
-            options={{
-              title: t.clubSpace.tabClub,
-              tabBarIcon: ({ color }) => <StadiumIcon size={24} color={asColor(color)} />,
-            }}
+            options={
+              isCoach
+                ? { href: null }
+                : {
+                    title: t.clubSpace.tabClub,
+                    tabBarIcon: ({ color }) => <StadiumIcon size={24} color={asColor(color)} />,
+                  }
+            }
           />
           <Tabs.Screen
             name="teams"

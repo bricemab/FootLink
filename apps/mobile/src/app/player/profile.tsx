@@ -278,12 +278,12 @@ export default function Home(): ReactNode {
           ) : null}
 
           {/*
-            Ce qui vient. Un écran qui s'arrête sur une fiche laisse croire que
-            l'app est finie ; dire ce qui manque vaut mieux que le taire.
+            ⚠️ Il y avait ici « Le feed arrive — bientot les annonces des clubs
+            apparaitront ». Le feed est desormais le PREMIER onglet, juste a
+            cote : la promesse etait devenue un mensonge, et le pire genre —
+            celui qui fait douter de ce que l'app affiche ailleurs. Une promesse
+            tenue doit disparaitre le jour ou elle est tenue.
           */}
-          <Appear index={4}>
-            <EmptyState text={`${t.home.feedSoon} — ${t.home.feedSoonHint}`} />
-          </Appear>
         </>
       ) : null}
 

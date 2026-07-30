@@ -55,10 +55,21 @@ export default function Index(): ReactNode {
     return <Redirect href="/onboarding/player" />;
   }
 
-  // Un responsable de club atterrit dans sa supervision, pas sur l'accueil
-  // générique : c'est de là que partent ses équipes et ses entraîneurs. L'écran
-  // gère lui-même le cas du club encore en attente de validation.
-  if (user.role === 'CLUB_ADMIN') {
+  /*
+    🔴 **L'ENTRAINEUR va dans l'espace club, pas dans l'espace joueur.**
+
+    Il tombait dans `/player` par defaut, faute de branche a son nom. Sans
+    `PlayerProfile`, le feed le refusait et lui affichait « Complete ton profil
+    joueur pour decouvrir des clubs » : quelqu'un que son club vient d'inviter
+    ouvrait l'app et on lui demandait son poste et son annee de naissance. Une
+    impasse, atteinte des la premiere seconde d'usage.
+
+    Le meme espace que le responsable de club, mais reduit : l'API filtre deja
+    equipes et annonces sur ses affectations (`listMyTeams`, `listMine`), et
+    l'onglet de configuration lui est retire. Deux espaces separes auraient
+    duplique trois ecrans pour la meme chose.
+  */
+  if (user.role === 'CLUB_ADMIN' || user.role === 'COACH') {
     return <Redirect href="/club" />;
   }
 

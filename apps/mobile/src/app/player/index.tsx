@@ -25,7 +25,9 @@ import { FormBanner } from '@/ui/form-banner';
 import { BookmarkIcon, CheckIcon, CrossIcon, StadiumIcon, UndoIcon } from '@/ui/icons';
 import { PrimaryButton } from '@/ui/primary-button';
 import { PitchPositions, PITCH_RATIO } from '@/ui/pitch-positions';
+import { MatchCelebration } from '@/ui/match-celebration';
 import { SkeletonList } from '@/ui/skeleton';
+import { TYPE } from '@/ui/type-scale';
 import { SwipeDeck, type SwipeDirection } from '@/ui/swipe-deck';
 
 /**
@@ -98,6 +100,8 @@ export default function PlayerFeed(): ReactNode {
   const [last, setLast] = useState<{ listingId: string; direction: SwipeDirection }>();
   /** Le recto pose la question, le verso donne le detail. Remis a plat a chaque carte. */
   const [flipped, setFlipped] = useState(false);
+  /** Le club retenait deja ce joueur : la rencontre se celebre en plein ecran. */
+  const [matched, setMatched] = useState<FeedListing>();
 
   const load = useCallback(async (): Promise<void> => {
     setBanner(undefined);
@@ -153,15 +157,21 @@ export default function PlayerFeed(): ReactNode {
           setBanner(t.feed.savedDone);
           return;
         }
-        const { matched } = await authed((token) => applyToListing(token, listingId));
-        setBanner(matched ? t.feed.matchDone : t.feed.appliedDone);
+        const result = await authed((token) => applyToListing(token, listingId));
+        if (result.matched) {
+          // Le plein ecran REMPLACE la banniere : deux annonces du meme
+          // evenement, l'une derriere l'autre, diluent le moment.
+          setMatched(listings?.find((item) => item.id === listingId));
+          return;
+        }
+        setBanner(t.feed.appliedDone);
       } catch (error) {
         setPassed((current) => current.filter((id) => id !== listingId));
         setLast(undefined);
         setBanner(toUserMessage(error, t));
       }
     },
-    [authed, t],
+    [authed, listings, t],
   );
 
   /**
@@ -319,6 +329,18 @@ export default function PlayerFeed(): ReactNode {
           </XStack>
         </>
       ) : null}
+
+      <MatchCelebration
+        visible={matched !== undefined}
+        clubName={matched?.club.name ?? ''}
+        subtitle={matched ? posteLabel(matched.posteRecherche, locale) : ''}
+        onClose={() => setMatched(undefined)}
+        seeMoreLabel={t.match.seeApplications}
+        onSeeMore={() => {
+          setMatched(undefined);
+          router.push('/player/applications');
+        }}
+      />
     </AppScreen>
   );
 }
@@ -673,7 +695,7 @@ function ListingCard({
   return (
     <Card variant="card">
       <XStack alignItems="center" justifyContent="space-between" gap="$3">
-        <Text fontSize={18} fontWeight="800" color="$brandChalk" flexShrink={1}>
+        <Text {...TYPE.heading} color="$brandChalk" flexShrink={1}>
           {posteLabel(listing.posteRecherche, locale)}
         </Text>
         <Badge label={reasonLabel(listing.matchKind, t)} tone="accent" />

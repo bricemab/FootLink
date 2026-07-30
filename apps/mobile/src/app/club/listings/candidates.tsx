@@ -11,6 +11,7 @@ import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { BallIcon } from '@/ui/icons';
+import { MatchCelebration } from '@/ui/match-celebration';
 import { PrimaryButton } from '@/ui/primary-button';
 import { SkeletonList } from '@/ui/skeleton';
 
@@ -40,6 +41,7 @@ export default function ListingCandidates(): ReactNode {
   /** Qui le club a deja retenu. Relu du serveur : c'est lui qui fait foi. */
   const [liked, setLiked] = useState<string[]>([]);
   const [busy, setBusy] = useState<string>();
+  const [matched, setMatched] = useState<FeedPlayer>();
 
   const load = useCallback(async (): Promise<void> => {
     if (!listingId) {
@@ -85,9 +87,13 @@ export default function ListingCandidates(): ReactNode {
           await authed((token) => unlikePlayer(token, listingId, playerId));
           setLiked((current) => current.filter((id) => id !== playerId));
         } else {
-          const { matched } = await authed((token) => likePlayer(token, listingId, playerId));
+          const result = await authed((token) => likePlayer(token, listingId, playerId));
           setLiked((current) => [...current, playerId]);
-          setBanner(matched ? t.feed.clubMatched : t.feed.clubLiked);
+          if (result.matched) {
+            setMatched(players?.find((player) => player.id === playerId));
+            return;
+          }
+          setBanner(t.feed.clubLiked);
         }
       } catch (error) {
         setBanner(toUserMessage(error, t));
@@ -95,7 +101,7 @@ export default function ListingCandidates(): ReactNode {
         setBusy(undefined);
       }
     },
-    [authed, listingId, t],
+    [authed, listingId, players, t],
   );
 
   useFocusEffect(
@@ -201,6 +207,18 @@ export default function ListingCandidates(): ReactNode {
           </Card>
         </Appear>
       ))}
+
+      {/*
+        Le club voit la MEME celebration que le joueur, avec ses mots a lui :
+        c'est la meme rencontre, et deux traitements differents auraient donne
+        l'impression que l'evenement compte plus d'un cote que de l'autre.
+      */}
+      <MatchCelebration
+        visible={matched !== undefined}
+        clubName={matched ? `${matched.firstName} ${matched.lastName}` : ''}
+        subtitle={matched ? posteLabel(matched.matchedPoste, locale) : ''}
+        onClose={() => setMatched(undefined)}
+      />
     </AppScreen>
   );
 }

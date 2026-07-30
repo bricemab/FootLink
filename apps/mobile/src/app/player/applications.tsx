@@ -17,8 +17,10 @@ import { AppScreen, Badge, Card, EmptyState } from '@/ui/app-screen';
 import { toUserMessage } from '@/ui/error-message';
 import { FormBanner } from '@/ui/form-banner';
 import { BookmarkIcon, CheckIcon, StadiumIcon, WarningIcon } from '@/ui/icons';
+import { MatchCelebration } from '@/ui/match-celebration';
 import { PrimaryButton } from '@/ui/primary-button';
 import { SkeletonList } from '@/ui/skeleton';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Ce que le joueur a envoyé, et ce qu'il garde de côté.
@@ -48,6 +50,7 @@ export default function PlayerApplications(): ReactNode {
   const [banner, setBanner] = useState<string>();
   /** L'annonce en cours de traitement : évite un double appui pendant l'aller-retour. */
   const [busy, setBusy] = useState<string>();
+  const [matched, setMatched] = useState<InterestListing>();
 
   const load = useCallback(async (): Promise<void> => {
     setBanner(undefined);
@@ -93,23 +96,28 @@ export default function PlayerApplications(): ReactNode {
       setBusy(listingId);
       setBanner(undefined);
       try {
-        const { matched } = await authed((token) => applyToListing(token, listingId));
+        const result = await authed((token) => applyToListing(token, listingId));
+        const target = items?.find((item) => item.id === listingId);
         setTab('APPLIED');
         await load();
+        if (result.matched) {
+          setMatched(target);
+          return;
+        }
         /*
           ⚠️ APRES le rechargement, jamais avant : `load()` commence par vider la
           banniere, et la confirmation posee juste avant disparaissait donc sans
           avoir ete lue. Le geste marchait, mais rien ne le disait — c'est le
           genre de defaut qui fait appuyer deux fois.
         */
-        setBanner(matched ? t.feed.matchDone : t.feed.appliedDone);
+        setBanner(t.feed.appliedDone);
       } catch (error) {
         setBanner(toUserMessage(error, t));
       } finally {
         setBusy(undefined);
       }
     },
-    [authed, load, t],
+    [authed, items, load, t],
   );
 
   return (
@@ -150,7 +158,7 @@ export default function PlayerApplications(): ReactNode {
         <Appear key={item.id} index={index}>
           <Card variant={item.matched ? 'hero' : 'card'}>
             <XStack alignItems="center" justifyContent="space-between" gap="$3">
-              <Text fontSize={18} fontWeight="800" color="$brandChalk" flexShrink={1}>
+              <Text {...TYPE.heading} color="$brandChalk" flexShrink={1}>
                 {posteLabel(item.posteRecherche, locale)}
               </Text>
               {item.matched ? (
@@ -229,6 +237,13 @@ export default function PlayerApplications(): ReactNode {
           </Card>
         </Appear>
       ))}
+
+      <MatchCelebration
+        visible={matched !== undefined}
+        clubName={matched?.club.name ?? ''}
+        subtitle={matched ? posteLabel(matched.posteRecherche, locale) : ''}
+        onClose={() => setMatched(undefined)}
+      />
     </AppScreen>
   );
 }

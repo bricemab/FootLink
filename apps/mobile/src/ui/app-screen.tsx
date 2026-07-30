@@ -7,6 +7,7 @@ import { Text, XStack, YStack } from 'tamagui';
 import { useI18n } from '@/i18n';
 import { ChevronIcon } from '@/ui/icons';
 import { PitchBackdrop, useChrome } from '@/ui/pitch-backdrop';
+import { TYPE } from '@/ui/type-scale';
 
 /**
  * Enveloppe des écrans d'application : titre, retour, défilement.
@@ -98,17 +99,14 @@ export function AppScreen({
 
           <XStack alignItems="flex-start" justifyContent="space-between" gap="$3">
             <YStack gap="$1.5" flexShrink={1}>
-              <Text
-                fontSize={30}
-                lineHeight={35}
-                fontWeight="800"
-                color="$brandChalk"
-                letterSpacing={-0.6}
-              >
+              {/* L'echelle vient de `type-scale`, jamais de valeurs posees ici :
+                  c'est ce qui garantit qu'un titre a la meme presence d'un
+                  ecran a l'autre. */}
+              <Text {...TYPE.title} color="$brandChalk">
                 {title}
               </Text>
               {subtitle ? (
-                <Text fontSize={15} lineHeight={21} color="$brandChalkDim">
+                <Text {...TYPE.body} color="$brandChalkDim">
                   {subtitle}
                 </Text>
               ) : null}
@@ -254,13 +252,7 @@ export function Card({
  */
 export function SectionTitle({ children }: { children: string }): ReactNode {
   return (
-    <Text
-      fontSize={12.5}
-      fontWeight="700"
-      letterSpacing={1}
-      color="$brandChalkDim"
-      marginTop="$2"
-    >
+    <Text {...TYPE.label} color="$brandChalkDim" marginTop="$2">
       {children.toUpperCase()}
     </Text>
   );

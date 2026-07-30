@@ -23,7 +23,7 @@ import { PrimaryButton } from '@/ui/primary-button';
 export default function TeamsList(): ReactNode {
   const router = useRouter();
   const { t, fill, locale } = useI18n();
-  const { authed } = useAuth();
+  const { authed, user } = useAuth();
 
   const [teams, setTeams] = useState<Team[]>();
   const [banner, setBanner] = useState<string>();
@@ -107,7 +107,12 @@ export default function TeamsList(): ReactNode {
         </Appear>
       ))}
 
-      <PrimaryButton label={t.teams.add} onPress={() => router.push('/club/teams/new')} />
+      {/* Creer une equipe est de l'administration : l'API le reserve au
+          responsable de club (`assertClubAdmin`). Montrer le bouton a un
+          entraineur promettrait une action qui repondrait 403. */}
+      {user?.role === 'COACH' ? null : (
+        <PrimaryButton label={t.teams.add} onPress={() => router.push('/club/teams/new')} />
+      )}
     </AppScreen>
   );
 }

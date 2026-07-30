@@ -11,7 +11,7 @@ import {
 import { getMyClub, listRegions, updateMyClub, type MyClubResponse, type Region } from '@/api/clubs';
 import { listCoaches } from '@/api/coaches';
 import type { ResolvedPlace } from '@/api/geo';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '@/auth/auth-context';
 import { useI18n } from '@/i18n';
 import { AppScreen, Badge, Card } from '@/ui/app-screen';
@@ -39,7 +39,7 @@ import { validateEmail } from '@/ui/validation';
 export default function ClubConfig(): ReactNode {
   const router = useRouter();
   const { t, fill } = useI18n();
-  const { authed, signOut } = useAuth();
+  const { authed, signOut, user } = useAuth();
 
   const [club, setClub] = useState<MyClubResponse | null>(null);
   const [coachCount, setCoachCount] = useState<number>();
@@ -257,6 +257,17 @@ export default function ClubConfig(): ReactNode {
 
   const canOperate = club?.canOperate === true;
   const region = club?.club.regionCode ?? regionForCanton(club?.club.canton ?? '');
+
+  /*
+    ⚠️ **`href: null` retire l'onglet de la barre, PAS la route.** `/club` resout
+    toujours ici, et c'est la premiere chose qu'atteint un entraineur qui entre
+    dans l'espace club : il verrait la configuration du club, sur laquelle
+    l'API lui repondrait 403. On redirige donc vers ce qui le concerne — ses
+    equipes.
+  */
+  if (user?.role === 'COACH') {
+    return <Redirect href="/club/teams" />;
+  }
 
   return (
     <AppScreen

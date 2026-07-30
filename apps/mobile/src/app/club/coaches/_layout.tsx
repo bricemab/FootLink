@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import { STACK_SCREEN_OPTIONS } from '@/ui/stack-options';
 import type { ReactNode } from 'react';
 
 /** Pile des entraîneurs. Même raison que pour les équipes : `new` n'est pas un onglet. */
@@ -14,7 +15,9 @@ import type { ReactNode } from 'react';
 export default function CoachesLayout(): ReactNode {
   return (
     <Stack
-      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}
+      // Le mouvement est decide dans `stack-options` : quatre piles qui le
+      // redeclarent chacune finissent par ne plus bouger pareil.
+      screenOptions={STACK_SCREEN_OPTIONS}
     />
   );
 }
