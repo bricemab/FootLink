@@ -275,6 +275,22 @@ model PlayerProfile {
   isSeekingClub Boolean @default(true) // "je cherche un club"
   isVisible     Boolean @default(true) // interrupteur de discrétion globale
 
+  /// Rayon de recherche, en kilometres.
+  ///
+  /// Preference du JOUEUR et non constante du systeme : un joueur de montagne
+  /// et un citadin n'ont pas le meme horizon, et c'est lui qui sait jusqu'ou il
+  /// acceptera de se deplacer deux fois par semaine.
+  ///
+  /// Borne haute a 300 : la Suisse entiere tient dans ce rayon depuis n'importe
+  /// quel point, donc le maximum SIGNIFIE deja « toute la Suisse » — pas besoin
+  /// d'une valeur sentinelle (0 ou -1) que chaque requete devrait interpreter.
+  ///
+  /// ⚠️ Ce rayon vaut dans les DEUX SENS : il borne ce que le joueur voit, et
+  /// aussi la distance a laquelle un club peut le decouvrir. Un joueur qui a dit
+  /// « 15 km » ne doit pas apparaitre a un club situe a 80 km comme s'il etait
+  /// disponible.
+  searchRadiusKm Int @default(25)
+
   positions     PlayerPosition[]
   interests     PlayerInterest[]
   clubInterests ClubInterest[]

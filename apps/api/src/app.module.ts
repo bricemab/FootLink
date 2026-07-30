@@ -10,6 +10,7 @@ import { ClubsModule } from './clubs/clubs.module';
 import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { LinksModule } from './links/links.module';
+import { FeedModule } from './feed/feed.module';
 import { ListingsModule } from './listings/listings.module';
 import { MailModule } from './mail/mail.module';
 import { MediaModule } from './media/media.module';
@@ -39,6 +40,7 @@ import { UsersModule } from './users/users.module';
     ClubsModule,
     TeamsModule,
     ListingsModule,
+    FeedModule,
     AppConfigModule,
   ],
   providers: [
