@@ -33,6 +33,27 @@ export interface AuthTokens {
 
 type TokenSubject = Pick<User, 'id' | 'role' | 'email'>;
 
+/**
+ * Fenetre pendant laquelle un jeton deja rotate peut etre rejoue SANS que ce
+ * soit tenu pour un vol.
+ *
+ * 🔴 **Pourquoi elle existe.** La rotation revoque le jeton presente et en emet
+ * un nouveau. Si la reponse se perd — reseau coupe a mi-chemin, application
+ * mise en arriere-plan, processus tue — le serveur a rotate mais l'app n'a
+ * jamais recu le successeur. A la tentative suivante, elle rejoue donc l'ancien
+ * jeton, de parfaite bonne foi, et la detection de rejeu revoquait TOUTE la
+ * famille : deconnexion d'un utilisateur qui n'avait rien fait de mal, et
+ * impossible a diagnostiquer pour lui.
+ *
+ * ⚠️ **Ce que ca coute en securite : presque rien.** Un voleur qui detient un
+ * refresh token n'a pas besoin de le rejouer — il s'en sert normalement. La
+ * detection de rejeu ne le rattrape que s'il joue APRES le proprietaire ; on
+ * reduit cette fenetre a une minute, au-dela de laquelle la revocation
+ * complete s'applique comme avant. Le compromis est celui recommande par la
+ * RFC 9700 (OAuth 2.0 Security BCP) pour exactement ce probleme.
+ */
+const REPLAY_GRACE_MS = 60_000;
+
 @Injectable()
 export class TokenService {
   constructor(
@@ -41,18 +62,23 @@ export class TokenService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async issueTokens(user: TokenSubject): Promise<AuthTokens> {
+  /**
+   * `replacesId` : le jeton que celui-ci remplace. Renseigne uniquement lors
+   * d'une rotation, pour que le predecesseur sache qui a pris sa suite — voir
+   * `REPLAY_GRACE_MS`.
+   */
+  async issueTokens(user: TokenSubject, replacesId?: string): Promise<AuthTokens> {
     const accessTtl = this.config.get<number>('jwt.accessTtl') ?? 900;
     const accessToken = await this.jwt.signAsync(
       { sub: user.id, role: user.role, email: user.email },
       { secret: this.config.getOrThrow<string>('jwt.accessSecret'), expiresIn: accessTtl },
     );
-    const refreshToken = await this.createRefreshToken(user.id);
+    const refreshToken = await this.createRefreshToken(user.id, replacesId);
     return { accessToken, refreshToken, tokenType: 'Bearer', expiresIn: accessTtl };
   }
 
   // Refresh token opaque : "<id>.<secret>". Seul le hash argon2 du secret est stocké.
-  private async createRefreshToken(userId: string): Promise<string> {
+  private async createRefreshToken(userId: string, replacesId?: string): Promise<string> {
     const secret = randomBytes(48).toString('base64url');
     const ttl = this.config.get<number>('jwt.refreshTtl') ?? 2592000;
     const record = await this.prisma.refreshToken.create({
@@ -62,6 +88,12 @@ export class TokenService {
         expiresAt: new Date(Date.now() + ttl * 1000),
       },
     });
+    if (replacesId !== undefined) {
+      await this.prisma.refreshToken.update({
+        where: { id: replacesId },
+        data: { replacedById: record.id },
+      });
+    }
     return `${record.id}.${secret}`;
   }
 
@@ -80,10 +112,46 @@ export class TokenService {
       record.revokedAt !== null &&
       (await argon2.verify(record.tokenHash, parsed.secret))
     ) {
-      // Réutilisation d'un token déjà rotaté : le secret présenté VÉRIFIE contre
-      // le hash d'un token révoqué — quelqu'un rejoue un ancien refresh (vol
-      // probable). On révoque toute la famille de jetons de l'utilisateur
-      // (audit #10, « refresh token reuse detection »).
+      /*
+        Le secret presente VERIFIE contre le hash d'un jeton revoque : quelqu'un
+        rejoue un ancien refresh. Deux lectures possibles, et il faut les
+        separer.
+      */
+      const successor = record.replacedById
+        ? await this.prisma.refreshToken.findUnique({
+            where: { id: record.replacedById },
+            include: { user: true },
+          })
+        : null;
+      const age = Date.now() - record.revokedAt.getTime();
+
+      /*
+        **Reponse perdue en route.** La rotation vient d'avoir lieu, et le
+        successeur n'a JAMAIS servi : personne d'autre ne s'est authentifie
+        entre-temps. L'app rejoue donc l'ancien jeton parce qu'elle n'a pas recu
+        le nouveau. On lui rend une paire valide au lieu de la deconnecter.
+
+        La condition `successor.revokedAt === null` est essentielle : si le
+        successeur a deja ete utilise, c'est qu'un autre porteur a poursuivi la
+        chaine — et la, c'est bien un rejeu suspect.
+      */
+      if (
+        age <= REPLAY_GRACE_MS &&
+        successor &&
+        successor.revokedAt === null &&
+        successor.expiresAt.getTime() > Date.now() &&
+        successor.user.status === UserStatus.ACTIVE
+      ) {
+        await this.prisma.refreshToken.update({
+          where: { id: successor.id },
+          data: { revokedAt: new Date() },
+        });
+        const tokens = await this.issueTokens(successor.user, successor.id);
+        return { tokens, user: successor.user };
+      }
+
+      // Sinon : vol probable. On revoque toute la famille de jetons de
+      // l'utilisateur (audit #10, « refresh token reuse detection »).
       await this.revokeAllForUser(record.userId);
       throw new UnauthorizedException('Invalid or expired refresh token.');
     }
@@ -102,7 +170,7 @@ export class TokenService {
       where: { id: record.id },
       data: { revokedAt: new Date() },
     });
-    const tokens = await this.issueTokens(record.user);
+    const tokens = await this.issueTokens(record.user, record.id);
     return { tokens, user: record.user };
   }
 

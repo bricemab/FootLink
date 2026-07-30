@@ -68,7 +68,20 @@ export default (): AppConfiguration => ({
     accessSecret: process.env.JWT_ACCESS_SECRET ?? '',
     refreshSecret: process.env.JWT_REFRESH_SECRET ?? '',
     accessTtl: int(process.env.JWT_ACCESS_TTL, 900),
-    refreshTtl: int(process.env.JWT_REFRESH_TTL, 2592000),
+    /*
+      🔴 **Un an, et GLISSANT** — chaque rotation repart d'un an. Trente jours
+      avant : quelqu'un qui n'ouvrait pas l'app pendant un mois se retrouvait
+      deconnecte sans avoir rien fait, ce que Brice refuse explicitement. Avec
+      un an, seule une desinstallation ou une deconnexion volontaire met fin a
+      la session.
+
+      ⚠️ Contrepartie assumee, et elle est reelle : un refresh token vole reste
+      exploitable un an. Ce qui la rend tenable, c'est que la revocation existe
+      des deux cotes — la deconnexion revoque le jeton, et la detection de rejeu
+      revoque toute la famille (`token.service.ts`). Le jour ou l'app aura une
+      liste d'appareils connectes, ce sera l'endroit ou couper.
+    */
+    refreshTtl: int(process.env.JWT_REFRESH_TTL, 31536000),
   },
   google: {
     clientIds: (process.env.GOOGLE_CLIENT_IDS ?? '')

@@ -208,20 +208,77 @@ async function main(): Promise<void> {
     });
     check('rotation du refresh token', rotated.status === 200, rotated.status);
 
-    const replayed = await call('POST', '/auth/refresh', { body: { refreshToken: first.refreshToken } });
-    check('rejouer l’ancien refresh est refusé', replayed.status === 401, replayed.status);
-
     /*
-     * 🔴 Le contrôle qui compte. Avant le correctif, rejouer un ancien jeton se
-     * contentait d'une 401 : le voleur ET la victime gardaient chacun une
-     * session valide. Le rejeu doit révoquer TOUTE la famille — donc le jeton
-     * fraîchement rotaté, pourtant légitime, doit mourir lui aussi.
+     * 🔴 **Rejeu IMMÉDIAT d'un jeton dont le successeur n'a jamais servi.**
+     *
+     * Ce n'est pas un vol, c'est une réponse perdue en route : le serveur a
+     * rotaté, l'app n'a jamais reçu le nouveau jeton, elle rejoue donc l'ancien
+     * de bonne foi. Ça arrive pour de vrai sur mobile — réseau coupé à
+     * mi-requête, application mise en arrière-plan, processus tué. Avant, ce cas
+     * révoquait TOUTE la famille et déconnectait quelqu'un qui n'avait rien fait
+     * de mal, sans qu'il puisse comprendre pourquoi.
+     *
+     * ⚠️ Ce contrôle attendait 401 jusqu'au 30/07/2026. Le changement est
+     * DÉLIBÉRÉ et il assouplit le correctif #10 de l'audit : voir
+     * `REPLAY_GRACE_MS` dans `token.service.ts` pour ce qu'il coûte exactement.
      */
-    const familyKilled = await call('POST', '/auth/refresh', {
-      body: { refreshToken: rotated.body?.refreshToken ?? '' },
+    const replayed = await call<{ refreshToken: string; accessToken: string }>('POST', '/auth/refresh', {
+      body: { refreshToken: first.refreshToken },
     });
     check(
-      'le rejeu révoque toute la famille de jetons (pas seulement le jeton rejoué)',
+      '🔴 rejeu immédiat, successeur inutilisé : toléré (réponse perdue, pas un vol)',
+      replayed.status === 200,
+      replayed.status,
+    );
+
+    /*
+     * Le rattrapage doit rendre une session RÉELLEMENT utilisable — c'est tout
+     * son intérêt. Un 200 qui renverrait une paire inerte serait pire que le
+     * 401 qu'il remplace : l'app se croirait sauvée et échouerait à la requête
+     * suivante.
+     *
+     * ⚠️ On ne vérifie PAS ici que le jeton repris par le rattrapage est mort.
+     * Dans la fenêtre, n'importe quel maillon de la chaîne est rejouable une
+     * fois : c'est la définition même de la tolérance, une réponse perdue étant
+     * indistinguable d'un rejeu. La garantie qui tient, c'est qu'un seul jeton
+     * est vivant à la fois — chaque rattrapage révoque celui qu'il reprend — et
+     * que hors fenêtre tout redevient strict, ce que contrôlent les deux
+     * vérifications suivantes.
+     */
+    const rescued = await call('GET', '/auth/me', {
+      headers: { authorization: `Bearer ${replayed.body?.accessToken ?? ''}` },
+    });
+    check(
+      'le rattrapage rend une session utilisable, pas une coquille vide',
+      rescued.status === 200,
+      rescued.status,
+    );
+
+    /*
+     * 🔴 **Le contrôle de l'audit #10, toujours là.** Hors de la fenêtre de
+     * tolérance, un rejeu redevient un vol présumé et tue toute la famille —
+     * donc le jeton courant, pourtant légitime, meurt lui aussi.
+     *
+     * On vieillit la révocation en base plutôt que d'attendre une minute : c'est
+     * la SEULE condition qui sépare les deux comportements, et un test qui
+     * dormirait 60 s ne serait jamais relancé.
+     */
+    const current = replayed.body?.refreshToken ?? '';
+    const replayedId = first.refreshToken.split('.')[0];
+    sql(
+      `UPDATE RefreshToken SET revokedAt = DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+       WHERE id = '${replayedId}';`,
+    );
+    const stolen = await call('POST', '/auth/refresh', {
+      body: { refreshToken: first.refreshToken },
+    });
+    check('hors fenêtre, le rejeu est refusé', stolen.status === 401, stolen.status);
+
+    const familyKilled = await call('POST', '/auth/refresh', {
+      body: { refreshToken: current },
+    });
+    check(
+      '🔴 …et il révoque toute la famille, pas seulement le jeton rejoué',
       familyKilled.status === 401,
       familyKilled.status,
     );

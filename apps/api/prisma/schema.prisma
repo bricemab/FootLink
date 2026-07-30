@@ -208,6 +208,20 @@ model RefreshToken {
   createdAt DateTime  @default(now())
   revokedAt DateTime?
 
+  /// Le jeton emis en remplacement de celui-ci, lors de la rotation.
+  ///
+  /// Il sert a distinguer DEUX choses que la detection de rejeu confondait :
+  /// un vol (on rejoue un vieux jeton) et une reponse perdue en route (le
+  /// serveur a bien rotate, l'app n'a jamais recu le nouveau jeton et rejoue
+  /// donc l'ancien, de bonne foi). Sans lui, le second cas revoquait toute la
+  /// famille et deconnectait quelqu'un qui n'avait rien fait de mal.
+  ///
+  /// Volontairement un identifiant NU, sans cle etrangere : une auto-relation
+  /// obligerait a declarer les deux sens et compliquerait toutes les purges,
+  /// pour une garantie dont on n'a pas besoin — un successeur disparu se lit
+  /// exactement comme un successeur absent.
+  replacedById String?
+
   @@index([userId])
 }
 

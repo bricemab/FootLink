@@ -397,7 +397,15 @@ async function main(): Promise<void> {
     // Les annonces, équipes et appartenances partent en cascade avec le club ;
     // les profils joueur avec l'utilisateur.
     sql(`DELETE FROM \`Club\` WHERE name LIKE '${CLUB_PREFIX}%';`);
-    sql(`DELETE FROM \`User\` WHERE email LIKE '%@${DOMAIN}';`);
+    /*
+    🔴 **Borne au RUN de cette execution.** Sans le second motif, cette ligne
+    supprimait TOUS les comptes du domaine de test, y compris ceux qu'elle
+    n'avait pas crees. Elle a efface un compte de demo pendant une session de
+    verification : l'app affichait « ta session a expire » alors que le compte
+    n'existait plus. Une suite de tests qui detruit ce qu'elle n'a pas cree est
+    un piege qui se declenche loin de sa cause.
+  */
+  sql(`DELETE FROM \`User\` WHERE email LIKE '%@${DOMAIN}' AND email LIKE '%${RUN}%';`);
   }
 
   console.log(failures === 0 ? '\nTOUT PASSE' : `\n${failures} CONTROLE(S) EN ECHEC`);

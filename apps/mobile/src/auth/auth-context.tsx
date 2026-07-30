@@ -13,7 +13,14 @@ import * as authApi from '@/api/auth';
 import type { AuthTokens, MeResponse, ProfileHints } from '@/api/auth';
 import { ApiError } from '@/api/client';
 import { getGoogleIdToken, googleSignOut } from './google-sign-in';
-import { clearTokens, loadTokens, saveTokens, type StoredTokens } from './token-storage';
+import {
+  clearTokens,
+  loadProfile,
+  loadTokens,
+  saveProfile,
+  saveTokens,
+  type StoredTokens,
+} from './token-storage';
 
 type Phase = 'loading' | 'signedOut' | 'signedIn';
 
@@ -59,6 +66,29 @@ interface AuthValue {
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
+
+/**
+ * Le profil en cache a-t-il la forme attendue ?
+ *
+ * ⚠️ **Ce n'est pas de la paranoia.** Ce JSON a ete ecrit par la version de
+ * l'app installee ce jour-la : apres une mise a jour, il peut lui manquer un
+ * champ que les ecrans considerent comme acquis. On verifie donc ce dont
+ * dependent le routage et le premier rendu, et on jette le reste plutot que de
+ * faire planter le demarrage — le vrai profil arrive de toute facon une seconde
+ * plus tard.
+ */
+function isProfile(value: unknown): value is MeResponse {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<MeResponse>;
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.email === 'string' &&
+    typeof candidate.role === 'string' &&
+    typeof candidate.emailVerified === 'boolean'
+  );
+}
 
 export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   const [phase, setPhase] = useState<Phase>('loading');
@@ -156,15 +186,28 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     [rotateOnce],
   );
 
+  /**
+   * Relit le profil.
+   *
+   * 🔴 **Une seule chose doit deconnecter : un refus d'authentification
+   * DEFINITIF.** N'importe quelle autre erreur laissait la session sur le
+   * carreau — un 500 passager, une coupure a mi-requete, un serveur qui
+   * redemarre. La regle est desormais explicite : on ne se deconnecte que sur
+   * un 401 qui a survecu a la rotation, c'est-a-dire quand le refresh lui-meme
+   * a ete refuse. Tout le reste se retente.
+   *
+   * Le profil est mis en cache a chaque succes : c'est lui qui permet de
+   * demarrer hors ligne sans renvoyer personne a l'ecran de connexion.
+   */
   const reload = useCallback(async () => {
     try {
       const profile = await authed((accessToken) => authApi.me(accessToken));
       setUser(profile);
       setPhase('signedIn');
+      await saveProfile(profile);
     } catch (error) {
-      // Une panne réseau ne doit pas déconnecter : on garde la session et on
-      // laissera l'écran proposer un « réessayer ».
-      if (error instanceof ApiError && error.code === 'NETWORK') {
+      const definitive = error instanceof ApiError && error.status === 401;
+      if (!definitive) {
         throw error;
       }
       await forgetSession();
@@ -184,12 +227,34 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         return;
       }
       tokens.current = stored;
+
+      /*
+        🔴 **On entre AVANT d'avoir parle au serveur.** Le profil en cache suffit
+        a ouvrir l'app : le lancement devient instantane, et surtout une panne
+        reseau ne renvoie plus personne a l'ecran de connexion. La verite
+        arrive juste apres, par `reload()`.
+
+        ⚠️ Le cache vient d'une version peut-etre plus ancienne de l'app : on
+        verifie donc la forme minimale avant de s'en servir, sinon un champ
+        ajoute depuis ferait planter le premier ecran.
+      */
+      const cached = await loadProfile();
+      if (!cancelled && isProfile(cached)) {
+        setUser(cached);
+        setPhase('signedIn');
+      }
+
       try {
         await reload();
       } catch {
-        // Hors ligne au lancement : on reste sur l'écran de chargement le temps
-        // que l'utilisateur retente, plutôt que de le déconnecter à tort.
-        if (!cancelled) {
+        /*
+          Injoignable. Avec un profil en cache on reste dedans — c'est tout
+          l'interet. Sans cache (premiere ouverture apres installation, hors
+          ligne), on ne peut rien afficher : l'ecran de connexion est alors la
+          seule chose honnete, et les jetons restent en place pour la prochaine
+          tentative.
+        */
+        if (!cancelled && !isProfile(cached)) {
           setPhase('signedOut');
         }
       }
