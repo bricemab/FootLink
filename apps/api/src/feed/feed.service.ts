@@ -101,6 +101,19 @@ interface ListingRow {
   distanceKm: number;
 }
 
+/**
+ * Le joueur et ce qu'on a deduit de lui, une fois pour toutes.
+ *
+ * `eligible` vide = aucune categorie ouverte a son age : ce n'est pas une
+ * erreur, c'est un feed vide.
+ */
+interface PlayerContext {
+  player: Prisma.PlayerProfileGetPayload<{ include: { positions: true } }>;
+  primary: Poste;
+  secondary: Poste[];
+  eligible: string[];
+}
+
 /** Ligne brute renvoyee par la requete SQL du feed club. */
 interface PlayerRow {
   id: string;
@@ -143,6 +156,54 @@ export class FeedService {
    * d'envoyer la personne completer ce qui manque.
    */
   async listingsForPlayer(userId: string, query: FeedQueryDto): Promise<FeedListing[]> {
+    const context = await this.playerContext(userId);
+    if (context.eligible.length === 0) {
+      return [];
+    }
+    const { player, primary, secondary } = context;
+
+    const rows = await this.prisma.$queryRaw<ListingRow[]>`
+      SELECT
+        l.id AS id,
+        ${this.matchRankSql(primary, secondary)} AS matchRank,
+        ${this.matchedPosteSql(primary, secondary)} AS matchedPoste,
+        ${this.distanceSql(
+          Number(player.lat),
+          Number(player.lng),
+          Prisma.sql`c.lat`,
+          Prisma.sql`c.lng`,
+        )} AS distanceKm
+      FROM Listing l
+      JOIN Team t ON t.id = l.teamId
+      JOIN Club c ON c.id = t.clubId
+      WHERE ${this.visibleToPlayerSql(context, userId)}
+        -- Deja decide : postule ou mis de cote. Le revoir dans le feed donnerait
+        -- l'impression que le geste precedent n'a servi a rien.
+        AND NOT EXISTS (
+          SELECT 1 FROM PlayerInterest pi
+          WHERE pi.listingId = l.id AND pi.playerId = ${player.id}
+        )
+        -- Ecartee par le joueur. La portee est la PAIRE : ecarter une annonce
+        -- n'en cache aucune autre, pas meme du meme club.
+        AND NOT EXISTS (
+          SELECT 1 FROM ListingDismissal ld
+          WHERE ld.listingId = l.id AND ld.playerId = ${player.id}
+        )
+      ORDER BY matchRank ASC, distanceKm ASC, l.createdAt DESC, l.id ASC
+      LIMIT ${query.limit ?? 20} OFFSET ${query.offset ?? 0}
+    `;
+
+    return this.hydrateListings(rows);
+  }
+
+  /**
+   * Ce que le joueur doit avoir renseigne pour qu'un feed ait un sens.
+   *
+   * Extrait parce que la garde d'acces (`assertListingOpenToPlayer`) en a besoin
+   * exactement pareil : un joueur sans poste principal ne peut pas plus postuler
+   * que decouvrir.
+   */
+  private async playerContext(userId: string): Promise<PlayerContext> {
     const player = await this.prisma.playerProfile.findUnique({
       where: { userId },
       include: { positions: true },
@@ -167,29 +228,38 @@ export class FeedService {
         message: 'Choose your main position first.',
       });
     }
-    const secondary = player.positions.filter((p) => !p.isPrimary).map((p) => p.poste);
 
-    const seasonStartYear = getSeasonStartYear(new Date());
-    const eligible = getEligibleCategories(player.birthYear, seasonStartYear, player.gender);
-    if (eligible.length === 0) {
-      return [];
-    }
+    return {
+      player,
+      primary,
+      secondary: player.positions.filter((p) => !p.isPrimary).map((p) => p.poste),
+      eligible: getEligibleCategories(
+        player.birthYear,
+        getSeasonStartYear(new Date()),
+        player.gender,
+      ),
+    };
+  }
 
-    const rows = await this.prisma.$queryRaw<ListingRow[]>`
-      SELECT
-        l.id AS id,
-        ${this.matchRankSql(primary, secondary)} AS matchRank,
-        ${this.matchedPosteSql(primary, secondary)} AS matchedPoste,
-        ${this.distanceSql(
-          Number(player.lat),
-          Number(player.lng),
-          Prisma.sql`c.lat`,
-          Prisma.sql`c.lng`,
-        )} AS distanceKm
-      FROM Listing l
-      JOIN Team t ON t.id = l.teamId
-      JOIN Club c ON c.id = t.clubId
-      WHERE l.status = ${ListingStatus.ACTIVE}
+  /**
+   * Ce qui rend une annonce visible d'un joueur donne.
+   *
+   * 🔴 **Une seule ecriture de la regle, deux usages.** Le feed s'en sert pour
+   * lister, la garde d'acces pour autoriser un geste. Recopiee, elle aurait
+   * derive — et on aurait fini par pouvoir postuler a une annonce qu'on ne peut
+   * pas voir, ou l'inverse, plus vicieux : voir une annonce sur laquelle aucun
+   * geste ne passe.
+   *
+   * ⚠️ Elle ne contient PAS les exclusions « deja decide ». Sinon on ne pourrait
+   * plus transformer une annonce enregistree en candidature : l'enregistrement
+   * l'aurait rendue invisible a sa propre garde.
+   *
+   * Attend les alias `l` (Listing), `t` (Team) et `c` (Club).
+   */
+  private visibleToPlayerSql(context: PlayerContext, userId: string): Prisma.Sql {
+    const { player, primary, secondary, eligible } = context;
+    return Prisma.sql`
+      l.status = ${ListingStatus.ACTIVE}
         AND l.season = ${getCurrentSeasonLabel(new Date())}
         -- Ceinture et bretelles avec l'ordonnanceur : une annonce echue ne doit
         -- jamais apparaitre, meme si le passage quotidien n'a pas encore tourne.
@@ -206,24 +276,41 @@ export class FeedService {
           Prisma.sql`c.lat`,
           Prisma.sql`c.lng`,
         )} <= ${player.searchRadiusKm}
-        -- Deja decide : postule ou mis de cote. Le revoir dans le feed donnerait
-        -- l'impression que le geste precedent n'a servi a rien.
-        AND NOT EXISTS (
-          SELECT 1 FROM PlayerInterest pi
-          WHERE pi.listingId = l.id AND pi.playerId = ${player.id}
-        )
-        -- Ecartee par le joueur. La portee est la PAIRE : ecarter une annonce
-        -- n'en cache aucune autre, pas meme du meme club.
-        AND NOT EXISTS (
-          SELECT 1 FROM ListingDismissal ld
-          WHERE ld.listingId = l.id AND ld.playerId = ${player.id}
-        )
         ${this.blockFilterSql(userId, Prisma.sql`cm.userId`)}
-      ORDER BY matchRank ASC, distanceKm ASC, l.createdAt DESC, l.id ASC
-      LIMIT ${query.limit ?? 20} OFFSET ${query.offset ?? 0}
     `;
+  }
 
-    return this.hydrateListings(rows);
+  /**
+   * Le joueur a-t-il le droit d'agir sur cette annonce ?
+   *
+   * Renvoie l'identifiant de son profil, pour eviter au module d'interactions de
+   * le relire juste apres.
+   *
+   * ⚠️ **404 et non 403 quand l'annonce existe mais ne le concerne pas.** Un 403
+   * confirmerait son existence a quelqu'un qui n'a pas a la connaitre, et
+   * distinguer les deux cas apprendrait a un joueur bloque qu'il l'est.
+   */
+  async assertListingOpenToPlayer(
+    userId: string,
+    listingId: string,
+  ): Promise<{ playerId: string }> {
+    const context = await this.playerContext(userId);
+    if (context.eligible.length === 0) {
+      throw new NotFoundException('Listing not found.');
+    }
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT l.id AS id
+      FROM Listing l
+      JOIN Team t ON t.id = l.teamId
+      JOIN Club c ON c.id = t.clubId
+      WHERE l.id = ${listingId}
+        AND ${this.visibleToPlayerSql(context, userId)}
+      LIMIT 1
+    `;
+    if (rows.length === 0) {
+      throw new NotFoundException('Listing not found.');
+    }
+    return { playerId: context.player.id };
   }
 
   /**
@@ -335,6 +422,25 @@ export class FeedService {
       update: {},
       create: { playerId: player.id, listingId },
     });
+  }
+
+  /**
+   * Le joueur revient sur son rejet.
+   *
+   * `deleteMany` et non `delete` : sans rejet a supprimer, il n'y a rien a
+   * signaler. Annuler un geste qu'on n'a pas fait n'est pas une erreur, et lever
+   * une exception ici obligerait l'app a distinguer deux cas qui, pour la
+   * personne, sont le meme.
+   */
+  async undismiss(userId: string, listingId: string): Promise<void> {
+    const player = await this.prisma.playerProfile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    if (!player) {
+      return;
+    }
+    await this.prisma.listingDismissal.deleteMany({ where: { playerId: player.id, listingId } });
   }
 
   /**

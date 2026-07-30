@@ -1,4 +1,13 @@
-import { Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { FeedQueryDto } from './dto/feed.dto';
 import { FeedService, type FeedListing, type FeedPlayer } from './feed.service';
@@ -34,6 +43,22 @@ export class FeedController {
   @Post('listings/:id/dismiss')
   async dismiss(@CurrentUser('userId') userId: string, @Param('id') id: string): Promise<void> {
     await this.feed.dismiss(userId, id);
+  }
+
+  /**
+   * Annuler le rejet : l'annonce redevient proposable.
+   *
+   * 🔴 **C'est ce qui rend le geste bon marche.** Sans retour en arriere, chaque
+   * glissement vers la gauche est definitif, donc on hesite avant chaque carte —
+   * et un paquet de cartes ou l'on hesite ne sert a rien. Le cout d'un geste
+   * decide de son rythme.
+   *
+   * Idempotent : annuler un rejet qui n'existe pas ne casse rien.
+   */
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Delete('listings/:id/dismiss')
+  async undismiss(@CurrentUser('userId') userId: string, @Param('id') id: string): Promise<void> {
+    await this.feed.undismiss(userId, id);
   }
 
   /**
